@@ -55,12 +55,12 @@ evaluation bench comes at step 7.
 | 1 | Garmin sync into Postgres, metric definitions, tests on synthetic data | ✅ Done |
 | 2 | Single agent (LangGraph + Mistral): read tools, structured output, deterministic guardrail, dry-run mode | ⏳ Next |
 | 3 | Long-term memory (goals, injuries, preferences, past plans) and a `remember` tool | Planned |
-| 4 | Human in the loop: pause before any write, approve / edit / reject, Postgres checkpoints | Planned |
+| 4 | Human in the loop: pause before any write, approve / edit / reject in a first Next.js UI over a FastAPI API, Postgres checkpoints | Planned |
 | 5 | Audit log of every node and tool call, with an audit page | Planned |
 | 6 | Multi-agent graph (recovery analyst, load analyst, planner, guardrail, writer) on the same state and tools | Planned |
 | 7 | Evaluation bench: 20 to 40 scenarios, expectations written first, single agent vs multi-agent | Planned |
 | 8 | Approved writes to Garmin (`schedule_workout`), outside dry-run only | Planned |
-| 9 | Private deployment behind authentication (Next.js UI, FastAPI), CI/CD and monitoring | Planned |
+| 9 | Private deployment of the UI and API behind authentication, CI/CD and monitoring | Planned |
 | 10 | Results write-up: architecture diagram, bench results and limits | Planned |
 
 The multi-agent graph is kept only if it has no constraint violation, cites numbers at least
@@ -76,8 +76,9 @@ uv sync
 uv run lifter sync --days 90       # creates or updates the schema, then syncs (read-only)
 uv run lifter metrics --days 14
 ```
-`lifter sync --refresh` refetches days already stored; a failed call is logged and the sync
-goes on, and it stops after 5 failures in a row.
+Days already stored are not fetched again, except the last 3 (Garmin completes them late);
+`lifter sync --refresh` refetches the whole range. A failed call is logged and the sync goes
+on, and it stops after 5 failures in a row.
 
 ## Project structure
 ```

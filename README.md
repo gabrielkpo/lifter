@@ -73,15 +73,15 @@ Choices and their trade-offs:
 data (regenerate it with [scripts/readme_example.py](scripts/readme_example.py)), last 8 rows:
 
 ```
-day         load  acute_load_7d  chronic_load_28d  acwr  hrv_delta_pct  rhr_delta_bpm  sleep_hours  recovery_score  recovery_status  trend
-2026-09-20  75    405.0          435.0             0.93  -4.6           -1.1           7.70         63              normal           stable
-2026-09-21  0     405.0          435.0             0.93  0.3            -1.1           6.65         56              normal           stable
-2026-09-22  150   495.0          450.0             1.10  1.6            -1.0           7.14         62              normal           stable
-2026-09-23  110   530.0          458.8             1.16  1.8            -1.0           6.57         56              normal           stable
-2026-09-24  130   540.0          472.5             1.14  -20.1          1.0            8.08         47              normal           improving
-2026-09-25  130   670.0          505.0             1.33  -6.5           3.0            7.09         41              normal           improving
-2026-09-26  110   705.0          502.5             1.40  -22.4          2.9            7.36         33              low              fatigue
-2026-09-27  130   760.0          505.0             1.50  -3.6           2.8            7.42         48              normal           fatigue
+day         load   acute_load_7d  chronic_load_28d  acwr  hrv_delta_pct  rhr_delta_bpm  sleep_hours  recovery_score  recovery_status  trend
+2026-09-20  75.0   405.0          435.0             0.93  -4.6           -1.1           7.70         63              normal           stable
+2026-09-21  0.0    405.0          435.0             0.93  0.3            -1.1           6.65         56              normal           stable
+2026-09-22  150.0  495.0          450.0             1.10  1.6            -1.0           7.14         62              normal           stable
+2026-09-23  110.0  530.0          458.8             1.16  1.8            -1.0           6.57         56              normal           stable
+2026-09-24  130.0  540.0          472.5             1.14  -20.1          1.0            8.08         47              normal           improving
+2026-09-25  130.0  670.0          505.0             1.33  -6.5           3.0            7.09         41              normal           improving
+2026-09-26  110.0  705.0          502.5             1.40  -22.4          2.9            7.36         33              low              fatigue
+2026-09-27  130.0  760.0          505.0             1.50  -3.6           2.8            7.42         48              normal           fatigue
 ```
 
 On 26 September, HRV is 22 % under the athlete's baseline (`hrv_drop` alert), recovery is `low`

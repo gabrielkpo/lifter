@@ -77,15 +77,23 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     return 1 if report.counts["error"] else 0
 
 
+def format_table(columns: tuple[str, ...], rows: list[tuple]) -> str:
+    """Align columns with two spaces; a missing value is shown as "-" so columns never shift."""
+    cells = [list(columns)] + [["-" if v is None else str(v) for v in row] for row in rows]
+    widths = [max(len(line[i]) for line in cells) for i in range(len(columns))]
+    return "\n".join(
+        "  ".join(cell.ljust(width) for cell, width in zip(line, widths, strict=True)).rstrip()
+        for line in cells
+    )
+
+
 def print_last_days(settings: Settings, view: str, columns: tuple[str, ...], days: int) -> int:
-    """Print the last `days` rows of an analytics view, oldest first, tab-separated."""
+    """Print the last `days` rows of an analytics view, oldest first."""
     with connect(settings.database_url) as conn:
         rows = conn.execute(
             f"select {', '.join(columns)} from {view} order by day desc limit %s", (days,)
         ).fetchall()
-    print("\t".join(columns))
-    for row in reversed(rows):
-        print("\t".join("" if v is None else str(v) for v in row))
+    print(format_table(columns, list(reversed(rows))))
     return 0
 
 

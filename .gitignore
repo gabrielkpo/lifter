@@ -1,0 +1,14 @@
+# secrets
+.env
+# Garmin exports and any real health data stay out of Git
+data/
+*.dump
+# VibeWise learning profile (local only)
+.vibe-wise/
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.DS_Store

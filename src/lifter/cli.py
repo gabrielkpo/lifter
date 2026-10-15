@@ -505,6 +505,7 @@ BENCH_DIR = Path(__file__).resolve().parents[2] / "bench"
 
 
 def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
+    import psycopg
     from psycopg.conninfo import conninfo_to_dict
 
     from lifter.bench.baseline import CopyLastWeek
@@ -537,9 +538,20 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
 
     scenarios = read_scenarios(args.scenarios)
     if args.only:
+        unknown = sorted(set(args.only) - {s.name for s in scenarios})
+        if unknown:
+            print(printable(f"unknown scenarios: {', '.join(unknown)}"))
+            return 2
         scenarios = [s for s in scenarios if s.name in args.only]
     results = []
-    with connect(settings.bench_database_url) as conn:
+    try:
+        conn = connect(settings.bench_database_url)
+    except psycopg.OperationalError as exc:
+        print(
+            printable(f"cannot reach the bench database ({exc}); create it: createdb lifter_bench")
+        )
+        return 2
+    with conn:
         migrate(conn)
         for scenario in scenarios:
             runs = run_scenario(conn, scenario, make_planner, args.runs)

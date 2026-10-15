@@ -26,6 +26,7 @@ class Violation:
     check: str
     message: str
     day: str | None = None
+    items: tuple[str, ...] = ()  # what is at fault, when countable (e.g. unsourced numbers)
 
     def __str__(self) -> str:
         where = f" ({self.day})" if self.day else ""
@@ -114,6 +115,7 @@ def check_sources(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
                 "sources",
                 f"the {label} cites numbers found nowhere in the context: {', '.join(unsourced)}",
                 day,
+                tuple(unsourced),
             )
 
 

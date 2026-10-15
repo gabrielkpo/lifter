@@ -5,8 +5,8 @@ planner runs `runs` times on it (the model's answers vary; the spread is measure
 proposed: plans are only checked.
 
 Measured per run (docs/bench.md): accepted or not, attempts, constraint violations of the
-first plan (before any correction) and of the final one, numbers cited without a source,
-expectations met, tokens and seconds.
+first plan (before any correction) and of the final one, answers that did not parse, numbers
+cited without a source, expectations met, tokens and seconds.
 """
 
 import json
@@ -33,6 +33,7 @@ class RunResult:
     attempts: int
     first_violations: int
     final_violations: int
+    schema_failures: int
     unsourced_numbers: int
     expectations_met: int
     expectations: int
@@ -69,6 +70,7 @@ def run_scenario(
         )
         outcomes = evaluate(scenario.expect, result)
         first = result.verdicts[0].violations if result.verdicts else []
+        every = [v for verdict in result.verdicts for v in verdict.violations]
         results.append(
             RunResult(
                 scenario=scenario.name,
@@ -76,11 +78,11 @@ def run_scenario(
                 run=run,
                 accepted=result.accepted,
                 attempts=result.attempts,
-                first_violations=len(first),
-                final_violations=len(result.verdict.violations),
-                unsourced_numbers=sum(
-                    1 for v in result.verdicts for x in v.violations if x.check == "sources"
-                ),
+                # rule breaks only: an answer that did not parse is counted apart
+                first_violations=sum(1 for v in first if v.check != "schema"),
+                final_violations=sum(1 for v in result.verdict.violations if v.check != "schema"),
+                schema_failures=sum(1 for v in every if v.check == "schema"),
+                unsourced_numbers=sum(len(v.items) for v in every if v.check == "sources"),
                 expectations_met=sum(o.passed for o in outcomes),
                 expectations=len(outcomes),
                 outcomes=outcomes,
@@ -101,6 +103,7 @@ def summary(results: list[RunResult]) -> dict:
         "accepted_rate": round(sum(r.accepted for r in results) / runs, 3),
         "first_plan_violations": sum(r.first_violations for r in results),
         "final_violations": sum(r.final_violations for r in results),
+        "schema_failures": sum(r.schema_failures for r in results),
         "unsourced_numbers": sum(r.unsourced_numbers for r in results),
         "expectations_met_rate": round(met / total, 3),
         "input_tokens": sum(r.input_tokens for r in results),

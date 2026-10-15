@@ -34,8 +34,9 @@ Per scenario and per run (the model's answers vary: `--runs 3` measures the spre
 | Measure | Meaning |
 |---|---|
 | accepted | The guardrail accepted the final plan (at most 3 attempts) |
-| first-plan violations | Guardrail violations of the model's first answer, before any correction: the constraint-violation count of the decision rule |
-| unsourced numbers | `sources` violations over all attempts: numbers cited that exist nowhere in the context |
+| first-plan violations | Rule violations of the model's first answer, before any correction: the constraint-violation count of the decision rule |
+| schema failures | Answers that did not even parse as a plan, over all attempts (counted apart from rule violations) |
+| unsourced numbers | Numbers cited in a summary or a rationale that exist nowhere in the context, over all attempts |
 | expectations met | Machine-checked expectations of the scenario (`src/lifter/bench/expect.py`) |
 | tokens, seconds | Cost and latency, from the model's usage metadata |
 

@@ -145,12 +145,13 @@ def _log(conn: psycopg.Connection, change: LogChange) -> None:
     session_id = _session_id(conn, change)
     updated = conn.execute(
         "update session_exercise e set"
-        " load_kg = coalesce(%s, e.load_kg), load_kg_max = null,"
+        " load_kg = coalesce(%s, e.load_kg),"
+        " load_kg_max = case when %s::numeric is null then e.load_kg_max end,"
         " quantity = coalesce(%s, e.quantity), rir = coalesce(%s, e.rir)"
         " from session_part sp, exercise x"
         " where e.part_id = sp.id and sp.session_id = %s and e.origin = 'done'"
         " and x.id = e.exercise_id and x.name = %s returning e.id",
-        (change.load_kg, change.quantity, change.rir, session_id, change.exercise),
+        (change.load_kg, change.load_kg, change.quantity, change.rir, session_id, change.exercise),
     ).fetchall()
     if not updated:
         raise ValueError(f"no done '{change.exercise}' in '{change.title}' week {change.week}")

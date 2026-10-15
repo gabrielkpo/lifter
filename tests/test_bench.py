@@ -120,3 +120,55 @@ def test_the_bench_refuses_a_database_that_is_not_a_bench_one(monkeypatch, capsy
     monkeypatch.setenv("BENCH_DATABASE_URL", "postgresql:///lifter")
     assert main(["bench"]) == 2
     assert "lifter_bench" in capsys.readouterr().out
+
+
+def test_a_log_change_keeps_the_load_range_unless_the_load_changes(conn, scenarios):
+    from lifter.bench.scenario import LogChange, _log
+
+    apply_setup(conn, scenarios["volume_peak_week"])
+    conn.execute(
+        "update session_exercise set load_kg_max = 45 where origin = 'done'"
+        " and exercise_id = (select id from exercise where name = 'Power clean')"
+    )
+    ref = {"week": 2, "title": "Weightlifting + Push + Metcon", "exercise": "Power clean"}
+    _log(conn, LogChange(**ref, rir=1))
+    query = (
+        "select load_kg, load_kg_max, rir from session_line l join planned_session p"
+        " on p.id = l.session_id join training_week w on w.id = p.week_id"
+        " where w.number = 2 and l.origin = 'done' and l.exercise = 'Power clean'"
+    )
+    assert conn.execute(query).fetchone() == (42.5, 45, 1)
+    _log(conn, LogChange(**ref, load_kg=40))
+    assert conn.execute(query).fetchone() == (40, None, 1)
+
+
+def test_unsourced_numbers_are_counted_one_by_one(conn, scenarios):
+    from lifter.agents.plan import PlanSession, WeekPlan
+
+    class Inventing:
+        def __init__(self):
+            from lifter.agents.planner import Usage
+
+            self.usage = Usage()
+
+        def __call__(self, ctx, feedback):
+            session = PlanSession(
+                day=ctx.target_week.start_date,
+                title="Easy",
+                kind="mobility",
+                rationale="Recovery up 41.3 % and HRV up 17.9 %.",
+            )
+            return WeekPlan(summary="An easy week.", sessions=[session])
+
+    (run,) = run_scenario(conn, scenarios["volume_peak_week"], Inventing, runs=1)
+    assert run.unsourced_numbers == 3 * 2  # two invented numbers, refused three times
+    assert run.schema_failures == 0
+
+
+def test_the_bench_refuses_unknown_scenario_names(monkeypatch, capsys):
+    from lifter.cli import main
+
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("BENCH_DATABASE_URL", "postgresql:///lifter_bench_test")
+    assert main(["bench", "--only", "knee-pain"]) == 2
+    assert "unknown scenarios: knee-pain" in capsys.readouterr().out

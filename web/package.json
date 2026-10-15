@@ -4,11 +4,12 @@
   "private": true,
   "description": "Lifter app: mobile-first PWA over the Lifter API.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test lib/*.test.ts"
   },
   "engines": {
     "node": ">=22"

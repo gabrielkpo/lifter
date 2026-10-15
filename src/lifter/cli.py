@@ -77,9 +77,19 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     return 1 if report.counts["error"] else 0
 
 
+def printable(value: object) -> str:
+    """Text safe to print: control characters (terminal escapes, newlines) are shown escaped.
+
+    Agent rationales and Garmin names are untrusted: an escape sequence must never be able to
+    hide or rewrite what the athlete reads before approving.
+    """
+    text = "-" if value is None else str(value)
+    return "".join(c if c.isprintable() else repr(c)[1:-1] for c in text)
+
+
 def format_table(columns: tuple[str, ...], rows: list[tuple]) -> str:
     """Align columns with two spaces; a missing value is shown as "-" so columns never shift."""
-    cells = [list(columns)] + [["-" if v is None else str(v) for v in row] for row in rows]
+    cells = [list(columns)] + [[printable(v) for v in row] for row in rows]
     widths = [max(len(line[i]) for line in cells) for i in range(len(columns))]
     return "\n".join(
         "  ".join(cell.ljust(width) for cell, width in zip(line, widths, strict=True)).rstrip()

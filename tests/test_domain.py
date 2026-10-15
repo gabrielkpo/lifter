@@ -188,3 +188,26 @@ def test_proposals_are_validated_before_being_stored(conn):
     with pytest.raises(domain.DomainError):
         domain.propose(conn, "cancel_session", {"session_id": 1}, "  ", "coach")
     assert conn.execute("select count(*) from proposal").fetchone() == (0,)
+
+
+def test_a_cancelled_session_leaves_the_activity_unplanned(conn):
+    sid = domain.create_session(conn, session())
+    domain.cancel_session(conn, domain.CancelSession(session_id=sid))
+    store_payload(
+        conn, "get_activity", "1", {}, activity(1, PAST, load=80, activity_type="cycling")
+    )
+
+    rows = calendar(conn, PAST)
+    assert ("session", "lifter", "Endurance ride", "cycling", "cancelled") in rows
+    assert ("activity", "garmin", "Synthetic cycling", "cycling", "done (unplanned)") in rows
+
+
+def test_one_activity_completes_only_one_session(conn):
+    domain.create_session(conn, session())
+    domain.create_session(conn, session())  # a second ride planned the same day
+    store_payload(
+        conn, "get_activity", "1", {}, activity(1, PAST, load=80, activity_type="cycling")
+    )
+
+    statuses = sorted(r[-1] for r in calendar(conn, PAST))
+    assert statuses == ["done", "missed"]

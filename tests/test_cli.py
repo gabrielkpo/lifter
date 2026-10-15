@@ -85,3 +85,11 @@ def test_approving_a_proposal_applies_it(monkeypatch, capsys, conn, database_url
     assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 0
     assert "applied" in capsys.readouterr().out
     assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 1  # not pending
+
+
+def test_control_characters_are_escaped_in_tables():
+    from lifter.cli import format_table
+
+    out = format_table(("rationale",), [("ok\x1b[2K\rhidden",)])
+    assert "\x1b" not in out and "\r" not in out
+    assert "\\x1b[2K\\rhidden" in out

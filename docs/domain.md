@@ -48,7 +48,9 @@ Everything on the athlete's calendar, one row per item:
 
 Sport families (`sport_family`) let a planned `cycling` session be done by a `road_biking` or
 `indoor_cycling` activity: cycling, running, swimming, strength, walking; other types match
-only themselves (a `stop_watch` activity has no known sport).
+only themselves (a `stop_watch` activity has no known sport). Matching pairs the n-th planned
+session of a day and family with the n-th activity of that day and family, so one activity
+never completes two sessions; cancelled sessions do not claim activities.
 
 ## Garmin snapshots
 
@@ -64,6 +66,10 @@ an empty snapshot, so an item removed in Garmin disappears from Lifter too.
 | `stg_personal_record` | `get_personal_record` | `record_type`, `value`, `raw_value`, `day`, `activity_id` |
 
 Garmin goals are stored raw (their shape varies by goal type) for the agents to read.
+
+Cost: the events snapshot reads Garmin's calendar month by month (13 months, plus one request
+per event for its goal time), so each sync makes about 15 to 20 Garmin requests more than the
+daily data. Fine for one sync a day; to revisit if syncs become more frequent.
 
 ## Privacy note
 

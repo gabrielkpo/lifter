@@ -216,7 +216,8 @@ def apply(conn: psycopg.Connection, proposal_id: int) -> dict[str, Any]:
         raise DomainError(str(exc)) from None
     except (DomainError, psycopg.Error) as exc:
         conn.execute(
-            "update proposal set status = 'failed', result = %s where id = %s",
+            "update proposal set status = 'failed', result = %s"
+            " where id = %s and status = 'approved'",
             (Jsonb({"error": str(exc)}), proposal_id),
         )
         raise DomainError(f"proposal {proposal_id} failed: {exc}") from exc

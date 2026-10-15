@@ -468,7 +468,38 @@ where tool = 'get_personal_record'
 -- Planned sessions with their outcome: a session is "done" when an activity of the same
 -- sport family happened that day (or was matched explicitly), "missed" once the day is past
 -- without one, "cancelled" when the athlete or an approved proposal cancelled it.
+-- Automatic matching pairs the n-th planned session of a day and sport family with the n-th
+-- activity of that day and family (by start time), so one activity never completes two
+-- sessions; cancelled sessions and explicitly matched activities take no part in it.
 create view planned_session_status as
+with open_sessions as (
+    select
+        id,
+        day,
+        sport_family(sport) as family,
+        row_number() over (partition by day, sport_family(sport) order by id) as rank
+    from planned_session
+    where status = 'planned' and matched_activity_id is null
+),
+free_activities as (
+    select
+        activity_id,
+        activity_date as day,
+        sport_family(activity_type) as family,
+        row_number() over (
+            partition by activity_date, sport_family(activity_type)
+            order by start_time_local, activity_id
+        ) as rank
+    from stg_activity a
+    where not exists (
+        select 1 from planned_session p where p.matched_activity_id = a.activity_id
+    )
+),
+auto_match as (
+    select o.id, f.activity_id
+    from open_sessions o
+    join free_activities f using (day, family, rank)
+)
 select
     p.id as planned_session_id,
     p.day,
@@ -480,7 +511,8 @@ select
     p.goal_id,
     p.plan_id,
     p.moved_from,
-    coalesce(p.matched_activity_id, m.activity_id) as activity_id,
+    case when p.status = 'planned' then coalesce(p.matched_activity_id, m.activity_id) end
+        as activity_id,
     case
         when p.status = 'cancelled' then 'cancelled'
         when coalesce(p.matched_activity_id, m.activity_id) is not null then 'done'
@@ -488,14 +520,7 @@ select
         else 'planned'
     end as status
 from planned_session p
-left join lateral (
-    select a.activity_id
-    from stg_activity a
-    where a.activity_date = p.day
-        and sport_family(a.activity_type) = sport_family(p.sport)
-    order by a.start_time_local
-    limit 1
-) m on p.matched_activity_id is null;
+left join auto_match m on m.id = p.id;
 
 -- Everything on the athlete's calendar, one row per item: Lifter sessions, workouts that
 -- only exist in Garmin's calendar, activities done without a plan, and events (races).

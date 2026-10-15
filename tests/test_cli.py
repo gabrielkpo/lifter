@@ -40,3 +40,48 @@ def test_format_table_keeps_columns_aligned_with_missing_values():
     out = format_table(("day", "a", "b"), [("2026-01-01", None, 3), ("2026-01-02", 10, None)])
     lines = out.splitlines()
     assert lines == ["day         a   b", "2026-01-01  -   3", "2026-01-02  10  -"]
+
+
+def run_cli(monkeypatch, database_url, *argv):
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    return main(list(argv))
+
+
+def test_planning_a_session_then_seeing_it_in_the_calendar(monkeypatch, capsys, conn, database_url):
+    assert (
+        run_cli(monkeypatch, database_url, "session-add", "2026-03-02", "cycling", "Long ride") == 0
+    )
+    assert (
+        run_cli(
+            monkeypatch,
+            database_url,
+            "calendar",
+            "--start",
+            "2026-03-01",
+            "--past",
+            "0",
+            "--ahead",
+            "3",
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "session 1 created" in out
+    assert "Long ride" in out and "missed" in out
+
+
+def test_invalid_feedback_is_refused_without_a_traceback(monkeypatch, capsys, conn, database_url):
+    assert run_cli(monkeypatch, database_url, "feedback", "--rpe", "11") == 2
+    assert "invalid input: rpe" in capsys.readouterr().out
+
+
+def test_approving_a_proposal_applies_it(monkeypatch, capsys, conn, database_url):
+    from lifter import domain
+
+    pid = domain.propose(conn, "create_goal", {"title": "Gran fondo"}, "From chat.", "coach")
+    assert run_cli(monkeypatch, database_url, "proposals") == 0
+    assert "Gran fondo" in capsys.readouterr().out
+    assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 0
+    assert "applied" in capsys.readouterr().out
+    assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 1  # not pending

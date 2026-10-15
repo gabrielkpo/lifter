@@ -405,3 +405,125 @@ left join stg_sleep s using (day)
 left join stg_daily_stats d using (day)
 left join stg_training_readiness r using (day)
 left join stg_training_status t using (day);
+
+-- Sport families, to match a planned session with the activity that fulfils it
+-- (a planned "cycling" ride is done by a road_biking or an indoor_cycling activity).
+create or replace function sport_family(sport text) returns text
+language sql immutable
+as $$
+    select case
+        when sport is null then null
+        when sport ~ '(cycling|biking|ride)' then 'cycling'
+        when sport ~ '(running|run)' then 'running'
+        when sport ~ 'swim' then 'swimming'
+        when sport ~ '(strength|weight)' then 'strength'
+        when sport ~ '(walk|hik)' then 'walking'
+        else sport
+    end
+$$;
+
+-- Garmin calendar snapshots (latest sync only).
+create view stg_scheduled_workout as
+select
+    (item ->> 'date')::date as day,
+    (item ->> 'scheduled_workout_id')::bigint as garmin_schedule_id,
+    (item ->> 'workout_id')::bigint as garmin_workout_id,
+    item ->> 'name' as name,
+    lower(item ->> 'sport') as sport,
+    (item ->> 'completed')::boolean as completed,
+    item ->> 'training_plan' as training_plan,
+    item ->> 'workout_type' as workout_type
+from latest_garmin_payload,
+    jsonb_array_elements(payload -> 'scheduled_workouts') as item
+where tool = 'get_scheduled_workouts'
+    and jsonb_typeof(payload -> 'scheduled_workouts') = 'array';
+
+create view stg_calendar_event as
+select
+    (item ->> 'date')::date as day,
+    item ->> 'title' as title,
+    (item ->> 'is_race')::boolean as is_race,
+    (item ->> 'primary_event')::boolean as primary_event,
+    (item ->> 'distance_meters')::numeric as distance_meters,
+    (item ->> 'goal_time_seconds')::numeric as goal_time_seconds,
+    item ->> 'event_uuid' as event_uuid
+from latest_garmin_payload,
+    jsonb_array_elements(payload -> 'events') as item
+where tool = 'get_calendar_events'
+    and jsonb_typeof(payload -> 'events') = 'array';
+
+create view stg_personal_record as
+select
+    item ->> 'record_type' as record_type,
+    (item ->> 'type_id')::int as type_id,
+    item ->> 'value' as value,
+    (item ->> 'raw_value')::numeric as raw_value,
+    (item ->> 'date')::date as day,
+    (item ->> 'activity_id')::bigint as activity_id
+from latest_garmin_payload,
+    jsonb_array_elements(payload) as item
+where tool = 'get_personal_record'
+    and jsonb_typeof(payload) = 'array';
+
+-- Planned sessions with their outcome: a session is "done" when an activity of the same
+-- sport family happened that day (or was matched explicitly), "missed" once the day is past
+-- without one, "cancelled" when the athlete or an approved proposal cancelled it.
+create view planned_session_status as
+select
+    p.id as planned_session_id,
+    p.day,
+    p.sport,
+    p.title,
+    p.intensity,
+    p.target_duration_minutes,
+    p.target_load,
+    p.goal_id,
+    p.plan_id,
+    p.moved_from,
+    coalesce(p.matched_activity_id, m.activity_id) as activity_id,
+    case
+        when p.status = 'cancelled' then 'cancelled'
+        when coalesce(p.matched_activity_id, m.activity_id) is not null then 'done'
+        when p.day < current_date then 'missed'
+        else 'planned'
+    end as status
+from planned_session p
+left join lateral (
+    select a.activity_id
+    from stg_activity a
+    where a.activity_date = p.day
+        and sport_family(a.activity_type) = sport_family(p.sport)
+    order by a.start_time_local
+    limit 1
+) m on p.matched_activity_id is null;
+
+-- Everything on the athlete's calendar, one row per item: Lifter sessions, workouts that
+-- only exist in Garmin's calendar, activities done without a plan, and events (races).
+create view calendar as
+select
+    s.day, 'session' as kind, 'lifter' as source, s.title, s.sport, s.status,
+    s.planned_session_id, s.activity_id, null::bigint as garmin_schedule_id
+from planned_session_status s
+union all
+select
+    g.day, 'session', 'garmin', g.name, g.sport,
+    case when g.completed then 'done' when g.day < current_date then 'missed' else 'planned' end,
+    null, null, g.garmin_schedule_id
+from stg_scheduled_workout g
+where not exists (
+    select 1 from planned_session p where p.garmin_schedule_id = g.garmin_schedule_id
+)
+union all
+select
+    a.activity_date, 'activity', 'garmin', a.name, a.activity_type, 'done (unplanned)',
+    null, a.activity_id, null
+from stg_activity a
+where not exists (
+    select 1 from planned_session_status s where s.activity_id = a.activity_id
+)
+union all
+select
+    e.day, 'event', 'garmin', e.title, null,
+    case when e.is_race then 'race' else 'event' end,
+    null, null, null
+from stg_calendar_event e;

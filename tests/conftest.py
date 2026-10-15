@@ -31,5 +31,8 @@ def database_url():
 @pytest.fixture
 def conn(database_url):
     with connect(database_url) as conn:
-        conn.execute("truncate raw_garmin_payload, sync_log restart identity")
+        conn.execute(
+            "truncate raw_garmin_payload, sync_log, activity_tombstone, proposal, feedback,"
+            " planned_session, training_plan, goal restart identity"
+        )
         yield conn

@@ -34,6 +34,13 @@ DAILY_TOOLS = (
     "get_training_status",
 )
 ACTIVITY_TOOLS = ("get_activity", "get_activity_hr_in_timezones")
+# Snapshots: refetched on every sync, only the latest one counts. Key, arguments built from
+# today's date. An empty answer is stored as an empty snapshot, so a workout removed from the
+# Garmin calendar disappears from Lifter too.
+SCHEDULE_WINDOW_DAYS = 28
+EVENTS_PAST_DAYS = 30
+EVENTS_AHEAD_DAYS = 365
+EMPTY_SNAPSHOT = {"empty": True}
 REFRESH_DAYS = 3
 PAGE_SIZE = 100
 MAX_CONSECUTIVE_ERRORS = 5  # the server is down or unreachable: stop instead of hammering it
@@ -160,13 +167,20 @@ class Syncer:
             return False
         return day < self.today - timedelta(days=REFRESH_DAYS)
 
-    async def _fetch(self, tool: str, natural_key: str, params: dict) -> tuple[str, Any]:
-        """Call one tool, store and log the answer. Returns (status, payload or None)."""
+    async def _fetch(
+        self, tool: str, natural_key: str, params: dict, empty_payload: Any = None
+    ) -> tuple[str, Any]:
+        """Call one tool, store and log the answer. Returns (status, payload or None).
+
+        With `empty_payload`, a "no data" answer is stored as that payload (snapshots).
+        """
         try:
             text = await self.caller.call(tool, params)
             kind, payload = parse_response(text)
         except ToolError as exc:
             kind, payload, text = "error", None, str(exc)
+        if kind == "empty" and empty_payload is not None:
+            kind, payload = "ok", empty_payload
         if self.delay_seconds:
             await asyncio.sleep(self.delay_seconds)  # stay gentle with Garmin Connect
         with self.conn.transaction():
@@ -186,6 +200,7 @@ class Syncer:
         listed_ids = await self._sync_activities(start, end)
         if listed_ids is not None:
             await self._reconcile_deleted(start, end, listed_ids)
+        await self._sync_snapshots()
         day = start
         while day <= end:
             for tool in DAILY_TOOLS:
@@ -196,6 +211,34 @@ class Syncer:
                 await self._fetch(tool, key, {"date": key})
             day += timedelta(days=1)
         return self.report
+
+    def _snapshot_calls(self) -> list[tuple[str, str, dict]]:
+        today = self.today
+        window = timedelta(days=SCHEDULE_WINDOW_DAYS)
+        return [
+            (
+                "get_scheduled_workouts",
+                "window",
+                {
+                    "start_date": (today - window).isoformat(),
+                    "end_date": (today + window).isoformat(),
+                },
+            ),
+            (
+                "get_calendar_events",
+                "window",
+                {
+                    "start_date": (today - timedelta(days=EVENTS_PAST_DAYS)).isoformat(),
+                    "end_date": (today + timedelta(days=EVENTS_AHEAD_DAYS)).isoformat(),
+                },
+            ),
+            ("get_personal_record", "all", {}),
+            ("get_goals", "active", {"goal_type": "active"}),
+        ]
+
+    async def _sync_snapshots(self) -> None:
+        for tool, key, params in self._snapshot_calls():
+            await self._fetch(tool, key, params, empty_payload=EMPTY_SNAPSHOT)
 
     async def _sync_activities(self, start: date, end: date) -> set[int] | None:
         """Fetch the listing and the details of each activity.

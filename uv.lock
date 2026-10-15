@@ -339,6 +339,7 @@ source = { editable = "." }
 dependencies = [
     { name = "mcp" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic" },
     { name = "python-dotenv" },
 ]
 
@@ -353,6 +354,7 @@ dev = [
 requires-dist = [
     { name = "mcp", specifier = ">=1.9" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "pydantic", specifier = ">=2.7" },
     { name = "python-dotenv", specifier = ">=1.0" },
 ]
 

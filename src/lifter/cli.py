@@ -105,6 +105,147 @@ def cmd_recovery(settings: Settings, args: argparse.Namespace) -> int:
     return print_last_days(settings, "daily_recovery", RECOVERY_COLUMNS, args.days)
 
 
+def print_query(settings: Settings, sql: str, params: tuple = ()) -> int:
+    """Print a fixed query of this module as an aligned table."""
+    with connect(settings.database_url) as conn:
+        cur = conn.execute(sql, params)
+        columns = tuple(c.name for c in cur.description)
+        rows = cur.fetchall()
+    print(format_table(columns, rows))
+    return 0
+
+
+def cmd_calendar(settings: Settings, args: argparse.Namespace) -> int:
+    start = args.start or date.today() - timedelta(days=args.past)
+    end = start + timedelta(days=args.past + args.ahead)
+    return print_query(
+        settings,
+        "select day, kind, source, status, sport, title, planned_session_id as session"
+        " from calendar where day between %s and %s order by day, kind, title",
+        (start, end),
+    )
+
+
+def cmd_records(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select record_type, value, day, activity_id from stg_personal_record order by type_id",
+    )
+
+
+def cmd_goals(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select id, status, kind, title, sport, target_date, target_value, target_unit"
+        " from goal order by status, target_date nulls last",
+    )
+
+
+def cmd_proposals(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select id, status, kind, author, created_at::date as day, rationale, payload::text"
+        " from proposal where status = any(%s) order by id",
+        (
+            ["pending"]
+            if not args.all
+            else ["pending", "approved", "rejected", "applied", "failed"],
+        ),
+    )
+
+
+def _with_domain(settings: Settings, action) -> int:
+    from lifter.domain import DomainError
+
+    try:
+        with connect(settings.database_url) as conn:
+            message = action(conn)
+    except DomainError as exc:
+        print(f"refused: {exc}")
+        return 1
+    print(message)
+    return 0
+
+
+def cmd_goal_add(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter import domain
+
+    goal = domain.GoalIn(
+        title=args.title,
+        kind=args.kind,
+        sport=args.sport,
+        target_date=args.date,
+        target_value=args.target,
+        target_unit=args.unit,
+        notes=args.notes,
+    )
+    return _with_domain(settings, lambda conn: f"goal {domain.create_goal(conn, goal)} created")
+
+
+def cmd_session_add(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter import domain
+
+    session = domain.SessionIn(
+        day=args.day,
+        sport=args.sport,
+        title=args.title,
+        intensity=args.intensity,
+        target_duration_minutes=args.minutes,
+        goal_id=args.goal,
+    )
+    return _with_domain(
+        settings, lambda conn: f"session {domain.create_session(conn, session)} created"
+    )
+
+
+def cmd_session_move(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter import domain
+
+    move = domain.MoveSession(session_id=args.id, new_day=args.day)
+    return _with_domain(
+        settings, lambda conn: domain.move_session(conn, move) or f"session {args.id} moved"
+    )
+
+
+def cmd_session_cancel(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter import domain
+
+    cancel = domain.CancelSession(session_id=args.id)
+    return _with_domain(
+        settings, lambda conn: domain.cancel_session(conn, cancel) or f"session {args.id} cancelled"
+    )
+
+
+def cmd_feedback(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter import domain
+
+    feedback = domain.FeedbackIn(
+        day=args.day,
+        kind=args.kind,
+        planned_session_id=args.session,
+        rpe=args.rpe,
+        fatigue=args.fatigue,
+        pain=args.pain,
+        pain_location=args.where,
+        notes=args.notes,
+    )
+    return _with_domain(
+        settings, lambda conn: f"feedback {domain.add_feedback(conn, feedback)} saved"
+    )
+
+
+def cmd_proposal_decide(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter import domain
+
+    def decide(conn):
+        domain.decide(conn, args.id, approve=args.decision == "approve")
+        if args.decision == "reject":
+            return f"proposal {args.id} rejected"
+        return f"proposal {args.id} applied: {domain.apply(conn, args.id)}"
+
+    return _with_domain(settings, decide)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lifter", description="Training coach on Garmin data.")
     parser.add_argument("--version", action="version", version=f"lifter {__version__}")
@@ -129,6 +270,63 @@ def build_parser() -> argparse.ArgumentParser:
     recovery = sub.add_parser("recovery", help="print Garmin's recovery and form values")
     recovery.add_argument("--days", type=int, default=14)
     recovery.set_defaults(func=cmd_recovery)
+
+    cal = sub.add_parser("calendar", help="print the calendar: sessions, activities, events")
+    cal.add_argument("--start", type=date.fromisoformat, help="first day (default: --past ago)")
+    cal.add_argument("--past", type=int, default=7, help="days before today (default 7)")
+    cal.add_argument("--ahead", type=int, default=14, help="days after the start (default 14)")
+    cal.set_defaults(func=cmd_calendar)
+
+    sub.add_parser("records", help="print Garmin personal records").set_defaults(func=cmd_records)
+    sub.add_parser("goals", help="print goals").set_defaults(func=cmd_goals)
+
+    goal = sub.add_parser("goal-add", help="add a goal")
+    goal.add_argument("title")
+    goal.add_argument("--kind", default="event")
+    goal.add_argument("--sport")
+    goal.add_argument("--date", type=date.fromisoformat)
+    goal.add_argument("--target", type=float)
+    goal.add_argument("--unit")
+    goal.add_argument("--notes")
+    goal.set_defaults(func=cmd_goal_add)
+
+    sess = sub.add_parser("session-add", help="plan a session")
+    sess.add_argument("day", type=date.fromisoformat)
+    sess.add_argument("sport")
+    sess.add_argument("title")
+    sess.add_argument("--intensity", default="moderate")
+    sess.add_argument("--minutes", type=float)
+    sess.add_argument("--goal", type=int)
+    sess.set_defaults(func=cmd_session_add)
+
+    move = sub.add_parser("session-move", help="move a planned session to another day")
+    move.add_argument("id", type=int)
+    move.add_argument("day", type=date.fromisoformat)
+    move.set_defaults(func=cmd_session_move)
+
+    cancel = sub.add_parser("session-cancel", help="cancel a planned session")
+    cancel.add_argument("id", type=int)
+    cancel.set_defaults(func=cmd_session_cancel)
+
+    fb = sub.add_parser("feedback", help="report how a session or a morning went")
+    fb.add_argument("--day", type=date.fromisoformat, default=date.today())
+    fb.add_argument("--kind", choices=["session", "morning"], default="session")
+    fb.add_argument("--session", type=int, help="planned session id")
+    fb.add_argument("--rpe", type=int, help="1 to 10")
+    fb.add_argument("--fatigue", type=int, help="1 to 5")
+    fb.add_argument("--pain", type=int, help="0 to 10")
+    fb.add_argument("--where", help="where it hurts")
+    fb.add_argument("--notes")
+    fb.set_defaults(func=cmd_feedback)
+
+    props = sub.add_parser("proposals", help="print the agents' pending proposals")
+    props.add_argument("--all", action="store_true", help="include decided proposals")
+    props.set_defaults(func=cmd_proposals)
+
+    decide = sub.add_parser("proposal", help="approve (and apply) or reject a proposal")
+    decide.add_argument("decision", choices=["approve", "reject"])
+    decide.add_argument("id", type=int)
+    decide.set_defaults(func=cmd_proposal_decide)
     return parser
 
 
@@ -138,4 +336,11 @@ def main(argv: list[str] | None = None) -> int:
     if not hasattr(args, "func"):
         parser.print_help()
         return 0
-    return args.func(Settings.from_env(), args)
+    from pydantic import ValidationError
+
+    try:
+        return args.func(Settings.from_env(), args)
+    except ValidationError as exc:
+        problems = "; ".join(f"{e['loc'][0]}: {e['msg']}" for e in exc.errors())
+        print(f"invalid input: {problems}")
+        return 2

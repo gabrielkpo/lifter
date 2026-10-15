@@ -156,3 +156,11 @@ def test_weekly_training_sums_sessions_and_zones(conn):
             Decimal("15.0"),
         )
     ]
+
+
+def test_zero_hrv_baseline_does_not_break_the_view(conn):
+    load_days(conn, DAY0, steady(20, hrv=0))
+
+    m = metrics(conn, 19)
+    assert m["hrv_delta_pct"] is None
+    assert m["recovery_status"] == "unknown"

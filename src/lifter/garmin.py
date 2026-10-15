@@ -58,7 +58,10 @@ class McpToolCaller:
             raise PermissionError(f"tool not allowed: {tool}")
         if self._session is None:
             raise RuntimeError("use McpToolCaller as an async context manager")
-        result = await self._session.call_tool(tool, arguments)
+        try:
+            result = await self._session.call_tool(tool, arguments)
+        except Exception as exc:  # transport or protocol failure: one failed call, not a crash
+            raise ToolError(f"{type(exc).__name__}: {exc}") from exc
         text = "".join(c.text for c in result.content if getattr(c, "type", None) == "text")
         if result.is_error:
             raise ToolError(text)

@@ -1,20 +1,118 @@
--- Business metrics. Every definition and threshold here is documented in docs/metrics.md;
--- change both together. Statuses are computed on the rounded values that agents will cite.
+-- Views and functions of the `analytics` schema: repeatable, recreated by `lifter migrate`
+-- whenever this file changes (tables live in the numbered migrations, in `public`).
+-- Change a view here, never in a migration.
+-- Every metric definition and threshold is documented in docs/metrics.md; change both together.
+
+drop schema if exists analytics cascade;
+create schema analytics;
+set local search_path = analytics, public;
+
+-- Staging layer: typed columns read from the latest payload of each key.
+create view latest_garmin_payload as
+select distinct on (tool, natural_key)
+    tool, natural_key, payload, last_seen_at
+from raw_garmin_payload
+order by tool, natural_key, last_seen_at desc, id desc;
+
+create view stg_activity as
+select
+    (payload ->> 'id')::bigint as activity_id,
+    payload ->> 'name' as name,
+    payload ->> 'type' as activity_type,
+    (payload ->> 'start_time_local')::timestamp as start_time_local,
+    (payload ->> 'start_time_local')::timestamp::date as activity_date,
+    (payload ->> 'duration_seconds')::numeric as duration_seconds,
+    (payload ->> 'distance_meters')::numeric as distance_meters,
+    (payload ->> 'avg_hr_bpm')::numeric as avg_hr_bpm,
+    (payload ->> 'training_load')::numeric as training_load,
+    (payload ->> 'training_effect')::numeric as aerobic_training_effect,
+    (payload ->> 'workout_rpe')::numeric as rpe
+from latest_garmin_payload
+where tool = 'get_activity'
+    and not exists (
+        select 1 from activity_tombstone t where t.activity_id = (payload ->> 'id')::bigint
+    );
+
+-- Every activity seen in a listing, even when its details could not be fetched.
+create view stg_activity_listed as
+select distinct on (activity_id) activity_id, activity_date
+from (
+    select
+        (item ->> 'id')::bigint as activity_id,
+        (item ->> 'start_time')::timestamp::date as activity_date,
+        last_seen_at
+    from latest_garmin_payload,
+        jsonb_array_elements(payload -> 'activities') as item
+    where tool = 'get_activities_by_date'
+        and jsonb_typeof(payload -> 'activities') = 'array'
+) listed
+where not exists (select 1 from activity_tombstone t where t.activity_id = listed.activity_id)
+order by activity_id, last_seen_at desc;
+
+create view stg_activity_hr_zone as
+select
+    natural_key::bigint as activity_id,
+    (zone ->> 'zoneNumber')::int as zone_number,
+    (zone ->> 'secsInZone')::numeric as seconds_in_zone,
+    (zone ->> 'zoneLowBoundary')::int as zone_low_bpm
+from latest_garmin_payload,
+    jsonb_array_elements(payload) as zone
+where tool = 'get_activity_hr_in_timezones'
+    and jsonb_typeof(payload) = 'array';
+
+-- Garmin files a night under the day you wake up.
+create view stg_sleep as
+select
+    natural_key::date as day,
+    (payload ->> 'sleep_seconds')::numeric as sleep_seconds,
+    (payload ->> 'sleep_score')::numeric as sleep_score,
+    (payload ->> 'resting_heart_rate_bpm')::numeric as resting_hr_bpm
+from latest_garmin_payload
+where tool = 'get_sleep_summary';
+
+create view stg_hrv as
+select
+    natural_key::date as day,
+    (payload ->> 'last_night_avg_hrv_ms')::numeric as hrv_ms,
+    payload ->> 'status' as garmin_hrv_status
+from latest_garmin_payload
+where tool = 'get_hrv_data';
+
+-- Business metrics. Statuses are computed on the rounded values that agents will cite.
 
 -- least()/greatest() ignore NULL, so greatest(0, NULL) would be 0: guard explicitly.
-create function clamp_0_100(x numeric) returns numeric
+create or replace function clamp_0_100(x numeric) returns numeric
 language sql immutable
 as $$ select case when x is null then null else least(100, greatest(0, x)) end $$;
 
 create view daily_load as
+with detailed as (
+    select
+        activity_date as day,
+        count(*) as sessions,
+        coalesce(sum(training_load), 0) as load,
+        count(*) filter (where training_load is null) as sessions_without_load,
+        sum(duration_seconds) / 60.0 as duration_minutes
+    from stg_activity
+    group by activity_date
+),
+-- Listed activities whose details are missing: their load is unknown, not zero.
+missing as (
+    select l.activity_date as day, count(*) as sessions_missing_details
+    from stg_activity_listed l
+    left join stg_activity a using (activity_id)
+    where a.activity_id is null
+    group by l.activity_date
+)
 select
-    activity_date as day,
-    count(*) as sessions,
-    coalesce(sum(training_load), 0) as load,
-    count(*) filter (where training_load is null) as sessions_without_load,
-    sum(duration_seconds) / 60.0 as duration_minutes
-from stg_activity
-group by activity_date;
+    day,
+    coalesce(d.sessions, 0) as sessions,
+    coalesce(d.load, 0) as load,
+    coalesce(d.sessions_without_load, 0) as sessions_without_load,
+    coalesce(m.sessions_missing_details, 0) as sessions_missing_details,
+    d.duration_minutes
+from detailed d
+full join missing m using (day);
 
 -- One row per calendar day between the first and last day with any data,
 -- so rolling windows count days, not rows.
@@ -34,6 +132,7 @@ select
     c.day,
     coalesce(l.sessions, 0) as sessions,
     coalesce(l.load, 0) as load,
+    coalesce(l.sessions_missing_details, 0) as sessions_missing_details,
     h.hrv_ms,
     s.resting_hr_bpm,
     s.sleep_seconds,
@@ -63,7 +162,8 @@ with windows as (
 ),
 rounded as (
     select
-        day, sessions, load, hrv_ms, resting_hr_bpm, sleep_score, history_days,
+        day, sessions, sessions_missing_details, load, hrv_ms, resting_hr_bpm, sleep_score,
+        history_days,
         -- A window is only reported once it is full: a partial one underestimates the load.
         case when history_days >= 7 then round(acute_load_7d_raw, 1) end as acute_load_7d,
         case when history_days >= 28 then round(chronic_load_28d_raw, 1) end as chronic_load_28d,
@@ -71,9 +171,10 @@ rounded as (
             then round(acute_load_7d_raw / chronic_load_28d_raw, 2) end as acwr,
         case when hrv_baseline_nights >= 14 then round(hrv_baseline_raw, 1) end as hrv_baseline_28d,
         case when hrv_baseline_nights >= 14
-            then round(100 * (hrv_ms - hrv_baseline_raw) / hrv_baseline_raw, 1) end as hrv_delta_pct,
+            then round(100 * (hrv_ms - hrv_baseline_raw) / nullif(hrv_baseline_raw, 0), 1)
+            end as hrv_delta_pct,
         case when hrv_baseline_nights >= 14
-            then round(100 * (hrv_7d_avg_raw - hrv_baseline_raw) / hrv_baseline_raw, 1)
+            then round(100 * (hrv_7d_avg_raw - hrv_baseline_raw) / nullif(hrv_baseline_raw, 0), 1)
             end as hrv_7d_delta_pct,
         case when rhr_baseline_days >= 14 then round(rhr_baseline_raw, 1) end as rhr_baseline_28d,
         case when rhr_baseline_days >= 14
@@ -112,6 +213,7 @@ select
     day,
     history_days,
     sessions,
+    sessions_missing_details,
     load,
     acute_load_7d,
     chronic_load_28d,

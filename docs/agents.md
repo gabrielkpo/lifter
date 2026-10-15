@@ -66,6 +66,26 @@ warning, not a refusal.
 Known limit: `sources` accepts any number found in the context, which holds many numbers (ids,
 dates, loads); it stops invented figures and computed differences, not a misattributed one.
 
+## Audit log
+
+Every run started from the CLI (`trigger` cli), the app, a scheduled job or the bench is
+recorded by code after it ends (migration `007_agent_audit.sql`, `agents/audit.py`):
+
+| Table | One row per | Holds |
+|---|---|---|
+| `agent_run` | Run | agent, trigger, model, context mode, target week, status (accepted, refused, error), attempts, tokens, seconds, the **context sent to the model**, the final plan, guardrail warnings, the proposals it created, the error of a crashed run |
+| `agent_step` | Attempt | the model's answer (null when it did not parse), the guardrail's violations, tokens and seconds of that attempt |
+
+A proposal leads back to its run through `agent_run.proposal_ids`, so the app can show why a
+session was proposed. A crashed run keeps only the error's type and message, never the request.
+The log holds the context sent to the model, so it stays in the local database with the rest
+of the athlete's data.
+
+```bash
+uv run lifter runs              # the last runs
+uv run lifter run 12            # each attempt, its violations, tokens and seconds
+```
+
 ## Settings
 
 | Variable | Default | |

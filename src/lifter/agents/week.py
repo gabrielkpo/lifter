@@ -5,19 +5,21 @@
 
 Nothing is written unless asked: `run_week_planner(..., propose=True)` turns an accepted plan
 into proposals (create_session, cancel_session) that the athlete approves or rejects; code
-applies them (lifter.domain). A plan still refused after the retries proposes nothing.
+applies them (lifter.domain). A plan still refused after the retries proposes nothing. With a
+`trigger`, the run is recorded in the audit log (lifter.agents.audit), errors included.
 """
 
 import operator
 import time
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated, TypedDict
 
 import psycopg
 from langgraph.graph import END, START, StateGraph
 
 from lifter import domain
+from lifter.agents.audit import Step, record_run
 from lifter.agents.context import ContextMode, PlanningContext, build_context
 from lifter.agents.guardrail import Verdict, Violation, check
 from lifter.agents.plan import WeekPlan
@@ -36,14 +38,37 @@ class State(TypedDict, total=False):
     attempts: int
 
 
-def build_graph(planner: Planner):
+def build_graph(
+    planner: Planner, steps: list[Step] | None = None, verdicts: list[Verdict] | None = None
+):
+    """The graph. For the audit, `steps` collects each attempt's answer, tokens and seconds, and
+    `verdicts` the guardrail's verdict on it; both survive a run that crashes midway."""
+    steps = steps if steps is not None else []
+    verdicts = verdicts if verdicts is not None else []
+
     def plan_node(state: State) -> State:
         attempts = state.get("attempts", 0) + 1
+        tokens_in, tokens_out = planner.usage.input_tokens, planner.usage.output_tokens
+        started = time.monotonic()
+
+        def step(plan):
+            steps.append(
+                Step(
+                    attempt=attempts,
+                    plan=plan,
+                    input_tokens=planner.usage.input_tokens - tokens_in,
+                    output_tokens=planner.usage.output_tokens - tokens_out,
+                    seconds=time.monotonic() - started,
+                )
+            )
+
         try:
             plan = planner(state["context"], state.get("feedback", []))
         except PlannerOutputError as exc:
+            step(None)
             refused = Verdict([Violation("schema", str(exc))], [], [])
             return {"plan": None, "verdict": refused, "attempts": attempts}
+        step(plan)
         return {"plan": plan, "verdict": None, "attempts": attempts}
 
     def guard_node(state: State) -> State:
@@ -51,6 +76,7 @@ def build_graph(planner: Planner):
             verdict = state["verdict"]
         else:
             verdict = check(state["plan"], state["context"])
+        verdicts.append(verdict)
         return {
             "verdict": verdict,
             "verdicts": [verdict],
@@ -80,6 +106,7 @@ class WeekPlannerResult:
     verdicts: list[Verdict] = field(default_factory=list)
     seconds: float = 0.0
     proposal_ids: list[int] = field(default_factory=list)
+    run_id: int | None = None
 
     @property
     def accepted(self) -> bool:
@@ -94,22 +121,52 @@ def run_week_planner(
     today: date | None = None,
     mode: ContextMode = "indicators",
     propose: bool = False,
+    trigger: str | None = None,
 ) -> WeekPlannerResult:
+    """Plan a week; `trigger` (cli, app, job, bench) records the run in the audit log."""
     ctx = build_context(conn, week_number=week_number, today=today, mode=mode)
+    started_at = datetime.now(UTC)
     started = time.monotonic()
-    state = build_graph(planner).invoke(
-        {"context": ctx, "attempts": 0, "feedback": [], "verdicts": []}
-    )
-    result = WeekPlannerResult(
-        context=ctx,
-        plan=state.get("plan"),
-        verdict=state["verdict"],
-        attempts=state["attempts"],
-        verdicts=state["verdicts"],
-        seconds=time.monotonic() - started,
-    )
-    if propose and result.accepted:
-        result.proposal_ids = propose_plan(conn, result.plan, ctx)
+    steps: list[Step] = []
+    verdicts: list[Verdict] = []
+    audit = {
+        "agent": AUTHOR,
+        "trigger": trigger,
+        "model": getattr(planner, "model", None),
+        "ctx": ctx,
+        "started_at": started_at,
+        "steps": steps,
+        "verdicts": verdicts,
+    }
+    try:
+        state = build_graph(planner, steps, verdicts).invoke(
+            {"context": ctx, "attempts": 0, "feedback": [], "verdicts": []}
+        )
+        result = WeekPlannerResult(
+            context=ctx,
+            plan=state.get("plan"),
+            verdict=state["verdict"],
+            attempts=state["attempts"],
+            verdicts=state["verdicts"],
+            seconds=time.monotonic() - started,
+        )
+        if propose and result.accepted:
+            result.proposal_ids = propose_plan(conn, result.plan, ctx)
+    except Exception as exc:
+        if trigger:  # the error's type and message only: never the request or its headers
+            try:
+                record_run(conn, **audit, error=f"{type(exc).__name__}: {exc}")
+            except psycopg.Error as audit_error:  # keep the real error first
+                exc.add_note(f"the run could not be recorded in the audit log: {audit_error}")
+        raise
+    if trigger:
+        result.run_id = record_run(
+            conn,
+            **audit,
+            final_plan=result.plan,
+            accepted=result.accepted,
+            proposal_ids=result.proposal_ids,
+        )
     return result
 
 

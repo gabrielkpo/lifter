@@ -105,7 +105,7 @@ Each step lands as a reviewed pull request with green CI.
 |---|---|---|
 | 1 | Garmin sync, metrics, recovery and form | ✅ Done |
 | 2 | CrossFit domain: cycle, blocks and weeks, sessions in parts (planned and logged), exercise bank, goals, rules, proposals; program file loader | ✅ Done |
-| 3 | Agent coach v1 from the command line: programs next week from the week review and the phase, dry-run, guardrail, audit log; release `v0.1.0` | 🔨 Week planner and guardrail done ([docs/agents.md](docs/agents.md)) |
+| 3 | Agent coach v1 from the command line: programs next week from the week review and the phase, dry-run, guardrail, audit log; release `v0.1.0` | 🔨 Week planner, guardrail and audit log done ([docs/agents.md](docs/agents.md)); first run on Mistral next |
 | 4 | FastAPI + responsive PWA: calendar, session log, chat, health, goals; approval cards | Planned |
 | 5 | Optional: push approved sessions to the Garmin calendar | Planned |
 | 6 | Long term (block transitions, test week) and scheduled jobs (morning, weekly, after a session), notifications | Planned |

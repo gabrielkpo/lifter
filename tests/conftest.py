@@ -4,6 +4,7 @@ import uuid
 import psycopg
 import pytest
 
+from lifter.bench.runner import reset
 from lifter.db import connect, migrate
 
 # A server where the tests may create and drop a throwaway database.
@@ -31,9 +32,5 @@ def database_url():
 @pytest.fixture
 def conn(database_url):
     with connect(database_url) as conn:
-        conn.execute(
-            "truncate raw_garmin_payload, sync_log, activity_tombstone, proposal, feedback,"
-            " session_exercise, session_part, planned_session, goal_milestone, goal,"
-            " athlete_rule, training_week, block, cycle, exercise restart identity"
-        )
+        reset(conn)  # every table, whatever migrations add
         yield conn

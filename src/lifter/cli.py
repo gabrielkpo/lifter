@@ -467,6 +467,7 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
                 today=args.today,
                 mode=settings.llm_context,
                 propose=args.propose,
+                trigger="cli",
             )
     except (PlanningError, DomainError) as exc:
         print(printable(f"refused: {exc}"))
@@ -491,6 +492,7 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
         f"model {settings.model}: {usage.calls} call(s), {usage.input_tokens} input"
         f" + {usage.output_tokens} output tokens"
     )
+    out.append(f"audit: run {result.run_id} (lifter run {result.run_id})")
     if result.proposal_ids:
         out.append(f"proposals created: {', '.join(map(str, result.proposal_ids))}")
     elif args.propose and not result.accepted:
@@ -499,6 +501,56 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
         out.append("dry run: nothing proposed (use --propose)")
     print("\n".join(out))
     return 0 if result.accepted else 1
+
+
+def cmd_runs(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select r.id, r.started_at::timestamp(0) as started, r.agent, r.trigger, r.model,"
+        " w.number as week, r.status, r.attempts, r.input_tokens + r.output_tokens as tokens,"
+        " r.seconds, array_to_string(r.proposal_ids, ' ') as proposals"
+        " from agent_run r left join training_week w on w.id = r.target_week_id"
+        " order by r.id desc limit %s",
+        (args.limit,),
+    )
+
+
+def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
+    with connect(settings.database_url) as conn:
+        run = conn.execute(
+            "select agent, trigger, model, context_mode, status, attempts, input_tokens,"
+            " output_tokens, seconds, error, plan ->> 'summary', array_to_string(proposal_ids, ' ')"
+            " from agent_run where id = %s",
+            (args.id,),
+        ).fetchone()
+        if run is None:
+            print(f"run {args.id} does not exist")
+            return 1
+        steps = conn.execute(
+            "select attempt, plan is not null, jsonb_array_length(plan -> 'sessions'),"
+            " violations, input_tokens, output_tokens, seconds"
+            " from agent_step where run_id = %s order by attempt",
+            (args.id,),
+        ).fetchall()
+    agent, trigger, model, mode, status, attempts, tin, tout, secs, error, summary, props = run
+    out = [
+        f"run {args.id}: {agent} ({trigger}, {model or 'no model'}, context {mode}): {status}"
+        f" after {attempts} attempt(s), {tin} + {tout} tokens, {secs} s"
+    ]
+    if error:
+        out.append(f"  error: {error}")
+    if summary:
+        out.append(f"  plan: {summary}")
+    if props:
+        out.append(f"  proposals: {props}")
+    for attempt, parsed, sessions, violations, s_in, s_out, s_secs in steps:
+        answer = f"{sessions} session(s)" if parsed else "did not parse"
+        out.append(f"  attempt {attempt}: {answer}, {s_in} + {s_out} tokens, {s_secs} s")
+        for v in violations:
+            where = f" ({v['day']})" if v.get("day") else ""
+            out.append(f"    [{v['check']}]{where} {v['message']}")
+    print("\n".join(printable(line) for line in out))
+    return 0
 
 
 BENCH_DIR = Path(__file__).resolve().parents[2] / "bench"
@@ -675,6 +727,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--propose", action="store_true", help="store the accepted plan as proposals to approve"
     )
     plan.set_defaults(func=cmd_plan_week)
+
+    runs = sub.add_parser("runs", help="print the last agent runs (audit log)")
+    runs.add_argument("--limit", type=int, default=20)
+    runs.set_defaults(func=cmd_runs)
+    run = sub.add_parser("run", help="print an agent run: each attempt and its violations")
+    run.add_argument("id", type=int)
+    run.set_defaults(func=cmd_run)
 
     bench = sub.add_parser("bench", help="run a planner on the evaluation bench's scenarios")
     bench.add_argument("--planner", choices=["copy", "mistral"], default="copy")

@@ -13,6 +13,10 @@ class Settings:
     garmin_mcp_url: str
     garmin_mcp_token: str | None
     sync_delay_seconds: float
+    mistral_api_key: str | None = None
+    model: str = "mistral-small-latest"
+    coach_language: str = "English"
+    llm_context: str = "indicators"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -24,4 +28,8 @@ class Settings:
             garmin_mcp_url=env.get("GARMIN_MCP_URL", "http://127.0.0.1:8080/mcp"),
             garmin_mcp_token=env.get("GARMIN_MCP_TOKEN") or None,
             sync_delay_seconds=float(env.get("SYNC_DELAY_SECONDS", "1.0")),
+            mistral_api_key=env.get("MISTRAL_API_KEY") or None,
+            model=env.get("LIFTER_MODEL", "mistral-small-latest"),
+            coach_language=env.get("LIFTER_COACH_LANGUAGE", "English"),
+            llm_context=env.get("LIFTER_LLM_CONTEXT", "indicators"),
         )

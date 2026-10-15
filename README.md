@@ -10,9 +10,9 @@ gymnastics, strength, metcon), every movement prescribed with a target RIR, and 
 programmed from the review of the last one and from the watch's recovery data. Agents only
 propose; nothing changes without the athlete's **approval**.
 
-> **Status: data layer and CrossFit domain done, built in public.** Garmin sync, documented
-> metrics, the training cycle, sessions (planned and logged), goals and proposals work from the
-> command line; the agents come next. See [Status / Roadmap](#status--roadmap). Expect breaking changes until `v0.1.0`.
+> **Status: data layer and CrossFit domain done, first agent in progress, built in public.**
+> Garmin sync, documented metrics, the training cycle, sessions (planned and logged), goals and
+> proposals work from the command line; the week planner agent programs a week in dry run. See [Status / Roadmap](#status--roadmap). Expect breaking changes until `v0.1.0`.
 
 ## Why
 Programming CrossFit well is a weekly chore: review what was done (loads, RIR, skipped
@@ -105,7 +105,7 @@ Each step lands as a reviewed pull request with green CI.
 |---|---|---|
 | 1 | Garmin sync, metrics, recovery and form | ✅ Done |
 | 2 | CrossFit domain: cycle, blocks and weeks, sessions in parts (planned and logged), exercise bank, goals, rules, proposals; program file loader | ✅ Done |
-| 3 | Agent coach v1 from the command line: programs next week from the week review and the phase, dry-run, guardrail, audit log; release `v0.1.0` | ⏳ Next |
+| 3 | Agent coach v1 from the command line: programs next week from the week review and the phase, dry-run, guardrail, audit log; release `v0.1.0` | 🔨 Week planner and guardrail done ([docs/agents.md](docs/agents.md)) |
 | 4 | FastAPI + responsive PWA: calendar, session log, chat, health, goals; approval cards | Planned |
 | 5 | Optional: push approved sessions to the Garmin calendar | Planned |
 | 6 | Long term (block transitions, test week) and scheduled jobs (morning, weekly, after a session), notifications | Planned |
@@ -132,6 +132,7 @@ uv sync
 uv run lifter sync --days 90       # creates or updates the schema, then syncs (read-only)
 uv run lifter program load examples/program.yaml   # or your own program, kept in data/
 uv run lifter weeks                # also: program, week N, session ID, calendar, goals, bests
+uv run lifter plan-week            # the week planner agent, dry run (needs MISTRAL_API_KEY)
 ```
 
 Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `session-cancel`,
@@ -173,7 +174,8 @@ connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it f
 | `src/lifter/domain.py`, `program.py` | Sessions in parts, exercises, goals, rules, proposal lifecycle; program file loader |
 | `examples/program.yaml` | Synthetic CrossFit program, every field of the format |
 | `src/lifter/db.py`, `sql/` | Migrations (tables) and `views.sql` (analytics schema) |
-| `docs/metrics.md`, `docs/domain.md` | Every metric, threshold, table and status |
+| `src/lifter/agents/` | Week planner: context, typed plan, Mistral call, guardrail, LangGraph graph |
+| `docs/metrics.md`, `docs/domain.md`, `docs/agents.md` | Every metric, threshold, table and status; the agents and their guardrail |
 | `tests/` | pytest on synthetic data, against a throwaway Postgres database |
 
 ## Data and privacy
@@ -181,9 +183,10 @@ connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it f
   ignored; gitleaks scans every pull request.
 - **Never in the repository**: the athlete's Garmin data, program, rules, log and feedback;
   they stay in the local Postgres database and in `data/`.
-- **Sent to a third party**: today nothing but calls to the athlete's own MCP server, never
-  exposed without authentication. From step 3 the agents send Mistral the computed indicators
-  they need, never raw series nor activity names (they can contain a place).
+- **Sent to a third party**: calls to the athlete's own MCP server, never exposed without
+  authentication, and the agents' context to Mistral: the structured log and computed
+  indicators, no free text by default, never raw series nor activity names (they can contain a
+  place). See [docs/agents.md](docs/agents.md#what-is-sent-to-mistral).
 - **Two instances**: the personal one on the athlete's data; the public demo only replays runs
   on synthetic athletes. Visitors never connect a Garmin account or enter a key.
 - **No medical advice**: unusual signals raise `critical` alerts that block intense plans and

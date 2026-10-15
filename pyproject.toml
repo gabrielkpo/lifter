@@ -5,6 +5,8 @@ description = "CrossFit coach agent on Garmin data, with human approval before a
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.143.2",
+    "langchain-mistralai>=1.1.6",
+    "langgraph>=1.2.15",
     "mcp>=1.9",
     "psycopg[binary]>=3.2",
     "pydantic>=2.7",

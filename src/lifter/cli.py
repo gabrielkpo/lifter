@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 from datetime import date, timedelta
+from pathlib import Path
 
 from lifter import __version__
 from lifter.config import Settings
@@ -130,24 +131,173 @@ def cmd_calendar(settings: Settings, args: argparse.Namespace) -> int:
     end = start + timedelta(days=args.past + args.ahead)
     return print_query(
         settings,
-        "select day, kind, source, status, sport, title, planned_session_id as session"
+        "select day, kind, source, status, detail, title, planned_session_id as session"
         " from calendar where day between %s and %s order by day, kind, title",
         (start, end),
     )
 
 
-def cmd_records(settings: Settings, args: argparse.Namespace) -> int:
+def cmd_program(settings: Settings, args: argparse.Namespace) -> int:
     return print_query(
         settings,
-        "select record_type, value, day, activity_id from stg_personal_record order by type_id",
+        "select c.name as cycle, b.position as block, b.kind, b.start_date, b.end_date,"
+        " b.strength_sessions_done as done, b.target_strength_sessions as target"
+        " from block_progress b join cycle c on c.id = b.cycle_id"
+        " order by c.start_date, b.position",
+    )
+
+
+def cmd_program_load(settings: Settings, args: argparse.Namespace) -> int:
+    import yaml
+
+    from lifter.program import load_program, read_program
+
+    try:
+        program = read_program(args.file)
+    except (OSError, yaml.YAMLError) as exc:
+        print(f"cannot read {args.file}: {exc}")
+        return 2
+
+    def load(conn):
+        migrate(conn)
+        counts = load_program(conn, program, replace=args.replace)
+        return "loaded: " + ", ".join(f"{k}={v}" for k, v in counts.items())
+
+    return _with_domain(settings, load)
+
+
+def cmd_weeks(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select number as week, start_date, block, phase, sessions, done, missed, cancelled,"
+        " strength_sessions_done as strength, array_to_string(patterns_done, ' ') as patterns"
+        " from week_summary order by number",
+    )
+
+
+def cmd_week(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select s.day, s.planned_session_id as session, s.kind, s.status, s.title,"
+        " g.duration_minutes as minutes, g.avg_hr_bpm as avg_hr, g.z4_z5_minutes as z4_z5"
+        " from planned_session_status s"
+        " join training_week w on w.id = s.week_id"
+        " left join session_garmin g using (planned_session_id)"
+        " where w.number = %s order by s.day, s.planned_session_id",
+        (args.number,),
+    )
+
+
+def _line(row: tuple) -> str:
+    """'Bench 4x8 @ 60-62.5 kg RIR 2, rest 120 s' from a session_line row."""
+    exercise, sets, quantity, unit, load, load_max, rir, rest, notes = row
+
+    def num(x):
+        return f"{x:g}"
+
+    text = exercise
+    if quantity is not None:
+        amount = num(quantity) + ("" if unit == "reps" else f" {unit}")
+        text += f" {sets}x{amount}" if sets else f" {amount}"
+    elif sets:
+        text += f" {sets} sets"
+    if load is not None:
+        text += f" @ {num(load)}" + (f"-{num(load_max)}" if load_max is not None else "") + " kg"
+    if rir is not None:
+        text += f" RIR {rir}"
+    if rest is not None:
+        text += f", rest {rest} s"
+    if notes:
+        text += f" ({notes})"
+    return printable(text)
+
+
+def cmd_session(settings: Settings, args: argparse.Namespace) -> int:
+    with connect(settings.database_url) as conn:
+        head = conn.execute(
+            "select s.day, s.title, s.kind, s.status, s.moved_from, p.notes, p.deviation,"
+            " g.duration_minutes, g.avg_hr_bpm, g.max_hr_bpm, g.calories, g.z4_z5_minutes"
+            " from planned_session_status s join planned_session p on p.id = s.planned_session_id"
+            " left join session_garmin g using (planned_session_id)"
+            " where s.planned_session_id = %s",
+            (args.id,),
+        ).fetchone()
+        if head is None:
+            print(f"session {args.id} does not exist")
+            return 1
+        parts = conn.execute(
+            "select id, position, kind, title, format, duration_minutes, rounds, interval_seconds,"
+            " target_seconds, target_rounds, result_seconds, result_rounds, result_notes, notes"
+            " from session_part where session_id = %s order by position",
+            (args.id,),
+        ).fetchall()
+        lines = conn.execute(
+            "select part_position, origin, exercise, sets, quantity, unit, load_kg, load_kg_max,"
+            " rir, rest_seconds, notes from session_line where session_id = %s"
+            " order by part_position, origin desc, position",
+            (args.id,),
+        ).fetchall()
+    day, title, kind, status, moved_from, notes, deviation, *garmin = head
+    out = [printable(f"{day} {title} ({kind}, {status})")]
+    if moved_from:
+        out.append(f"  moved from {moved_from}")
+    if garmin[0] is not None:
+        labels = ("min", "avg HR", "max HR", "kcal", "min in Z4-Z5")
+        values = zip(garmin, labels, strict=True)
+        out.append("  Garmin: " + ", ".join(f"{printable(v)} {k}" for v, k in values))
+    for part in parts:
+        _, position, part_kind, part_title, fmt, minutes, rounds, interval, *rest = part
+        target_s, target_r, result_s, result_r, result_notes, part_notes = rest
+        header = f"{position}. {part_kind}" + (f": {part_title}" if part_title else "")
+        details = [
+            fmt and fmt.replace("_", " "),
+            minutes and f"{minutes:g} min",
+            rounds and f"{rounds} rounds",
+            interval and f"every {interval} s",
+            target_s and f"target {target_s // 60}'{target_s % 60:02d}",
+            target_r and f"target {target_r:g} rounds",
+            result_s and f"done in {result_s // 60}'{result_s % 60:02d}",
+            result_r is not None and f"{result_r:g} rounds done",
+        ]
+        details = [d for d in details if d]
+        out.append(printable(header + (f" [{', '.join(details)}]" if details else "")))
+        for origin in ("planned", "done"):
+            for line in lines:
+                if line[0] == position and line[1] == origin:
+                    out.append(f"   {origin:<7} {_line(line[2:])}")
+        for label, text in (("result", result_notes), ("notes", part_notes)):
+            if text:
+                out.append(f"   {label:<7} {printable(text)}")
+    for label, text in (("notes", notes), ("deviation", deviation)):
+        if text:
+            out.append(f"  {label}: {printable(text)}")
+    print("\n".join(out))
+    return 0
+
+
+def cmd_exercises(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select name, category, pattern, equipment, array_to_string(flags, ' ') as flags"
+        " from exercise order by category, pattern, name",
+    )
+
+
+def cmd_bests(settings: Settings, args: argparse.Namespace) -> int:
+    return print_query(
+        settings,
+        "select exercise, reps, best_load_kg, day from exercise_best order by exercise, reps",
     )
 
 
 def cmd_goals(settings: Settings, args: argparse.Namespace) -> int:
     return print_query(
         settings,
-        "select id, status, kind, title, sport, target_date, target_value, target_unit"
-        " from goal order by status, target_date nulls last",
+        "select g.id, g.status, g.kind, g.title, e.name as exercise,"
+        " coalesce(g.baseline_value::text, g.baseline_text) as baseline,"
+        " coalesce(g.target_value::text, g.target_text) as target, g.unit, g.target_date"
+        " from goal g left join exercise e on e.id = g.exercise_id"
+        " order by g.status, g.target_date nulls last, g.id",
     )
 
 
@@ -183,10 +333,11 @@ def cmd_goal_add(settings: Settings, args: argparse.Namespace) -> int:
     goal = domain.GoalIn(
         title=args.title,
         kind=args.kind,
-        sport=args.sport,
+        exercise=args.exercise,
         target_date=args.date,
         target_value=args.target,
-        target_unit=args.unit,
+        target_text=args.text,
+        unit=args.unit,
         notes=args.notes,
     )
     return _with_domain(settings, lambda conn: f"goal {domain.create_goal(conn, goal)} created")
@@ -195,14 +346,7 @@ def cmd_goal_add(settings: Settings, args: argparse.Namespace) -> int:
 def cmd_session_add(settings: Settings, args: argparse.Namespace) -> int:
     from lifter import domain
 
-    session = domain.SessionIn(
-        day=args.day,
-        sport=args.sport,
-        title=args.title,
-        intensity=args.intensity,
-        target_duration_minutes=args.minutes,
-        goal_id=args.goal,
-    )
+    session = domain.SessionIn(day=args.day, title=args.title, kind=args.kind, notes=args.notes)
     return _with_domain(
         settings, lambda conn: f"session {domain.create_session(conn, session)} created"
     )
@@ -257,7 +401,7 @@ def cmd_proposal_decide(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="lifter", description="Training coach on Garmin data.")
+    parser = argparse.ArgumentParser(prog="lifter", description="CrossFit coach on Garmin data.")
     parser.add_argument("--version", action="version", version=f"lifter {__version__}")
     sub = parser.add_subparsers(dest="command")
 
@@ -281,32 +425,51 @@ def build_parser() -> argparse.ArgumentParser:
     recovery.add_argument("--days", type=int, default=14)
     recovery.set_defaults(func=cmd_recovery)
 
-    cal = sub.add_parser("calendar", help="print the calendar: sessions, activities, events")
+    cal = sub.add_parser("calendar", help="print the calendar: sessions and activities")
     cal.add_argument("--start", type=date.fromisoformat, help="first day (default: --past ago)")
     cal.add_argument("--past", type=int, default=7, help="days before today (default 7)")
     cal.add_argument("--ahead", type=int, default=14, help="days after the start (default 14)")
     cal.set_defaults(func=cmd_calendar)
 
-    sub.add_parser("records", help="print Garmin personal records").set_defaults(func=cmd_records)
+    program = sub.add_parser("program", help="print the cycle's blocks and their progress")
+    program.set_defaults(func=cmd_program)
+    program_sub = program.add_subparsers(dest="program_command")
+    load = program_sub.add_parser("load", help="load a program file (YAML)")
+    load.add_argument("file", type=Path)
+    load.add_argument(
+        "--replace", action="store_true", help="delete the loaded program first, then load"
+    )
+    load.set_defaults(func=cmd_program_load)
+
+    sub.add_parser("weeks", help="print the review of every week").set_defaults(func=cmd_weeks)
+    week = sub.add_parser("week", help="print the sessions of a week")
+    week.add_argument("number", type=int)
+    week.set_defaults(func=cmd_week)
+
+    show = sub.add_parser("session", help="print a session: parts, planned and done, Garmin")
+    show.add_argument("id", type=int)
+    show.set_defaults(func=cmd_session)
+
+    sub.add_parser("exercises", help="print the exercise bank").set_defaults(func=cmd_exercises)
+    sub.add_parser("bests", help="print the best logged loads").set_defaults(func=cmd_bests)
     sub.add_parser("goals", help="print goals").set_defaults(func=cmd_goals)
 
     goal = sub.add_parser("goal-add", help="add a goal")
     goal.add_argument("title")
-    goal.add_argument("--kind", default="event")
-    goal.add_argument("--sport")
-    goal.add_argument("--date", type=date.fromisoformat)
-    goal.add_argument("--target", type=float)
+    goal.add_argument("--kind", default="strength")
+    goal.add_argument("--exercise", help="exercise name, from the bank")
+    goal.add_argument("--target", type=float, help="target value")
+    goal.add_argument("--text", help="target as text, e.g. 'first rep without a band'")
     goal.add_argument("--unit")
+    goal.add_argument("--date", type=date.fromisoformat)
     goal.add_argument("--notes")
     goal.set_defaults(func=cmd_goal_add)
 
-    sess = sub.add_parser("session-add", help="plan a session")
+    sess = sub.add_parser("session-add", help="add an empty session to the calendar")
     sess.add_argument("day", type=date.fromisoformat)
-    sess.add_argument("sport")
     sess.add_argument("title")
-    sess.add_argument("--intensity", default="moderate")
-    sess.add_argument("--minutes", type=float)
-    sess.add_argument("--goal", type=int)
+    sess.add_argument("--kind", default="training")
+    sess.add_argument("--notes")
     sess.set_defaults(func=cmd_session_add)
 
     move = sub.add_parser("session-move", help="move a planned session to another day")
@@ -351,6 +514,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(Settings.from_env(), args)
     except ValidationError as exc:
-        problems = "; ".join(f"{e['loc'][0]}: {e['msg']}" for e in exc.errors())
+        problems = "; ".join(
+            f"{'.'.join(str(p) for p in e['loc']) or 'input'}: {e['msg']}" for e in exc.errors()
+        )
         print(f"invalid input: {problems}")
         return 2

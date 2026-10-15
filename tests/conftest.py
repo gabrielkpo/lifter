@@ -33,6 +33,7 @@ def conn(database_url):
     with connect(database_url) as conn:
         conn.execute(
             "truncate raw_garmin_payload, sync_log, activity_tombstone, proposal, feedback,"
-            " planned_session, training_plan, goal restart identity"
+            " session_exercise, session_part, planned_session, goal_milestone, goal,"
+            " athlete_rule, training_week, block, cycle, exercise restart identity"
         )
         yield conn

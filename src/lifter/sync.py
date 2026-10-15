@@ -38,8 +38,6 @@ ACTIVITY_TOOLS = ("get_activity", "get_activity_hr_in_timezones")
 # today's date. An empty answer is stored as an empty snapshot, so a workout removed from the
 # Garmin calendar disappears from Lifter too.
 SCHEDULE_WINDOW_DAYS = 28
-EVENTS_PAST_DAYS = 30
-EVENTS_AHEAD_DAYS = 365
 EMPTY_SNAPSHOT = {"empty": True}
 REFRESH_DAYS = 3
 PAGE_SIZE = 100
@@ -224,16 +222,6 @@ class Syncer:
                     "end_date": (today + window).isoformat(),
                 },
             ),
-            (
-                "get_calendar_events",
-                "window",
-                {
-                    "start_date": (today - timedelta(days=EVENTS_PAST_DAYS)).isoformat(),
-                    "end_date": (today + timedelta(days=EVENTS_AHEAD_DAYS)).isoformat(),
-                },
-            ),
-            ("get_personal_record", "all", {}),
-            ("get_goals", "active", {"goal_type": "active"}),
         ]
 
     async def _sync_snapshots(self) -> None:

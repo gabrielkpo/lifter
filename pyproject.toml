@@ -1,13 +1,14 @@
 [project]
 name = "lifter"
 version = "0.1.0"
-description = "Training coach agent on Garmin data, with human approval before any write."
+description = "CrossFit coach agent on Garmin data, with human approval before any change."
 requires-python = ">=3.12"
 dependencies = [
     "mcp>=1.9",
     "psycopg[binary]>=3.2",
     "pydantic>=2.7",
     "python-dotenv>=1.0",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]

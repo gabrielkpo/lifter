@@ -19,9 +19,6 @@ READ_TOOLS = frozenset(
         "get_training_readiness",
         "get_training_status",
         "get_scheduled_workouts",
-        "get_calendar_events",
-        "get_personal_record",
-        "get_goals",
     }
 )
 

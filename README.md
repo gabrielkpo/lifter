@@ -3,30 +3,32 @@
 [![CI](https://github.com/gabrielkpo/lifter/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielkpo/lifter/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A coaching app for athletes who wear a Garmin watch, where the coach is a team of agents
-(**LangGraph + Mistral**, Garmin through the **Model Context Protocol**): one calendar for every
-session, a chat to plan and move them, long-term planning toward goals, records, health and
-feedback. Agents only propose; nothing changes, in Lifter or in Garmin, without the athlete's
-**approval**.
+A **CrossFit** coaching app for athletes who wear a Garmin watch, where the coach is a team
+of agents (**LangGraph + Mistral**, Garmin through the **Model Context Protocol**). It follows
+one method: a three-month cycle in three blocks, sessions in a fixed frame (weightlifting or
+gymnastics, strength, metcon), every movement prescribed with a target RIR, and every week
+programmed from the review of the last one and from the watch's recovery data. Agents only
+propose; nothing changes without the athlete's **approval**.
 
-> **Status: data layer and domain model done, built in public.** Garmin sync, documented
-> metrics, calendar, goals, plans, feedback and proposals work from the command line; the
-> agents come next. See [Status / Roadmap](#status--roadmap). Expect breaking changes until `v0.1.0`.
+> **Status: data layer and CrossFit domain done, built in public.** Garmin sync, documented
+> metrics, the training cycle, sessions (planned and logged), goals and proposals work from the
+> command line; the agents come next. See [Status / Roadmap](#status--roadmap). Expect breaking changes until `v0.1.0`.
 
 ## Why
-Coaching apps link a human coach to an athlete; a Garmin watch measures hundreds of things a
-day. Lifter puts an agent coach in between: it reads the watch's data together with what the
-watch is not told (injuries, preferred exercises, availability, how a session felt), plans the
-weeks toward a goal, adapts them to recovery, and explains every proposal with numbers traced
-to a documented metric.
+Programming CrossFit well is a weekly chore: review what was done (loads, RIR, skipped
+sessions, pain), check recovery, then write next week within the cycle's phase and the
+athlete's constraints. A Garmin watch measures recovery but knows nothing of the program; a
+training log knows the program but not the body. Lifter puts both in one place and gives the
+weekly programming to an agent coach, which explains every proposal with numbers traced to a
+documented metric or to the log.
 
 | Module | What the athlete does |
 |---|---|
-| Calendar | Sees planned and done sessions, moves, adds or cancels them |
-| Coach (chat) | "Plan my week", "move Thursday's ride", "why this session?"; each action comes back as a card to approve |
-| Long term | Goal → training cycles, deload and taper weeks |
-| Goals and records | Dated targets, Garmin personal records, progress |
-| Health and feedback | Recovery, sleep, HRV, resting HR, Body Battery, alerts; RPE, fatigue and pain after each session |
+| Calendar | Sees planned and done sessions with their Garmin line, moves, adds or cancels them |
+| Coach (chat) | "Program next week", "move Thursday's legs", "why this load?"; each action comes back as a card to approve |
+| Long term | The cycle: blocks, weekly phases, deloads, test week; when to move to the next block |
+| Goals and bests | Loads and skills per block (bench, power clean, first bar muscle-up), benchmark metcons, best logged loads |
+| Health and feedback | Recovery, sleep, HRV, resting HR, Body Battery, alerts; RPE and pain after each session |
 
 ## How it works
 Built parts are solid, planned ones dashed:
@@ -36,14 +38,14 @@ flowchart LR
     G["Garmin Connect"] <--> M["garmin-mcp-remote<br/>MCP server"]
     M -->|read tools only| S["lifter sync"]
     S --> R[("raw_garmin_payload")]
-    R --> V["analytics views<br/>metrics, recovery, calendar"]
-    D[("domain tables<br/>sessions, goals, plans,<br/>feedback, proposals")] --> V
+    R --> V["analytics views<br/>metrics, recovery,<br/>week review, calendar"]
+    F["program file<br/>(YAML)"] --> D
+    D[("domain tables<br/>cycle, sessions, exercises,<br/>goals, rules, proposals")] --> V
     V -.-> A["Agent coach<br/>LangGraph + Mistral"]
     A -.->|proposal| P[("proposal")]
     P -.-> U{"athlete approves<br/>PWA"}
     U -.->|approved| X["executor (code)"]
     X -.-> D
-    X -.->|step 5| M
     classDef planned stroke-dasharray: 5 5
     class A,U,X planned
 ```
@@ -72,8 +74,12 @@ Choices and their trade-offs:
 - **Plain SQL views rather than dbt.** Every line is readable and pinned by hand-computed
   tests; views live in an `analytics` schema recreated when `views.sql` changes.
 - **Agents read numbers, they never compute them.** Metrics are defined once in
-  [docs/metrics.md](docs/metrics.md); business rules (no hard session on low recovery, weekly
-  load increase of 10 % at most) run as code, not as prompt text.
+  [docs/metrics.md](docs/metrics.md), the domain in [docs/domain.md](docs/domain.md); the
+  athlete's rules (no running, no free barbell on the legs, load up only when the RIR is met)
+  run as code in the guardrail, not as prompt text.
+- **One sport, one method.** Scoping to CrossFit gives sessions a fixed frame and the coach a
+  clear job (program next week); a generic multi-sport planner would be vaguer and harder to
+  evaluate.
 
 ## Example
 `lifter metrics --days 14` on 56 days of **synthetic** data with a hard last week, not real
@@ -98,18 +104,18 @@ Each step lands as a reviewed pull request with green CI.
 | # | Step | Status |
 |---|---|---|
 | 1 | Garmin sync, metrics, recovery and form | ✅ Done |
-| 2 | Domain: sessions, goals, plans, feedback, proposals; Garmin calendar, records and goals | ✅ Done |
-| 3 | Agent coach v1 (supervisor + specialists) from the command line, dry-run, audit log; release `v0.1.0` | ⏳ Next |
-| 4 | FastAPI + responsive PWA: calendar, chat, health, feedback, goals; approval cards | Planned |
-| 5 | Approved writes to Garmin: schedule, move, remove sessions | Planned |
-| 6 | Long-term planning and scheduled jobs (morning, weekly, after a session), notifications | Planned |
+| 2 | CrossFit domain: cycle, blocks and weeks, sessions in parts (planned and logged), exercise bank, goals, rules, proposals; program file loader | ✅ Done |
+| 3 | Agent coach v1 from the command line: programs next week from the week review and the phase, dry-run, guardrail, audit log; release `v0.1.0` | ⏳ Next |
+| 4 | FastAPI + responsive PWA: calendar, session log, chat, health, goals; approval cards | Planned |
+| 5 | Optional: push approved sessions to the Garmin calendar | Planned |
+| 6 | Long term (block transitions, test week) and scheduled jobs (morning, weekly, after a session), notifications | Planned |
 | 7 | Evaluation bench: single agent vs agent team | Planned |
 | 8 | Two deployments: public demo (synthetic athletes, replayed runs, full ops pipeline) and private personal instance | Planned |
 | 9 | Results write-up | Planned |
 
-**Evaluation plan** (written before any run): 20 to 40 synthetic scenarios (overload, low
-recovery, return after injury, race goal, "move my session" requests), each with its expected
-outcome written first. Measures: constraint violations, accuracy of cited numbers, plan quality
+**Evaluation plan** (written before any run): 20 to 40 synthetic scenarios (a week of skipped
+sessions, low recovery, RIR missed on the main lift, knee pain, a deload week, "move my
+session" requests), each with its expected outcome written first. Measures: constraint violations, accuracy of cited numbers, plan quality
 graded by hand, tokens, latency, variance over 3 runs. The agent team is kept only if it has
 **no constraint violation**, cites numbers **at least as accurately** as a single agent with
 every tool, and costs **at most 2×** its tokens; otherwise this README reports the negative result.
@@ -124,18 +130,20 @@ cp .env.example .env               # then set GARMIN_MCP_TOKEN
 createdb lifter
 uv sync
 uv run lifter sync --days 90       # creates or updates the schema, then syncs (read-only)
-uv run lifter calendar             # also: metrics, recovery, records, goals, proposals
+uv run lifter program load examples/program.yaml   # or your own program, kept in data/
+uv run lifter weeks                # also: program, week N, session ID, calendar, goals, bests
 ```
 
-Plan by hand meanwhile: `lifter session-add 2026-11-02 cycling "Long ride"`, `session-move`,
-`session-cancel`, `goal-add`, `feedback --rpe 7`, `proposal approve|reject ID`.
+Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `session-cancel`,
+`goal-add`, `feedback --rpe 7`, `proposals`, `proposal approve|reject ID`.
 
 ## Project structure
 | Path | Content |
 |---|---|
 | `src/lifter/cli.py` | Command-line entry point |
 | `src/lifter/garmin.py`, `sync.py` | MCP client (read-only allowlist), Garmin to raw layer |
-| `src/lifter/domain.py` | Sessions, goals, plans, feedback, proposal lifecycle |
+| `src/lifter/domain.py`, `program.py` | Sessions in parts, exercises, goals, rules, proposal lifecycle; program file loader |
+| `examples/program.yaml` | Synthetic CrossFit program, every field of the format |
 | `src/lifter/db.py`, `sql/` | Migrations (tables) and `views.sql` (analytics schema) |
 | `docs/metrics.md`, `docs/domain.md` | Every metric, threshold, table and status |
 | `tests/` | pytest on synthetic data, against a throwaway Postgres database |
@@ -143,8 +151,8 @@ Plan by hand meanwhile: `lifter session-add 2026-11-02 cycling "Long ride"`, `se
 ## Data and privacy
 - **In the repository**: code, definitions and synthetic data only; `data/` and `.env` are
   ignored; gitleaks scans every pull request.
-- **Never in the repository**: the athlete's Garmin data, profile, plans or feedback; they stay
-  in the local Postgres database.
+- **Never in the repository**: the athlete's Garmin data, program, rules, log and feedback;
+  they stay in the local Postgres database and in `data/`.
 - **Sent to a third party**: today nothing but calls to the athlete's own MCP server, never
   exposed without authentication. From step 3 the agents send Mistral the computed indicators
   they need, never raw series nor activity names (they can contain a place).
@@ -156,7 +164,9 @@ Plan by hand meanwhile: `lifter session-add 2026-11-02 cycling "Long ride"`, `se
 ## Limitations / next
 - Thresholds are version 1 training heuristics for one athlete, to be tuned with the bench.
 - Baselines need 14 measured nights and the load ratio 28 days: a new athlete waits two weeks.
-- An activity started with the watch's stopwatch has no sport: it cannot match a planned session.
+- A session is matched to the day's training activities by order; an activity Lifter does not
+  count as training (e.g. outdoor cycling) never completes a session.
+- Until the app exists, the log is written in the program file and reloaded with `--replace`.
 - The sync runs on demand; daily scheduling is not automated.
 
 ## Development

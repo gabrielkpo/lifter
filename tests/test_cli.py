@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from lifter import __version__
@@ -48,10 +50,8 @@ def run_cli(monkeypatch, database_url, *argv):
     return main(list(argv))
 
 
-def test_planning_a_session_then_seeing_it_in_the_calendar(monkeypatch, capsys, conn, database_url):
-    assert (
-        run_cli(monkeypatch, database_url, "session-add", "2026-03-02", "cycling", "Long ride") == 0
-    )
+def test_adding_a_session_then_seeing_it_in_the_calendar(monkeypatch, capsys, conn, database_url):
+    assert run_cli(monkeypatch, database_url, "session-add", "2026-03-02", "Push + Metcon") == 0
     assert (
         run_cli(
             monkeypatch,
@@ -68,7 +68,34 @@ def test_planning_a_session_then_seeing_it_in_the_calendar(monkeypatch, capsys, 
     )
     out = capsys.readouterr().out
     assert "session 1 created" in out
-    assert "Long ride" in out and "missed" in out
+    assert "Push + Metcon" in out and "missed" in out
+
+
+def test_loading_the_example_program_then_reading_it(monkeypatch, capsys, conn, database_url):
+    example = str(Path(__file__).parent.parent / "examples" / "program.yaml")
+    assert run_cli(monkeypatch, database_url, "program", "load", example) == 0
+    assert "sessions=5" in capsys.readouterr().out
+
+    assert run_cli(monkeypatch, database_url, "program") == 0
+    assert "accumulation" in capsys.readouterr().out
+    assert run_cli(monkeypatch, database_url, "weeks") == 0
+    assert "reference" in capsys.readouterr().out
+    assert run_cli(monkeypatch, database_url, "week", "1") == 0
+    assert "Benchmark metcon" in capsys.readouterr().out
+
+    assert run_cli(monkeypatch, database_url, "session", "1") == 0
+    out = capsys.readouterr().out
+    assert "planned Bench press 3x10 @ 50 kg RIR 3, rest 120 s" in out
+    assert "done    Bench press 3x10 @ 52.5 kg RIR 2" in out
+    assert "amrap, 15 min, target 5 rounds, 5.5 rounds done" in out
+
+    assert run_cli(monkeypatch, database_url, "program", "load", example) == 1  # loaded already
+    assert "refused" in capsys.readouterr().out
+
+
+def test_a_missing_program_file_is_reported(monkeypatch, capsys, conn, database_url):
+    assert run_cli(monkeypatch, database_url, "program", "load", "nowhere.yaml") == 2
+    assert "cannot read" in capsys.readouterr().out
 
 
 def test_invalid_feedback_is_refused_without_a_traceback(monkeypatch, capsys, conn, database_url):
@@ -79,9 +106,10 @@ def test_invalid_feedback_is_refused_without_a_traceback(monkeypatch, capsys, co
 def test_approving_a_proposal_applies_it(monkeypatch, capsys, conn, database_url):
     from lifter import domain
 
-    pid = domain.propose(conn, "create_goal", {"title": "Gran fondo"}, "From chat.", "coach")
+    goal = {"title": "First muscle-up", "kind": "skill", "target_text": "one rep"}
+    pid = domain.propose(conn, "create_goal", goal, "From chat.", "coach")
     assert run_cli(monkeypatch, database_url, "proposals") == 0
-    assert "Gran fondo" in capsys.readouterr().out
+    assert "First muscle-up" in capsys.readouterr().out
     assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 0
     assert "applied" in capsys.readouterr().out
     assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 1  # not pending

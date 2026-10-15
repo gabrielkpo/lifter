@@ -1,0 +1,183 @@
+# Synthetic CrossFit program, for tests, the README and the demo. Not a real athlete's data.
+# A real program has the same shape and stays in data/, which Git ignores:
+#   uv run lifter program load data/program.yaml
+name: Synthetic cycle 1
+start_date: 2026-03-02
+end_date: 2026-05-24
+notes: >
+  Every session: warm-up, weightlifting or gymnastics while fresh, strength, then the metcon.
+  The RIR is the instruction, the load a guide. Metcons have a target, never a time cap.
+
+exercises:
+  - {name: Row, category: monostructural, pattern: engine, equipment: rower}
+  - {name: Ski erg, category: monostructural, pattern: engine, equipment: ski erg}
+  - {name: Assault bike, category: monostructural, pattern: engine, equipment: air bike}
+  - {name: Run, category: monostructural, pattern: engine, flags: [running, impact]}
+  - {name: Power clean, category: weightlifting, pattern: olympic, equipment: barbell}
+  - {name: Power snatch, category: weightlifting, pattern: olympic, equipment: barbell}
+  - {name: Push jerk, category: weightlifting, pattern: olympic, equipment: barbell}
+  - {name: Bench press, category: strength, pattern: push, equipment: barbell}
+  - {name: Strict press, category: strength, pattern: push, equipment: barbell}
+  - {name: Dips, category: gymnastics, pattern: push}
+  - {name: Strict pull-up, category: gymnastics, pattern: pull, equipment: rig}
+  - {name: Barbell row, category: strength, pattern: pull, equipment: barbell}
+  - {name: Leg press, category: strength, pattern: legs, equipment: machine}
+  - {name: Leg curl, category: strength, pattern: legs, equipment: machine}
+  - {name: Back squat, category: strength, pattern: legs, equipment: barbell, flags: [free_barbell_legs]}
+  - {name: Romanian deadlift, category: strength, pattern: hinge, equipment: barbell}
+  - {name: Farmer carry, category: strength, pattern: carry, equipment: kettlebells}
+  - {name: Kettlebell swing, category: weightlifting, pattern: hinge, equipment: kettlebell}
+  - {name: Wall ball, category: weightlifting, pattern: full_body, equipment: medicine ball}
+  - {name: Burpee, category: gymnastics, pattern: full_body}
+  - {name: Toes to bar, category: gymnastics, pattern: core, equipment: rig}
+  - {name: Box jump, category: gymnastics, pattern: legs, flags: [impact]}
+  - {name: Hip mobility, category: mobility, pattern: mobility}
+
+blocks:
+  - {position: 1, kind: accumulation, start_date: 2026-03-02, end_date: 2026-03-29,
+     intent: "Volume: 8-12 reps, RIR 3 then 2, long metcons at a sustainable pace.",
+     target_strength_sessions: 12}
+  - {position: 2, kind: transmutation, start_date: 2026-03-30, end_date: 2026-04-26,
+     intent: "Maximal strength: volume down about 20 %, short sets, long rests.",
+     target_strength_sessions: 11}
+  - {position: 3, kind: realisation, start_date: 2026-04-27, end_date: 2026-05-24,
+     intent: "Express strength, then test: lowest volume, speed work, short intense metcons.",
+     target_strength_sessions: 9}
+
+weeks:
+  - number: 1
+    block: 1
+    start_date: 2026-03-02
+    phase: reference
+    title: Reference week
+    intent:
+      weightlifting: Technique, light, sets of 3, always land in power.
+      push: Volume, long sets, RIR 3, bottom of the ranges.
+      pull: Volume, RIR 3, strict pulling first.
+      legs: Guided load only, RIR 3, no failure.
+      metcon: Long, sustainable, continuous.
+    review: Three sessions of four; the legs session moved to Saturday.
+    sessions:
+      - day: 2026-03-02
+        title: Weightlifting + Push + Metcon
+        notes: Bench felt easy, metcon hard.
+        parts:
+          - kind: warmup
+            planned: [{exercise: Row, quantity: 1000, unit: m}]
+          - kind: weightlifting
+            planned: [{exercise: Power clean, sets: 5, quantity: 3, load_kg: 40, load_kg_max: 45}]
+            done: [{exercise: Power clean, sets: 5, quantity: 3, load_kg: 45}]
+          - kind: strength
+            planned:
+              - {exercise: Bench press, sets: 3, quantity: 10, load_kg: 50, rir: 3, rest_seconds: 120}
+              - {exercise: Dips, sets: 3, quantity: 6, rir: 3}
+            done:
+              - {exercise: Bench press, sets: 3, quantity: 10, load_kg: 52.5, rir: 2}
+              - {exercise: Dips, sets: 3, quantity: 6, rir: 2}
+          - kind: metcon
+            format: amrap
+            duration_minutes: 15
+            target_rounds: 5
+            result_rounds: 5.5
+            planned:
+              - {exercise: Assault bike, quantity: 12, unit: cal}
+              - {exercise: Wall ball, quantity: 15, load_kg: 6}
+              - {exercise: Burpee, quantity: 10}
+      - day: 2026-03-04
+        title: Weightlifting + Pull + Metcon
+        parts:
+          - kind: weightlifting
+            planned: [{exercise: Power snatch, sets: 5, quantity: 3, load_kg: 30}]
+          - kind: strength
+            planned:
+              - {exercise: Strict pull-up, sets: 4, quantity: 5, rir: 3}
+              - {exercise: Barbell row, sets: 3, quantity: 10, load_kg: 35, rir: 3}
+          - kind: metcon
+            format: for_time
+            rounds: 3
+            target_seconds: 720
+            planned:
+              - {exercise: Ski erg, quantity: 15, unit: cal}
+              - {exercise: Kettlebell swing, quantity: 15, load_kg: 16}
+              - {exercise: Toes to bar, quantity: 10}
+      - day: 2026-03-07
+        title: Legs + Metcon
+        moved_from: 2026-03-05
+        deviation: Moved from Thursday; leg curl not done.
+        parts:
+          - kind: strength
+            planned:
+              - {exercise: Leg press, sets: 3, quantity: 12, load_kg: 100, rir: 3}
+              - {exercise: Leg curl, sets: 3, quantity: 12, rir: 3}
+            done:
+              - {exercise: Leg press, sets: 3, quantity: 12, load_kg: 105, rir: 3}
+          - kind: metcon
+            format: emom
+            duration_minutes: 12
+            planned:
+              - {exercise: Ski erg, quantity: 12, unit: cal}
+              - {exercise: Kettlebell swing, quantity: 10, load_kg: 20}
+      - day: 2026-03-06
+        title: Benchmark metcon
+        parts:
+          - kind: metcon
+            format: amrap
+            duration_minutes: 25
+            target_rounds: 5
+            notes: Repeated identically in the test week.
+            planned:
+              - {exercise: Assault bike, quantity: 15, unit: cal}
+              - {exercise: Wall ball, quantity: 15, load_kg: 6}
+              - {exercise: Farmer carry, quantity: 40, unit: m, load_kg: 24}
+              - {exercise: Burpee, quantity: 10}
+  - number: 2
+    block: 1
+    start_date: 2026-03-09
+    phase: volume
+    title: More volume
+    intent:
+      push: One more set, not more load. RIR 3.
+      pull: Introduce loaded carries.
+      legs: Unilateral work every week.
+      metcon: Long, a different format from week 1.
+
+history:
+  - day: 2026-02-23
+    title: Push
+    parts:
+      - kind: strength
+        done:
+          - {exercise: Bench press, sets: 1, quantity: 1, load_kg: 70}
+          - {exercise: Bench press, sets: 3, quantity: 5, load_kg: 60}
+
+goals:
+  - title: Bench press 80 kg
+    exercise: Bench press
+    unit: kg
+    baseline_value: 70
+    baseline_date: 2026-02-23
+    target_value: 80
+    target_date: 2026-05-24
+    milestones:
+      - {day: 2026-03-29, label: end of block 1, value: 72.5}
+      - {day: 2026-04-26, label: end of block 2, value: 77.5}
+  - title: First strict pull-up
+    kind: skill
+    exercise: Strict pull-up
+    unit: reps
+    baseline_text: banded only
+    target_text: first rep without a band
+    target_date: 2026-05-24
+  - title: Benchmark metcon, 6 rounds
+    kind: benchmark
+    unit: rounds
+    target_value: 6
+    target_date: 2026-05-24
+
+rules:
+  - {code: forbid_flag, text: "No running, no repeated jumps.", params: {flags: [running, impact]}}
+  - {code: forbid_flag, text: "No free barbell on the legs.", params: {flags: [free_barbell_legs]}}
+  - {code: no_failure_on_legs, text: "Never train the legs to failure, never test a max."}
+  - {code: progression, text: "RIR met on every set: +2.5 kg upper body, +5 kg lower body.",
+     params: {upper_kg: 2.5, lower_kg: 5}}
+  - {text: "Weightlifting and skills while fresh, never after a metcon."}

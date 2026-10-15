@@ -1,11 +1,14 @@
-"""The athlete's domain: sessions, goals, plans, feedback, and agent proposals.
+"""The athlete's domain, for CrossFit: sessions in parts, exercises, goals, feedback, proposals.
 
-Two ways to change it:
-- the athlete acts directly (CLI today, the app later): `create_session`, `move_session`, ...
+A session is an ordered list of parts (warm-up, weightlifting / gymnastics, strength, metcon,
+or a cardio / mobility block). Each part holds exercise lines, as prescribed (`planned`) and
+as done (`done`); a metcon part has a format and a target, never a time cap.
+
+Two ways to change the domain:
+- the athlete acts directly (CLI and program file today, the app later): `create_session`,
+  `move_session`, ...
 - an agent proposes (`propose`); nothing changes until the athlete approves the proposal
   (`decide`) and code applies it (`apply`). Agents never call the direct functions.
-
-Garmin is not written here: pushing approved sessions to Garmin comes with step 5.
 """
 
 from datetime import date
@@ -13,26 +16,92 @@ from typing import Annotated, Any, Literal
 
 import psycopg
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Intensity = Literal["rest", "easy", "moderate", "hard", "race"]
+PartKind = Literal[
+    "warmup", "weightlifting", "gymnastics", "strength", "metcon", "cardio", "mobility"
+]
+MetconFormat = Literal["for_time", "amrap", "emom", "every_n", "rounds", "intervals", "other"]
+Unit = Literal["reps", "cal", "m", "s", "min"]
+PositiveInt = Annotated[int, Field(gt=0)]
+PositiveNumber = Annotated[float, Field(gt=0)]
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class ExerciseIn(_Model):
+    name: str = Field(min_length=1)
+    category: Literal[
+        "weightlifting", "gymnastics", "strength", "monostructural", "mobility", "other"
+    ]
+    pattern: Literal[
+        "olympic",
+        "push",
+        "pull",
+        "legs",
+        "hinge",
+        "core",
+        "carry",
+        "engine",
+        "full_body",
+        "mobility",
+        "other",
+    ] = "other"
+    equipment: str | None = None
+    flags: list[str] = []
+    notes: str | None = None
+
+
+class LineIn(_Model):
+    """One exercise line: `sets` x `quantity` `unit` at `load_kg` (to `load_kg_max`), RIR."""
+
+    exercise: str = Field(min_length=1)
+    sets: PositiveInt | None = None
+    quantity: PositiveNumber | None = None
+    unit: Unit = "reps"
+    load_kg: Annotated[float, Field(ge=0)] | None = None
+    load_kg_max: Annotated[float, Field(ge=0)] | None = None
+    rir: Annotated[int, Field(ge=0, le=10)] | None = None
+    rest_seconds: Annotated[int, Field(ge=0)] | None = None
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def _load_range(self):
+        top = self.load_kg_max
+        if top is not None and (self.load_kg is None or top < self.load_kg):
+            raise ValueError("load_kg_max needs a load_kg and cannot be below it")
+        return self
+
+
+class PartIn(_Model):
+    kind: PartKind
+    title: str | None = None
+    notes: str | None = None
+    format: MetconFormat | None = None
+    duration_minutes: PositiveNumber | None = None
+    rounds: PositiveInt | None = None
+    interval_seconds: PositiveInt | None = None
+    target_seconds: PositiveInt | None = None
+    target_rounds: PositiveNumber | None = None
+    result_seconds: PositiveInt | None = None
+    result_rounds: Annotated[float, Field(ge=0)] | None = None
+    result_notes: str | None = None
+    planned: list[LineIn] = []
+    done: list[LineIn] = []
 
 
 class SessionIn(_Model):
     day: date
-    sport: str = Field(min_length=1)
     title: str = Field(min_length=1)
-    description: str | None = None
-    intensity: Intensity = "moderate"
-    target_duration_minutes: Annotated[float, Field(gt=0)] | None = None
-    target_load: Annotated[float, Field(ge=0)] | None = None
-    structure: dict[str, Any] | None = None
-    goal_id: int | None = None
-    plan_id: int | None = None
+    kind: Literal["training", "cardio", "mobility", "rest"] = "training"
+    week_id: int | None = None
+    notes: str | None = None
+    deviation: str | None = None
+    status: Literal["planned", "cancelled"] = "planned"
+    moved_from: date | None = None
+    parts: list[PartIn] = []
 
 
 class MoveSession(_Model):
@@ -44,23 +113,45 @@ class CancelSession(_Model):
     session_id: int
 
 
+class MilestoneIn(_Model):
+    day: date
+    label: str | None = None
+    value: float | None = None
+    value_text: str | None = None
+
+    @model_validator(mode="after")
+    def _has_value(self):
+        if self.value is None and self.value_text is None:
+            raise ValueError("a milestone needs a value or a value_text")
+        return self
+
+
 class GoalIn(_Model):
     title: str = Field(min_length=1)
-    kind: Literal["event", "performance", "volume", "health", "other"] = "event"
-    sport: str | None = None
-    target_date: date | None = None
+    kind: Literal["strength", "skill", "benchmark", "other"] = "strength"
+    exercise: str | None = None
+    cycle_id: int | None = None
+    unit: str | None = None
+    baseline_value: float | None = None
+    baseline_text: str | None = None
+    baseline_date: date | None = None
     target_value: float | None = None
-    target_unit: str | None = None
+    target_text: str | None = None
+    target_date: date | None = None
     notes: str | None = None
+    milestones: list[MilestoneIn] = []
+
+    @model_validator(mode="after")
+    def _has_target(self):
+        if self.target_value is None and self.target_text is None:
+            raise ValueError("a goal needs a target_value or a target_text")
+        return self
 
 
-class PlanIn(_Model):
-    name: str = Field(min_length=1)
-    goal_id: int | None = None
-    phase: Literal["base", "build", "peak", "taper", "recovery", "transition"] = "base"
-    start_date: date
-    end_date: date
-    notes: str | None = None
+class RuleIn(_Model):
+    code: str | None = None
+    text: str = Field(min_length=1)
+    params: dict[str, Any] = {}
 
 
 class FeedbackIn(_Model):
@@ -80,12 +171,11 @@ PROPOSAL_PAYLOADS: dict[str, type[_Model]] = {
     "move_session": MoveSession,
     "cancel_session": CancelSession,
     "create_goal": GoalIn,
-    "create_plan": PlanIn,
 }
 
 
 class DomainError(ValueError):
-    """The requested change is not possible (unknown id, wrong state, invalid dates)."""
+    """The requested change is not possible (unknown id or exercise, wrong state, bad dates)."""
 
 
 class _NotApproved(Exception):
@@ -93,7 +183,7 @@ class _NotApproved(Exception):
 
 
 def _insert(conn: psycopg.Connection, table: str, values: dict[str, Any]) -> int:
-    """Insert a row; table and column names come from this module's models, never from input."""
+    """Insert a row; table and column names come from this module, never from input."""
     columns = ", ".join(values)
     placeholders = ", ".join(["%s"] * len(values))
     params = [Jsonb(v) if isinstance(v, dict) else v for v in values.values()]
@@ -103,11 +193,64 @@ def _insert(conn: psycopg.Connection, table: str, values: dict[str, Any]) -> int
     return row[0]
 
 
+def exercise_ids(conn: psycopg.Connection, names: set[str]) -> dict[str, int]:
+    """Ids of the named exercises; every name must be in the exercise bank."""
+    rows = conn.execute(
+        "select name, id from exercise where name = any(%s)", (sorted(names),)
+    ).fetchall()
+    found = dict(rows)
+    missing = sorted(names - found.keys())
+    if missing:
+        raise DomainError(f"unknown exercises (add them to the bank first): {', '.join(missing)}")
+    return found
+
+
 # Direct actions (the athlete)
 
 
+def upsert_exercise(conn: psycopg.Connection, exercise: ExerciseIn) -> int:
+    row = conn.execute(
+        """
+        insert into exercise (name, category, pattern, equipment, flags, notes)
+        values (%(name)s, %(category)s, %(pattern)s, %(equipment)s, %(flags)s, %(notes)s)
+        on conflict (name) do update set
+            category = excluded.category, pattern = excluded.pattern,
+            equipment = excluded.equipment, flags = excluded.flags, notes = excluded.notes
+        returning id
+        """,
+        exercise.model_dump(),
+    ).fetchone()
+    return row[0]
+
+
 def create_session(conn: psycopg.Connection, session: SessionIn) -> int:
-    return _insert(conn, "planned_session", session.model_dump())
+    """Create a session with its parts and exercise lines, all or nothing."""
+    names = {line.exercise for part in session.parts for line in part.planned + part.done}
+    with conn.transaction():
+        ids = exercise_ids(conn, names) if names else {}
+        session_id = _insert(conn, "planned_session", session.model_dump(exclude={"parts"}))
+        for position, part in enumerate(session.parts, start=1):
+            part_id = _insert(
+                conn,
+                "session_part",
+                {"session_id": session_id, "position": position}
+                | part.model_dump(exclude={"planned", "done"}),
+            )
+            for origin, lines in (("planned", part.planned), ("done", part.done)):
+                for line_position, line in enumerate(lines, start=1):
+                    values = line.model_dump(exclude={"exercise"})
+                    _insert(
+                        conn,
+                        "session_exercise",
+                        {
+                            "part_id": part_id,
+                            "origin": origin,
+                            "position": line_position,
+                            "exercise_id": ids[line.exercise],
+                        }
+                        | values,
+                    )
+    return session_id
 
 
 def move_session(conn: psycopg.Connection, move: MoveSession) -> None:
@@ -137,13 +280,18 @@ def cancel_session(conn: psycopg.Connection, cancel: CancelSession) -> None:
 
 
 def create_goal(conn: psycopg.Connection, goal: GoalIn) -> int:
-    return _insert(conn, "goal", goal.model_dump())
+    with conn.transaction():
+        values = goal.model_dump(exclude={"exercise", "milestones"})
+        if goal.exercise is not None:
+            values["exercise_id"] = exercise_ids(conn, {goal.exercise})[goal.exercise]
+        goal_id = _insert(conn, "goal", values)
+        for milestone in goal.milestones:
+            _insert(conn, "goal_milestone", {"goal_id": goal_id} | milestone.model_dump())
+    return goal_id
 
 
-def create_plan(conn: psycopg.Connection, plan: PlanIn) -> int:
-    if plan.end_date < plan.start_date:
-        raise DomainError("a plan cannot end before it starts")
-    return _insert(conn, "training_plan", plan.model_dump())
+def add_rule(conn: psycopg.Connection, rule: RuleIn) -> int:
+    return _insert(conn, "athlete_rule", rule.model_dump())
 
 
 def add_feedback(conn: psycopg.Connection, feedback: FeedbackIn) -> int:
@@ -157,7 +305,6 @@ _APPLY = {
     "move_session": lambda conn, p: move_session(conn, p) or {},
     "cancel_session": lambda conn, p: cancel_session(conn, p) or {},
     "create_goal": lambda conn, p: {"goal_id": create_goal(conn, p)},
-    "create_plan": lambda conn, p: {"plan_id": create_plan(conn, p)},
 }
 
 

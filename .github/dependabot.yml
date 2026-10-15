@@ -10,6 +10,15 @@ updates:
     groups:
       python:
         patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      web:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -320,6 +320,7 @@ def test_only_a_garmin_404_counts_as_not_found(text):
 def test_days_garmin_answered_with_no_data_are_not_asked_again(conn):
     answers = two_days()
     del answers[("get_training_status", D1.isoformat())]  # "No data found for ..."
+    # answered long after the day, so the empty answer is final
     run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
     caller = FakeCaller(answers)
     run_sync(conn, caller, today=date(2026, 6, 1))
@@ -335,3 +336,14 @@ def test_recent_empty_days_are_asked_again(conn):
     run_sync(conn, caller, today=D2)
 
     assert ("get_training_status", {"date": D2.isoformat()}) in caller.calls
+
+
+def test_days_empty_while_recent_are_asked_again_later(conn):
+    # The watch was offline: on D2 (recent), Garmin had nothing for D1 yet.
+    answers = two_days()
+    del answers[("get_training_status", D1.isoformat())]
+    run_sync(conn, FakeCaller(answers), today=D2)
+    caller = FakeCaller(two_days())  # the watch has uploaded since
+    run_sync(conn, caller, today=date(2026, 6, 1))
+
+    assert ("get_training_status", {"date": D1.isoformat()}) in caller.calls

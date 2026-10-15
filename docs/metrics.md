@@ -37,8 +37,10 @@ Garmin MCP ──► raw_garmin_payload (JSON as received, deduplicated by hash)
 
 Garmin files a night under the day you wake up, so "sleep of day D" is the night before D.
 
-A day or an activity for which Garmin answered "no data" is logged and, once older than the
-refetch window (3 days), not asked again; only `lifter sync --refresh` asks again.
+A day for which Garmin answered "no data" is asked again until that answer comes more than 3
+days after the day (a watch offline for a few days uploads them later); then it is final, and
+only `lifter sync --refresh` asks again. An activity answered "no data" is final at once.
+`get_training_status` costs two Garmin requests per day (the server also reads the device list).
 
 When a complete listing of a date range no longer returns a known activity, the sync asks
 Garmin for it (`get_activity`). Only a confirmed "not found" (HTTP 404) records it in

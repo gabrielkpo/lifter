@@ -381,7 +381,9 @@ select
     d.garmin_resting_hr_bpm,
     d.avg_spo2_percent,
     d.avg_waking_respiration,
-    d.moderate_intensity_minutes + 2 * d.vigorous_intensity_minutes as intensity_minutes,
+    case when d.moderate_intensity_minutes is not null or d.vigorous_intensity_minutes is not null
+        then coalesce(d.moderate_intensity_minutes, 0) + 2 * coalesce(d.vigorous_intensity_minutes, 0)
+    end as intensity_minutes,
     r.score as readiness_score,
     r.level as readiness_level,
     r.recovery_time_hours,

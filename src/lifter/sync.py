@@ -100,24 +100,38 @@ def store_payload(
 
 
 def log_call(
-    conn: psycopg.Connection, tool: str, natural_key: str, status: str, message: str | None
+    conn: psycopg.Connection,
+    tool: str,
+    natural_key: str,
+    status: str,
+    message: str | None,
+    as_of: date | None = None,
 ) -> None:
     conn.execute(
-        "insert into sync_log (tool, natural_key, status, message) values (%s, %s, %s, %s)",
-        (tool, natural_key, status, message),
+        "insert into sync_log (tool, natural_key, status, message, as_of)"
+        " values (%s, %s, %s, %s, %s)",
+        (tool, natural_key, status, message, as_of),
     )
 
 
-def is_known(conn: psycopg.Connection, tool: str, natural_key: str) -> bool:
-    """Garmin already answered for this key: a stored payload, or a logged "no data"."""
+def is_known(
+    conn: psycopg.Connection, tool: str, natural_key: str, day: date | None = None
+) -> bool:
+    """Garmin already answered for this key: a stored payload, or a final "no data".
+
+    For a day, "no data" only counts once it was answered after the refetch window: a watch
+    that stayed offline for a few days uploads them later, and they must be asked again.
+    """
     row = conn.execute(
         """
         select 1 from raw_garmin_payload where tool = %s and natural_key = %s
         union all
-        select 1 from sync_log where tool = %s and natural_key = %s and status = 'empty'
+        select 1 from sync_log
+        where tool = %s and natural_key = %s and status = 'empty'
+            and (%s::date is null or coalesce(as_of, at::date) > %s::date + %s)
         limit 1
         """,
-        (tool, natural_key, tool, natural_key),
+        (tool, natural_key, tool, natural_key, day, day, REFRESH_DAYS),
     ).fetchone()
     return row is not None
 
@@ -158,10 +172,10 @@ class Syncer:
         with self.conn.transaction():
             if kind == "ok":
                 status = store_payload(self.conn, tool, natural_key, params, payload)
-                log_call(self.conn, tool, natural_key, status, None)
+                log_call(self.conn, tool, natural_key, status, None, self.today)
             else:
                 status = kind
-                log_call(self.conn, tool, natural_key, status, text[:500])
+                log_call(self.conn, tool, natural_key, status, text[:500], self.today)
         self.report.add(status)
         self.consecutive_errors = self.consecutive_errors + 1 if status == "error" else 0
         if self.consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
@@ -176,7 +190,7 @@ class Syncer:
         while day <= end:
             for tool in DAILY_TOOLS:
                 key = day.isoformat()
-                if self._is_final(day) and is_known(self.conn, tool, key):
+                if self._is_final(day) and is_known(self.conn, tool, key, day):
                     self.report.add("skipped")
                     continue
                 await self._fetch(tool, key, {"date": key})

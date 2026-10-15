@@ -63,3 +63,11 @@ def test_a_day_with_only_daily_stats_is_in_the_calendar(conn):
     assert r["sleep_hours"] is None
     assert r["readiness_score"] is None
     assert r["avg_stress"] == 30
+
+
+def test_intensity_minutes_with_only_vigorous_minutes(conn):
+    stats = daily_stats(DAY)
+    del stats["moderate_intensity_minutes"]
+    store_payload(conn, "get_stats", DAY.isoformat(), {}, stats)
+
+    assert recovery(conn)["intensity_minutes"] == 30

@@ -19,6 +19,8 @@ from synthetic import (
 
 D1, D2 = date(2026, 3, 2), date(2026, 3, 3)
 
+SNAPSHOT_TOOLS = {"get_scheduled_workouts"}
+
 
 class FakeCaller:
     """Answers like the Garmin MCP server, from a dict keyed by (tool, natural key)."""
@@ -33,8 +35,10 @@ class FakeCaller:
             key = arguments["date"]
         elif "activity_id" in arguments:
             key = arguments["activity_id"]
-        else:
+        elif "page" in arguments:
             key = arguments["page"]
+        else:
+            key = "snapshot"  # Garmin calendar
         answer = self.answers.get((tool, key), f"No data found for {key}")
         if isinstance(answer, Exception):
             raise answer
@@ -78,7 +82,7 @@ def log_statuses(conn):
 def test_first_sync_stores_every_answer(conn):
     report = run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))
 
-    assert report.counts == {"stored": 13, "unchanged": 0, "empty": 0, "error": 0, "skipped": 0}
+    assert report.counts == {"stored": 14, "unchanged": 0, "empty": 0, "error": 0, "skipped": 0}
     assert conn.execute("select count(*) from stg_activity").fetchone()[0] == 1
     assert conn.execute("select hrv_ms from stg_hrv order by day").fetchall() == [(60,), (58,)]
 
@@ -88,8 +92,10 @@ def test_old_days_are_not_fetched_twice(conn):
     caller = FakeCaller(two_days())
     report = run_sync(conn, caller, today=date(2026, 6, 1))
 
-    # only the activity listing is asked again; days and the activity are final
-    assert [tool for tool, _ in caller.calls] == ["get_activities_by_date"]
+    # only the listing and the snapshots are asked again; days and the activity are final
+    assert [tool for tool, _ in caller.calls if tool not in SNAPSHOT_TOOLS] == [
+        "get_activities_by_date"
+    ]
     assert report.counts["skipped"] == 12  # 2 days x 5 daily tools + 2 activity tools
 
 
@@ -100,7 +106,7 @@ def test_recent_days_are_refetched(conn):
     report = run_sync(conn, FakeCaller(answers), today=D2)
 
     assert report.counts["stored"] == 1
-    assert report.counts["unchanged"] == 12
+    assert report.counts["unchanged"] == 13  # 12 + the unchanged snapshot
     row = conn.execute("select sleep_seconds from stg_sleep where day = %s", (D2,)).fetchone()
     assert row == (round(7.8 * 3600),)
 
@@ -114,7 +120,7 @@ def test_empty_and_error_answers_are_logged_not_stored(conn):
 
     assert report.counts["empty"] == 1
     assert report.counts["error"] == 2
-    assert log_statuses(conn) == {"stored": 10, "empty": 1, "error": 2}
+    assert log_statuses(conn) == {"stored": 11, "empty": 1, "error": 2}
     assert conn.execute("select count(*) from stg_hrv").fetchone()[0] == 0
 
 
@@ -250,7 +256,7 @@ def test_refresh_refetches_final_days(conn):
     caller = FakeCaller(two_days())
     asyncio.run(sync_range(caller, conn, D1, D2, today=date(2026, 6, 1), refresh=True))
 
-    assert len(caller.calls) == 13  # listing, 2 activity tools, 2 days x 5 daily tools
+    assert len(caller.calls) == 14  # listing, snapshot, 2 activity tools, 2 x 5 daily
 
 
 class FakeSession:
@@ -302,7 +308,7 @@ def test_transport_failure_is_logged_and_the_sync_goes_on(conn):
     report = run_sync(conn, FlakyCaller(two_days()), today=date(2026, 6, 1))
 
     assert report.counts["error"] == 1
-    assert report.counts["stored"] == 12
+    assert report.counts["stored"] == 13
 
 
 @pytest.mark.parametrize(

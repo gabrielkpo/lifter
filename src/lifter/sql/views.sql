@@ -24,6 +24,8 @@ select
     (payload ->> 'duration_seconds')::numeric as duration_seconds,
     (payload ->> 'distance_meters')::numeric as distance_meters,
     (payload ->> 'avg_hr_bpm')::numeric as avg_hr_bpm,
+    (payload ->> 'max_hr_bpm')::numeric as max_hr_bpm,
+    (payload ->> 'calories')::numeric as calories,
     (payload ->> 'training_load')::numeric as training_load,
     (payload ->> 'training_effect')::numeric as aerobic_training_effect,
     (payload ->> 'workout_rpe')::numeric as rpe
@@ -405,3 +407,241 @@ left join stg_sleep s using (day)
 left join stg_daily_stats d using (day)
 left join stg_training_readiness r using (day)
 left join stg_training_status t using (day);
+
+
+-- CrossFit domain (docs/domain.md).
+
+-- Activity types that can be a CrossFit session (training, cardio on ergs, mobility). Other
+-- activities (a bike commute, a walk) count in the load but never complete a session.
+create or replace function is_session_activity(activity_type text) returns boolean
+language sql immutable
+as $$
+    select coalesce(
+        activity_type ~ '^(hiit|strength_training|stop_watch|indoor_cardio|indoor_rowing|indoor_cycling|fitness_equipment|cardio_training|training|crossfit|yoga|pilates|mobility|breathwork)$',
+        false
+    )
+$$;
+
+-- Garmin calendar snapshot (latest sync only).
+create view stg_scheduled_workout as
+select
+    (item ->> 'date')::date as day,
+    (item ->> 'scheduled_workout_id')::bigint as garmin_schedule_id,
+    (item ->> 'workout_id')::bigint as garmin_workout_id,
+    item ->> 'name' as name,
+    lower(item ->> 'sport') as sport,
+    (item ->> 'completed')::boolean as completed
+from latest_garmin_payload,
+    jsonb_array_elements(payload -> 'scheduled_workouts') as item
+where tool = 'get_scheduled_workouts'
+    and jsonb_typeof(payload -> 'scheduled_workouts') = 'array';
+
+-- Which Garmin activities belong to which session. An activity matched explicitly
+-- (planned_session.matched_activity_id) belongs to that session. Otherwise, on each day, the
+-- n-th session activity (by start time) goes to the n-th open session (by id); extra
+-- activities go to the day's last session, since one session is often recorded in two parts
+-- (strength, then the metcon). Mobility sessions, rarely recorded, take activities only on a
+-- day without another open session. An activity never belongs to two sessions; cancelled and
+-- rest sessions take none.
+create view session_activity as
+with candidates as (
+    select
+        id,
+        day,
+        kind,
+        bool_or(kind <> 'mobility') over (partition by day) as day_has_other
+    from planned_session
+    where status = 'planned' and kind <> 'rest' and matched_activity_id is null
+),
+open_sessions as (
+    select
+        id,
+        day,
+        row_number() over (partition by day order by id) as rank,
+        count(*) over (partition by day) as sessions_that_day
+    from candidates
+    where kind <> 'mobility' or not day_has_other
+),
+free_activities as (
+    select
+        activity_id,
+        activity_date as day,
+        row_number() over (
+            partition by activity_date order by start_time_local, activity_id
+        ) as rank
+    from stg_activity a
+    where is_session_activity(activity_type)
+        and not exists (
+            select 1 from planned_session p where p.matched_activity_id = a.activity_id
+        )
+)
+select o.id as planned_session_id, f.activity_id
+from free_activities f
+join open_sessions o
+    on o.day = f.day and o.rank = least(f.rank, o.sessions_that_day)
+union all
+select p.id, p.matched_activity_id
+from planned_session p
+where p.status = 'planned' and p.matched_activity_id is not null;
+
+-- The Garmin line of a session, summed over its activities: duration, heart rate, calories,
+-- load and minutes in zones 4-5. Average heart rate is weighted by duration.
+create view session_garmin as
+select
+    sa.planned_session_id,
+    count(*) as activities,
+    round(sum(a.duration_seconds) / 60.0) as duration_minutes,
+    round(
+        sum(a.avg_hr_bpm * a.duration_seconds)
+        / nullif(sum(a.duration_seconds) filter (where a.avg_hr_bpm is not null), 0)
+    ) as avg_hr_bpm,
+    round(max(a.max_hr_bpm)) as max_hr_bpm,
+    round(sum(a.calories)) as calories,
+    round(sum(a.training_load), 1) as training_load,
+    round(coalesce(sum(z.z45_seconds), 0) / 60.0) as z4_z5_minutes
+from session_activity sa
+join stg_activity a using (activity_id)
+left join (
+    select activity_id, sum(seconds_in_zone) as z45_seconds
+    from stg_activity_hr_zone
+    where zone_number >= 4
+    group by activity_id
+) z using (activity_id)
+group by sa.planned_session_id;
+
+-- Planned sessions with their outcome: "done" when a Garmin activity belongs to the session or
+-- when it was logged (exercises done, a metcon result, or a session feedback), since the
+-- watch is not always worn; "missed" once the day is past without either; "cancelled" when the
+-- athlete or an approved proposal cancelled it.
+create view planned_session_status as
+with logged as (
+    select sp.session_id as id
+    from session_part sp
+    where sp.result_seconds is not null or sp.result_rounds is not null
+        or exists (
+            select 1 from session_exercise se where se.part_id = sp.id and se.origin = 'done'
+        )
+    union
+    select planned_session_id from feedback where planned_session_id is not null
+)
+select
+    p.id as planned_session_id,
+    p.day,
+    p.title,
+    p.kind,
+    p.week_id,
+    p.moved_from,
+    g.activities,
+    p.id in (select id from logged) as logged,
+    case
+        when p.status = 'cancelled' then 'cancelled'
+        when p.kind = 'rest' then 'rest'
+        when g.activities is not null or p.id in (select id from logged) then 'done'
+        when p.day < current_date then 'missed'
+        else 'planned'
+    end as status
+from planned_session p
+left join session_garmin g on g.planned_session_id = p.id;
+
+-- Everything on the athlete's calendar, one row per item: Lifter sessions, workouts that only
+-- exist in Garmin's calendar, and activities that belong to no session.
+create view calendar as
+select
+    s.day, 'session' as kind, 'lifter' as source, s.title, s.kind as detail, s.status,
+    s.planned_session_id, null::bigint as activity_id
+from planned_session_status s
+union all
+select
+    g.day, 'session', 'garmin', g.name, g.sport,
+    case when g.completed then 'done' when g.day < current_date then 'missed' else 'planned' end,
+    null, null
+from stg_scheduled_workout g
+union all
+select
+    a.activity_date, 'activity', 'garmin', a.name, a.activity_type,
+    case when is_session_activity(a.activity_type) then 'done (unplanned)' else 'other' end,
+    null, a.activity_id
+from stg_activity a
+where not exists (select 1 from session_activity sa where sa.activity_id = a.activity_id);
+
+-- Exercise lines with their exercise, for reading a session or a week.
+create view session_line as
+select
+    sp.session_id,
+    sp.position as part_position,
+    sp.kind as part_kind,
+    se.origin,
+    se.position,
+    e.name as exercise,
+    e.category,
+    e.pattern,
+    se.sets,
+    se.quantity,
+    se.unit,
+    se.load_kg,
+    se.load_kg_max,
+    se.rir,
+    se.rest_seconds,
+    se.notes
+from session_exercise se
+join session_part sp on sp.id = se.part_id
+join exercise e on e.id = se.exercise_id;
+
+-- The review of each week, what the weekly programming starts from: sessions planned, done,
+-- missed and cancelled, strength sessions done (done sessions with a strength part: they count
+-- toward the block), and the movement patterns actually trained.
+create view week_summary as
+select
+    w.id as week_id,
+    w.block_id,
+    w.number,
+    w.start_date,
+    w.phase,
+    b.kind as block,
+    count(s.planned_session_id) filter (where s.status <> 'rest') as sessions,
+    count(*) filter (where s.status = 'done') as done,
+    count(*) filter (where s.status = 'missed') as missed,
+    count(*) filter (where s.status = 'cancelled') as cancelled,
+    count(*) filter (
+        where s.status = 'done' and exists (
+            select 1 from session_part sp
+            where sp.session_id = s.planned_session_id and sp.kind = 'strength'
+        )
+    ) as strength_sessions_done,
+    (
+        select array_agg(distinct l.pattern order by l.pattern)
+        from session_line l
+        join planned_session p on p.id = l.session_id
+        where p.week_id = w.id and l.origin = 'done' and l.part_kind <> 'warmup'
+    ) as patterns_done
+from training_week w
+left join block b on b.id = w.block_id
+left join planned_session_status s on s.week_id = w.id
+group by w.id, b.kind;
+
+-- Progress of each block: it ends when its strength-session count is reached.
+create view block_progress as
+select
+    b.id as block_id,
+    b.cycle_id,
+    b.position,
+    b.kind,
+    b.start_date,
+    b.end_date,
+    b.target_strength_sessions,
+    coalesce(sum(ws.strength_sessions_done), 0) as strength_sessions_done
+from block b
+left join week_summary ws on ws.block_id = b.id
+group by b.id;
+
+-- Best logged load per exercise and repetition count (sets done in reps with a load).
+create view exercise_best as
+select distinct on (l.exercise, l.quantity)
+    l.exercise,
+    l.quantity as reps,
+    l.load_kg as best_load_kg,
+    p.day
+from session_line l
+join planned_session p on p.id = l.session_id
+where l.origin = 'done' and l.unit = 'reps' and l.load_kg is not null and l.quantity is not null
+order by l.exercise, l.quantity, l.load_kg desc, p.day;

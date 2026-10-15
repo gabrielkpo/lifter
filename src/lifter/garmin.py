@@ -18,6 +18,7 @@ READ_TOOLS = frozenset(
         "get_stats",
         "get_training_readiness",
         "get_training_status",
+        "get_scheduled_workouts",
     }
 )
 

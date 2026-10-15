@@ -143,11 +143,16 @@ class RecentLoad(BaseModel):
 
 
 class Feedback(BaseModel):
-    """What the athlete reported after a session or in the morning (scales: docs/domain.md)."""
+    """What the athlete reported after a session or in the morning (scales: docs/domain.md).
+
+    `lines` are the loaded lines of that session (done ones, else planned): the stop rule caps
+    them when the pain is high."""
 
     day: date
     kind: str
+    session_id: int | None
     session_title: str | None
+    lines: list[LineInfo] = []
     rpe: int | None
     fatigue: int | None
     pain: int | None
@@ -186,6 +191,33 @@ def _num(value: Any) -> float | None:
 def _rows(conn: psycopg.Connection, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
     """Rows as dicts, without changing the caller's connection."""
     return conn.cursor(row_factory=dict_row).execute(sql, params).fetchall()
+
+
+def _feedback_lines(conn: psycopg.Connection, session_id: int | None) -> list[LineInfo]:
+    """The loaded strength-type lines of a session: done ones, else the planned ones."""
+    if session_id is None:
+        return []
+    rows = _rows(
+        conn,
+        "select origin, exercise, sets, quantity, unit, load_kg, load_kg_max, rir"
+        " from session_line where session_id = %s and load_kg is not null"
+        " and part_kind in ('weightlifting', 'gymnastics', 'strength')"
+        " order by origin, part_position, position",
+        (session_id,),
+    )
+    done = [r for r in rows if r["origin"] == "done"]
+    return [
+        LineInfo(
+            exercise=r["exercise"],
+            sets=r["sets"],
+            quantity=_num(r["quantity"]),
+            unit=r["unit"],
+            load_kg=_num(r["load_kg"]),
+            load_kg_max=_num(r["load_kg_max"]),
+            rir=r["rir"],
+        )
+        for r in (done or rows)
+    ]
 
 
 def _week(conn: psycopg.Connection, where: str, params: tuple) -> dict | None:
@@ -366,8 +398,8 @@ def build_context(
     )
     feedback = _rows(
         conn,
-        "select f.day, f.kind, p.title as session_title, f.rpe, f.fatigue, f.pain,"
-        " f.pain_location, f.notes"
+        "select f.day, f.kind, f.planned_session_id as session_id, p.title as session_title,"
+        " f.rpe, f.fatigue, f.pain, f.pain_location, f.notes"
         " from feedback f left join planned_session p on p.id = f.planned_session_id"
         " where f.day between %s and %s order by f.day, f.id",
         (today - timedelta(days=FEEDBACK_DAYS - 1), today),
@@ -398,7 +430,11 @@ def build_context(
         exercises=[Exercise(**e) for e in exercises],
         recent_loads=[RecentLoad(**r) for r in recent],
         feedback=[
-            Feedback(**{**f, "notes": f["notes"] if mode == "full" else None}) for f in feedback
+            Feedback(
+                **{**f, "notes": f["notes"] if mode == "full" else None},
+                lines=_feedback_lines(conn, f["session_id"]),
+            )
+            for f in feedback
         ],
         goals=[Goal(**{**g, "notes": g["notes"] if mode == "full" else None}) for g in goals],
     )

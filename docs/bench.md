@@ -46,7 +46,7 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
 
 - **Copy last week** (`--planner copy`): the previous week shifted by seven days, no model. It
   ignores phase, recovery and feedback on purpose: the floor every agent must beat. Result on
-  the 20 scenarios: 75 % accepted, **67 % of expectations met**
+  the 20 scenarios: 70 % accepted, **66 % of expectations met**
   (`bench/results/copy-baseline.json`); it fails the deload, the return after it, the stop rule,
   low recovery, critical alerts and duplicates the drafts.
 - **Single agent** (`--planner mistral`): the week planner of step 3.

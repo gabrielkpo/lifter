@@ -400,3 +400,107 @@ def test_kept_draft_sessions_count_for_legs_and_for_alerts(conn, program):
     easy = WeekPlan(summary="Week 2 stays easy.", sessions=[])
     messages = [v.message for v in guardrail.check(easy, alarmed).violations]
     assert any("Legs draft" in m for m in messages)
+
+
+# Stop rule
+
+
+STOP = guardrail.Rule(
+    code="stop_rule", text="Pain above 3/10: two steps back.", params={"pain_max": 3, "steps": 2}
+)
+
+
+def report_pain(conn, pain, title="Legs + Metcon", day=date(2026, 3, 7)):
+    session = conn.execute(
+        "select id from planned_session where title = %s and day = %s", (title, day)
+    ).fetchone()
+    domain.add_feedback(
+        conn,
+        domain.FeedbackIn(day=day, planned_session_id=session[0], pain=pain, pain_location="knee"),
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    return ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+
+def test_pain_above_the_threshold_caps_the_session_loads_two_steps_down(conn, program):
+    ctx = report_pain(conn, pain=5)
+    assert [(line.exercise, line.load_kg) for line in ctx.feedback[0].lines] == [("Leg press", 105)]
+
+    plan = good_plan()  # leg press 105 kg, as logged on the painful day
+    violations = [v for v in guardrail.check(plan, ctx).violations if v.check == "stop_rule"]
+    assert len(violations) == 1
+    assert "at most 95 kg" in violations[0].message and "pain 5/10 (knee)" in violations[0].message
+
+    plan.sessions[1].parts[0].lines[0].load_kg = 95
+    assert "stop_rule" not in checks(plan, ctx)
+
+
+def test_pain_at_or_under_the_threshold_changes_nothing(conn, program):
+    ctx = report_pain(conn, pain=3)
+    assert "stop_rule" not in checks(good_plan(), ctx)
+
+
+def test_pain_without_a_loaded_session_is_a_warning(conn, program):
+    domain.add_feedback(
+        conn, domain.FeedbackIn(day=TODAY, kind="morning", pain=6, pain_location="shoulder")
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    ctx = ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+    verdict = guardrail.check(good_plan(), ctx)
+    assert "stop_rule" not in {v.check for v in verdict.violations}
+    assert any("pain 6/10" in w and "not checked by code" in w for w in verdict.warnings)
+
+
+def test_a_later_pain_free_session_lifts_the_cap(conn, program):
+    report_pain(conn, pain=5)  # legs on 2026-03-07, leg press 105
+    later = domain.create_session(
+        conn,
+        domain.SessionIn(
+            day=date(2026, 3, 8),
+            title="Legs check",
+            parts=[
+                domain.PartIn(
+                    kind="strength",
+                    done=[domain.LineIn(exercise="Leg press", sets=2, quantity=10, load_kg=95)],
+                )
+            ],
+        ),
+    )
+    domain.add_feedback(
+        conn, domain.FeedbackIn(day=date(2026, 3, 8), planned_session_id=later, pain=0)
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    ctx = ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+    assert "stop_rule" not in checks(good_plan(), ctx)
+
+
+def test_the_cap_starts_from_the_heaviest_load_of_the_painful_day(conn, program):
+    session = domain.create_session(
+        conn,
+        domain.SessionIn(
+            day=date(2026, 3, 8),
+            title="Push with back-off",
+            parts=[
+                domain.PartIn(
+                    kind="strength",
+                    done=[
+                        domain.LineIn(exercise="Bench press", sets=4, quantity=8, load_kg=65),
+                        domain.LineIn(exercise="Bench press", sets=1, quantity=10, load_kg=50),
+                    ],
+                )
+            ],
+        ),
+    )
+    domain.add_feedback(
+        conn, domain.FeedbackIn(day=date(2026, 3, 8), planned_session_id=session, pain=5)
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    ctx = ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+    plan = good_plan()
+    plan.sessions[0].parts[1].lines[0].load_kg = 60  # 65 − 2 × 2.5
+    assert "stop_rule" not in checks(plan, ctx)
+    plan.sessions[0].parts[1].lines[0].load_kg = 62.5
+    assert "stop_rule" in checks(plan, ctx)

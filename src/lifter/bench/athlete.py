@@ -114,7 +114,11 @@ RULES = [
         text="RIR met on every set: +2.5 kg upper body, +5 kg lower body.",
         params={"upper_kg": 2.5, "lower_kg": 5},
     ),
-    RuleIn(text="Pain above 3/10, or swelling within 24 h: two steps back on that pattern."),
+    RuleIn(
+        code="stop_rule",
+        text="Pain above 3/10, or swelling within 24 h: two steps back on that pattern.",
+        params={"pain_max": 3, "steps": 2},
+    ),
     RuleIn(text="A skipped session is not made up, except legs."),
 ]
 

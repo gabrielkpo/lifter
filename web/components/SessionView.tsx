@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Stat from "@/components/Stat";
 import { label, partFormat, partResult, partTarget, prescription, shortDate } from "@/lib/format";
 import type { Line, Part, SessionDetail } from "@/lib/types";
 
@@ -84,9 +85,10 @@ function DonePart({ part }: { part: Part }) {
       {logged ? (
         <Lines lines={part.done} />
       ) : (
-        <div style={{ opacity: 0.5 }}>
+        <div style={{ opacity: result ? 1 : 0.5 }}>
           <Lines lines={part.planned} />
-          <p className="small">Not logged: shown as planned.</p>
+          {/* A metcon logged by its result only: its movements were the planned ones. */}
+          <p className="small">{result ? "As planned." : "Not logged: shown as planned."}</p>
         </div>
       )}
       {part.result_notes && <p className="small">{part.result_notes}</p>}
@@ -153,16 +155,4 @@ function Lines({ lines }: { lines: Line[] }) {
       {line.notes && <span> · {line.notes}</span>}
     </p>
   ));
-}
-
-function Stat({ value, unit, name }: { value: number | null; unit?: string; name: string }) {
-  return (
-    <div className="stat">
-      <div className="value">
-        {value ?? "–"}
-        {value !== null && unit && <span className="small muted"> {unit}</span>}
-      </div>
-      <div className="name">{name}</div>
-    </div>
-  );
 }

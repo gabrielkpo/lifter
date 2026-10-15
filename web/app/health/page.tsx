@@ -1,5 +1,6 @@
 "use client";
 
+import Stat from "@/components/Stat";
 import ApiStatus from "@/components/ApiStatus";
 import TopBar from "@/components/TopBar";
 import { useApi } from "@/lib/api";
@@ -141,29 +142,6 @@ function RecoveryBars({
           style={{ height: `${Math.max(4, m.recovery_score ?? 0)}%` }}
         />
       ))}
-    </div>
-  );
-}
-
-function Stat({
-  value,
-  unit,
-  name,
-  signed,
-}: {
-  value: number | null;
-  unit?: string;
-  name: string;
-  signed?: boolean;
-}) {
-  const text = value === null ? "–" : `${signed && value > 0 ? "+" : ""}${num(value)}`;
-  return (
-    <div className="stat">
-      <div className="value">
-        {text}
-        {value !== null && unit && <span className="small muted"> {unit}</span>}
-      </div>
-      <div className="name">{name}</div>
     </div>
   );
 }

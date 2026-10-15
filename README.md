@@ -116,7 +116,7 @@ Each step lands as a reviewed pull request with green CI.
 **Evaluation plan** (written before any run): 20 synthetic scenarios so far
 ([docs/bench.md](docs/bench.md): deload, return after a deload, skipped sessions, RIR missed on
 the main lift, knee pain, low recovery, critical alerts, drafts already planned), each with its
-expected outcome written first. Floor to beat, without a model ("copy last week"): 67 % of the
+expected outcome written first. Floor to beat, without a model ("copy last week"): 66 % of the
 expectations met. Measures: constraint violations, accuracy of cited numbers, plan quality
 graded by hand, tokens, latency, variance over 3 runs. The agent team is kept only if it has
 **no constraint violation**, cites numbers **at least as accurately** as a single agent with

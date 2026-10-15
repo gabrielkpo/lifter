@@ -21,7 +21,7 @@ START → plan (LLM) → guard (code) ─ accepted ─────────�
   Battery from `daily_recovery`), alerts of the last 3 days, the athlete's rules, the exercise
   bank, the heaviest logged load of each exercise per repetition count (28 days, so a deload
   week does not become the reference), the athlete's feedback of the last 14 days (RPE,
-  fatigue, pain and where), active goals with their next milestone.
+  fatigue, pain and where, with the loaded lines of the session concerned), active goals with their next milestone.
 - **Plan** (`agents/plan.py`): a typed `WeekPlan` (summary, sessions with parts and prescribed
   lines, a rationale per session, sessions of the week it replaces). Unknown fields are
   refused; a metcon has a target, never a time cap; results and done lines cannot be
@@ -57,6 +57,7 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `fresh_first` (rule) | Weightlifting or gymnastics placed after the metcon |
 | `metcon_no_row` (rule) | A listed exercise (the rower) inside a metcon |
 | `metcon_light_barbell` (rule) | A weightlifting line above the given load inside a metcon |
+| `stop_rule` (rule) | After a feedback with pain above the threshold (3/10), any load above the painful session's load minus two steps (−5 kg upper body, −10 kg lower body) on the exercises it loaded; pain without a loaded session is a warning |
 | `progression` (rule) | A load more than one step (2.5 kg upper body, 5 kg lower body) above the heaviest set logged in 28 days at as many reps or more |
 
 Rules without a code, or with a code the guardrail does not know, are context for the planner

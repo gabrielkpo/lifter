@@ -400,3 +400,53 @@ def test_kept_draft_sessions_count_for_legs_and_for_alerts(conn, program):
     easy = WeekPlan(summary="Week 2 stays easy.", sessions=[])
     messages = [v.message for v in guardrail.check(easy, alarmed).violations]
     assert any("Legs draft" in m for m in messages)
+
+
+# Stop rule
+
+
+STOP = guardrail.Rule(
+    code="stop_rule", text="Pain above 3/10: two steps back.", params={"pain_max": 3, "steps": 2}
+)
+
+
+def report_pain(conn, pain, title="Legs + Metcon", day=date(2026, 3, 7)):
+    session = conn.execute(
+        "select id from planned_session where title = %s and day = %s", (title, day)
+    ).fetchone()
+    domain.add_feedback(
+        conn,
+        domain.FeedbackIn(day=day, planned_session_id=session[0], pain=pain, pain_location="knee"),
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    return ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+
+def test_pain_above_the_threshold_caps_the_session_loads_two_steps_down(conn, program):
+    ctx = report_pain(conn, pain=5)
+    assert [(line.exercise, line.load_kg) for line in ctx.feedback[0].lines] == [("Leg press", 105)]
+
+    plan = good_plan()  # leg press 105 kg, as logged on the painful day
+    violations = [v for v in guardrail.check(plan, ctx).violations if v.check == "stop_rule"]
+    assert len(violations) == 1
+    assert "at most 95 kg" in violations[0].message and "pain 5/10 (knee)" in violations[0].message
+
+    plan.sessions[1].parts[0].lines[0].load_kg = 95
+    assert "stop_rule" not in checks(plan, ctx)
+
+
+def test_pain_at_or_under_the_threshold_changes_nothing(conn, program):
+    ctx = report_pain(conn, pain=3)
+    assert "stop_rule" not in checks(good_plan(), ctx)
+
+
+def test_pain_without_a_loaded_session_is_a_warning(conn, program):
+    domain.add_feedback(
+        conn, domain.FeedbackIn(day=TODAY, kind="morning", pain=6, pain_location="shoulder")
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    ctx = ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+    verdict = guardrail.check(good_plan(), ctx)
+    assert "stop_rule" not in {v.check for v in verdict.violations}
+    assert any("pain 6/10" in w and "not checked by code" in w for w in verdict.warnings)

@@ -282,6 +282,48 @@ def rule_progression(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterat
                 )
 
 
+def _painful(rule: Rule, ctx: PlanningContext):
+    """Feedback above the rule's pain threshold, most recent last."""
+    pain_max = rule.params.get("pain_max", 3)
+    return [f for f in ctx.feedback if f.pain is not None and f.pain > pain_max]
+
+
+def rule_stop_rule(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
+    """Pain above the threshold after a session: two load steps back on what it loaded.
+
+    Every loaded exercise of the painful session is capped at its load that day minus `steps`
+    steps (2.5 kg upper body, 5 kg lower body by default). Pain reported without a session, or
+    on a session without loads, cannot be checked by code: it is a warning (see `check`).
+    """
+    steps = rule.params.get("steps", 2)
+    upper = rule.params.get("upper_kg", 2.5)
+    lower = rule.params.get("lower_kg", 5)
+    patterns = {e.name: e.pattern for e in ctx.exercises}
+    caps: dict[str, tuple[float, str]] = {}
+    for fb in _painful(rule, ctx):
+        for line in fb.lines:
+            top = line.load_kg_max if line.load_kg_max is not None else line.load_kg
+            step = lower if patterns.get(line.exercise) in LOWER_BODY else upper
+            cap = top - steps * step
+            where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
+            reason = f"{where} after '{fb.session_title}' on {fb.day}, {top:g} kg that day"
+            if line.exercise not in caps or cap < caps[line.exercise][0]:
+                caps[line.exercise] = (cap, reason)
+    for s in plan.sessions:
+        for part, line in _lines(s):
+            top = top_load(line)
+            if part.kind == "metcon" or top is None or line.exercise not in caps:
+                continue
+            cap, reason = caps[line.exercise]
+            if top > cap:
+                yield Violation(
+                    "stop_rule",
+                    f"'{line.exercise}' at {top:g} kg: {reason}, so at most {max(cap, 0):g} kg"
+                    f" ({rule.text})",
+                    str(s.day),
+                )
+
+
 RULE_CHECKS: dict[str, Callable[[Rule, WeekPlan, PlanningContext], Iterator[Violation]]] = {
     "forbid_flag": rule_forbid_flag,
     "no_failure_on_legs": rule_no_failure_on_legs,
@@ -291,6 +333,7 @@ RULE_CHECKS: dict[str, Callable[[Rule, WeekPlan, PlanningContext], Iterator[Viol
     "metcon_no_row": rule_metcon_no_row,
     "metcon_light_barbell": rule_metcon_light_barbell,
     "progression": rule_progression,
+    "stop_rule": rule_stop_rule,
 }
 
 
@@ -326,6 +369,15 @@ def check(plan: WeekPlan, ctx: PlanningContext) -> Verdict:
             continue
         violations.extend(checker(rule, plan, ctx))
     warnings = []
+    for rule in ctx.rules:
+        if rule.code == "stop_rule":
+            for fb in _painful(rule, ctx):
+                if not fb.lines:
+                    warnings.append(
+                        f"pain {fb.pain}/10 reported on {fb.day}"
+                        + (f" ({fb.pain_location})" if fb.pain_location else "")
+                        + " without a loaded session to cap: not checked by code"
+                    )
     latest = ctx.recovery[-1] if ctx.recovery else None
     if latest and latest.recovery_status == "low":
         warnings.append(

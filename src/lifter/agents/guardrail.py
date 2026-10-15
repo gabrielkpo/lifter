@@ -303,17 +303,20 @@ def rule_stop_rule(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator
     pain_max = rule.params.get("pain_max", 3)
     # The latest reported session that loaded each exercise decides: a later session reported
     # without pain lifts the cap (feedback is ordered by day).
-    latest = {}
+    latest: dict[str, tuple] = {}  # exercise -> (feedback, heaviest load that day)
     for fb in ctx.feedback:
         if fb.pain is None:
             continue
+        heaviest: dict[str, float] = {}
         for line in fb.lines:
-            latest[line.exercise] = (fb, line)
+            load = line.load_kg_max if line.load_kg_max is not None else line.load_kg
+            heaviest[line.exercise] = max(load, heaviest.get(line.exercise, load))
+        for exercise, load in heaviest.items():
+            latest[exercise] = (fb, load)
     caps: dict[str, tuple[float, str]] = {}
-    for exercise, (fb, line) in latest.items():
+    for exercise, (fb, top) in latest.items():
         if fb.pain <= pain_max:
             continue
-        top = line.load_kg_max if line.load_kg_max is not None else line.load_kg
         step = lower if patterns.get(exercise) in LOWER_BODY else upper
         where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
         reason = f"{where} after '{fb.session_title}' on {fb.day}, {top:g} kg that day"

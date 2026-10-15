@@ -474,3 +474,33 @@ def test_a_later_pain_free_session_lifts_the_cap(conn, program):
     ctx = ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
 
     assert "stop_rule" not in checks(good_plan(), ctx)
+
+
+def test_the_cap_starts_from_the_heaviest_load_of_the_painful_day(conn, program):
+    session = domain.create_session(
+        conn,
+        domain.SessionIn(
+            day=date(2026, 3, 8),
+            title="Push with back-off",
+            parts=[
+                domain.PartIn(
+                    kind="strength",
+                    done=[
+                        domain.LineIn(exercise="Bench press", sets=4, quantity=8, load_kg=65),
+                        domain.LineIn(exercise="Bench press", sets=1, quantity=10, load_kg=50),
+                    ],
+                )
+            ],
+        ),
+    )
+    domain.add_feedback(
+        conn, domain.FeedbackIn(day=date(2026, 3, 8), planned_session_id=session, pain=5)
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    ctx = ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+    plan = good_plan()
+    plan.sessions[0].parts[1].lines[0].load_kg = 60  # 65 − 2 × 2.5
+    assert "stop_rule" not in checks(plan, ctx)
+    plan.sessions[0].parts[1].lines[0].load_kg = 62.5
+    assert "stop_rule" in checks(plan, ctx)

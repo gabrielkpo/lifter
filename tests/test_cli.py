@@ -30,5 +30,13 @@ def test_recovery_prints_the_last_days(monkeypatch, capsys, conn, database_url):
 
     assert main(["recovery", "--days", "3"]) == 0
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0].startswith("day\tsleep_hours")
-    assert lines[1].startswith("2026-04-06\t")
+    assert lines[0].split()[:2] == ["day", "sleep_hours"]
+    assert lines[1].split()[:2] == ["2026-04-06", "-"]  # no sleep that day: "-", not a gap
+
+
+def test_format_table_keeps_columns_aligned_with_missing_values():
+    from lifter.cli import format_table
+
+    out = format_table(("day", "a", "b"), [("2026-01-01", None, 3), ("2026-01-02", 10, None)])
+    lines = out.splitlines()
+    assert lines == ["day         a   b", "2026-01-01  -   3", "2026-01-02  10  -"]

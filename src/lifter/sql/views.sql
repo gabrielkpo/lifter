@@ -136,8 +136,12 @@ order by day, snapshot_time nulls last;
 create view stg_training_status as
 select
     natural_key::date as day,
-    payload ->> 'training_status' as garmin_training_status,
-    payload ->> 'fitness_trend' as garmin_fitness_trend,
+    -- training_status is a numeric code; the label is the feedback phrase without its suffix
+    -- (PRODUCTIVE_1 -> PRODUCTIVE, NO_STATUS_2 -> NO_STATUS).
+    nullif(regexp_replace(payload ->> 'training_status_feedback', '_[0-9]+$', ''), '')
+        as garmin_training_status,
+    (payload ->> 'training_status')::int as garmin_training_status_code,
+    payload ->> 'training_status_feedback' as garmin_training_status_feedback,
     (payload ->> 'vo2_max_precise')::numeric as vo2_max,
     (payload ->> 'cycling_vo2_max_precise')::numeric as cycling_vo2_max,
     (payload ->> 'acute_load')::numeric as garmin_acute_load,
@@ -160,7 +164,7 @@ with detailed as (
     select
         activity_date as day,
         count(*) as sessions,
-        coalesce(sum(training_load), 0) as load,
+        round(coalesce(sum(training_load), 0), 1) as load,
         count(*) filter (where training_load is null) as sessions_without_load,
         sum(duration_seconds) / 60.0 as duration_minutes
     from stg_activity
@@ -203,16 +207,19 @@ calendar as (
 select
     c.day,
     coalesce(l.sessions, 0) as sessions,
-    coalesce(l.load, 0) as load,
+    round(coalesce(l.load, 0), 1) as load,
     coalesce(l.sessions_missing_details, 0) as sessions_missing_details,
     h.hrv_ms,
-    s.resting_hr_bpm,
+    -- Garmin's daily resting HR (get_stats); the sleep summary value is only a fallback, some
+    -- watches never fill it.
+    coalesce(d.garmin_resting_hr_bpm, s.resting_hr_bpm) as resting_hr_bpm,
     s.sleep_seconds,
     s.sleep_score
 from calendar c
 left join daily_load l using (day)
 left join stg_hrv h using (day)
-left join stg_sleep s using (day);
+left join stg_sleep s using (day)
+left join stg_daily_stats d using (day);
 
 create view daily_metrics as
 with windows as (

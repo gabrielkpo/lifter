@@ -164,3 +164,35 @@ def test_zero_hrv_baseline_does_not_break_the_view(conn):
     m = metrics(conn, 19)
     assert m["hrv_delta_pct"] is None
     assert m["recovery_status"] == "unknown"
+
+
+def test_resting_hr_comes_from_daily_stats_when_sleep_lacks_it(conn):
+    from synthetic import daily_stats
+
+    # Like the author's watch: the sleep summary never carries the resting HR.
+    load_days(conn, DAY0, steady(20, rhr=None))
+    for offset in range(20):
+        day = DAY0 + timedelta(offset)
+        stats = dict(daily_stats(day), resting_heart_rate_bpm=50 if offset < 19 else 56)
+        store_payload(conn, "get_stats", day.isoformat(), {}, stats)
+
+    m = metrics(conn, 19)
+    assert m["resting_hr_bpm"] == 56
+    assert m["rhr_delta_bpm"] == Decimal("6.0")
+    assert "rhr_elevated" in alerts(conn, 19)
+
+
+def test_daily_stats_resting_hr_wins_over_the_sleep_value(conn):
+    from synthetic import daily_stats
+
+    load_days(conn, DAY0, steady(1, rhr=48))
+    store_payload(conn, "get_stats", DAY0.isoformat(), {}, daily_stats(DAY0))  # 50 bpm
+
+    assert metrics(conn, 0)["resting_hr_bpm"] == 50
+
+
+def test_load_is_rounded_to_one_decimal(conn):
+    store_payload(conn, "get_activity", "1", {}, activity(1, DAY0, load=163.6713409423828))
+
+    row = conn.execute("select load from daily_load where day = %s", (DAY0,)).fetchone()
+    assert row == (Decimal("163.7"),)

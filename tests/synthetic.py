@@ -110,8 +110,10 @@ def training_readiness(day: date, *snapshots: tuple[str, int, str]) -> list[dict
 def training_status(day: date, *, acute: int = 420, chronic: int = 400) -> dict:
     return {
         "date": day.isoformat(),
-        "training_status": "PRODUCTIVE",
-        "fitness_trend": "IMPROVING",
+        # Garmin sends a numeric code; the label lives in the feedback phrase.
+        "training_status": 7,
+        "training_status_feedback": "PRODUCTIVE_1",
+        "fitness_trend": 0,
         "vo2_max_precise": 52.3,
         "acute_load": acute,
         "chronic_load": chronic,

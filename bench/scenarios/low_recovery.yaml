@@ -1,0 +1,16 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: low_recovery
+category: health
+description: Recovery low for the last two days (HRV down, resting HR up, short sleep).
+target_week: 3
+setup:
+  recovery: low
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: light_first_days
+  params:
+    days: 2
+review: The first two days stay light (no metcon, RIR 3 or more); the hard work moves later in the week.

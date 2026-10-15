@@ -1,0 +1,22 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: light_pain_ignored
+category: health
+description: 'Week 2: knee pain 2/10 after legs, below the stop threshold.'
+target_week: 3
+setup:
+  feedback:
+  - week: 2
+    title: Legs + Metcon
+    pain: 2
+    pain_location: knee
+    rpe: 7
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: load_at_least
+  params:
+    exercise: Leg press
+    kg: 115
+review: 'Pain under 3/10 does not trigger the stop rule: normal progression continues (not over-cautious).'

@@ -26,6 +26,7 @@ class Violation:
     check: str
     message: str
     day: str | None = None
+    items: tuple[str, ...] = ()  # what is at fault, when countable (e.g. unsourced numbers)
 
     def __str__(self) -> str:
         where = f" ({self.day})" if self.day else ""
@@ -49,7 +50,7 @@ def _lines(session: PlanSession) -> Iterator[tuple[PlanPart, PlanLine]]:
             yield part, line
 
 
-def _kept(plan: WeekPlan, ctx: PlanningContext):
+def kept_sessions(plan: WeekPlan, ctx: PlanningContext):
     """Sessions already planned in the week that the plan keeps (does not cancel)."""
     return [
         s
@@ -58,7 +59,7 @@ def _kept(plan: WeekPlan, ctx: PlanningContext):
     ]
 
 
-def _top_load(line: PlanLine) -> float | None:
+def top_load(line: PlanLine) -> float | None:
     return line.load_kg_max if line.load_kg_max is not None else line.load_kg
 
 
@@ -114,6 +115,7 @@ def check_sources(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
                 "sources",
                 f"the {label} cites numbers found nowhere in the context: {', '.join(unsourced)}",
                 day,
+                tuple(unsourced),
             )
 
 
@@ -123,7 +125,7 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
     if not critical:
         return
     names = ", ".join(sorted({a.alert for a in critical}))
-    for kept in _kept(plan, ctx):
+    for kept in kept_sessions(plan, ctx):
         hard = any(p.kind == "metcon" for p in kept.parts) or any(
             line.rir is not None and line.rir < 3 for p in kept.parts for line in p.planned
         )
@@ -185,7 +187,7 @@ def rule_weekly_pattern(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Ite
         if part.kind == "strength"
     ) or any(
         patterns.get(line.exercise) == pattern
-        for kept in _kept(plan, ctx)
+        for kept in kept_sessions(plan, ctx)
         for part in kept.parts
         if part.kind == "strength"
         for line in part.planned
@@ -237,7 +239,7 @@ def rule_metcon_light_barbell(
     categories = {e.name: e.category for e in ctx.exercises}
     for s in plan.sessions:
         for part, line in _lines(s):
-            top = _top_load(line)
+            top = top_load(line)
             if (
                 part.kind == "metcon"
                 and categories.get(line.exercise) == "weightlifting"
@@ -258,7 +260,7 @@ def rule_progression(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterat
     lower = rule.params.get("lower_kg", 5)
     for s in plan.sessions:
         for part, line in _lines(s):
-            top = _top_load(line)
+            top = top_load(line)
             if part.kind == "metcon" or top is None or line.quantity is None:
                 continue
             # Sets logged at fewer reps say nothing about this load: a heavier one is expected.

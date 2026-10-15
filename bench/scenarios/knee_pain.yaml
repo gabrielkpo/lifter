@@ -1,0 +1,29 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: knee_pain
+category: health
+description: 'Week 2: knee pain 5/10 reported after the legs session.'
+target_week: 3
+setup:
+  feedback:
+  - week: 2
+    title: Legs + Metcon
+    pain: 5
+    pain_location: knee
+    rpe: 8
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: load_at_most
+  params:
+    exercise: Leg press
+    kg: 105
+- check: excludes_flags
+  params:
+    flags:
+    - running
+    - impact
+    - free_barbell_legs
+review: 'Stop rule: two steps back on the legs (leg press 105 kg or less), legs still trained (quadriceps
+  every week), no jumps; mentions watching the knee.'

@@ -1,0 +1,25 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: deload_week
+category: phase
+description: Weeks 1 to 3 done; week 4 is a deload.
+target_week: 4
+expect:
+- check: accepted
+- check: volume_vs_previous
+  params:
+    min: 0.3
+    max: 0.6
+- check: rir_at_least
+  params:
+    value: 3
+- check: has_pattern
+  params:
+    pattern: legs
+- check: max_metcons
+  params:
+    value: 1
+- check: sessions
+  params:
+    min: 3
+    max: 5
+review: Frequency kept, volume about halved, RIR 4, lighter loads, legs still there, one light metcon.

@@ -1,0 +1,28 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: intensification_week
+category: phase
+description: Weeks 1 to 5 done; week 6 intensifies, with a mid-cycle benchmark.
+target_week: 6
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: load_at_least
+  params:
+    exercise: Bench press
+    kg: 70
+- check: strength_reps_at_most
+  params:
+    value: 6
+    exercises:
+    - Bench press
+    - Strict press
+    - Leg press
+    - Barbell row
+- check: includes_metcon
+  params:
+    format: amrap
+    duration_minutes: 25
+review: Heavier than week 5 on short sets, RIR 2, and the benchmark AMRAP 25 repeated to compare with
+  week 1.

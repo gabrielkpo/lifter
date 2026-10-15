@@ -113,9 +113,11 @@ Each step lands as a reviewed pull request with green CI.
 | 8 | Two deployments: public demo (synthetic athletes, replayed runs, full ops pipeline) and private personal instance | Planned |
 | 9 | Results write-up | Planned |
 
-**Evaluation plan** (written before any run): 20 to 40 synthetic scenarios (a week of skipped
-sessions, low recovery, RIR missed on the main lift, knee pain, a deload week, "move my
-session" requests), each with its expected outcome written first. Measures: constraint violations, accuracy of cited numbers, plan quality
+**Evaluation plan** (written before any run): 20 synthetic scenarios so far
+([docs/bench.md](docs/bench.md): deload, return after a deload, skipped sessions, RIR missed on
+the main lift, knee pain, low recovery, critical alerts, drafts already planned), each with its
+expected outcome written first. Floor to beat, without a model ("copy last week"): 67 % of the
+expectations met. Measures: constraint violations, accuracy of cited numbers, plan quality
 graded by hand, tokens, latency, variance over 3 runs. The agent team is kept only if it has
 **no constraint violation**, cites numbers **at least as accurately** as a single agent with
 every tool, and costs **at most 2×** its tokens; otherwise this README reports the negative result.
@@ -175,7 +177,8 @@ connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it f
 | `examples/program.yaml` | Synthetic CrossFit program, every field of the format |
 | `src/lifter/db.py`, `sql/` | Migrations (tables) and `views.sql` (analytics schema) |
 | `src/lifter/agents/` | Week planner: context, typed plan, Mistral call, guardrail, LangGraph graph |
-| `docs/metrics.md`, `docs/domain.md`, `docs/agents.md` | Every metric, threshold, table and status; the agents and their guardrail |
+| `src/lifter/bench/`, `bench/` | Evaluation bench: synthetic athlete, scenarios, expectations, runner, results |
+| `docs/metrics.md`, `docs/domain.md`, `docs/agents.md`, `docs/bench.md` | Every metric, threshold, table and status; the agents and their guardrail |
 | `tests/` | pytest on synthetic data, against a throwaway Postgres database |
 
 ## Data and privacy

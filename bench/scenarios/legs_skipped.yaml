@@ -1,0 +1,20 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: legs_skipped
+category: review
+description: Week 2's legs session was skipped; week 3 follows.
+target_week: 3
+setup:
+  skip:
+  - week: 2
+    title: Legs + Metcon
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: load_at_most
+  params:
+    exercise: Leg press
+    kg: 115
+review: Legs come back first in the week (legs every week); the leg press restarts from the last logged
+  load (week 1), not the planned progression.

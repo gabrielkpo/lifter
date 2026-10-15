@@ -17,6 +17,7 @@ class Settings:
     model: str = "mistral-small-latest"
     coach_language: str = "English"
     llm_context: str = "indicators"
+    bench_database_url: str = "postgresql:///lifter_bench"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -32,4 +33,5 @@ class Settings:
             model=env.get("LIFTER_MODEL", "mistral-small-latest"),
             coach_language=env.get("LIFTER_COACH_LANGUAGE", "English"),
             llm_context=env.get("LIFTER_LLM_CONTEXT", "indicators"),
+            bench_database_url=env.get("BENCH_DATABASE_URL", "postgresql:///lifter_bench"),
         )

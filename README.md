@@ -137,10 +137,32 @@ uv run lifter weeks                # also: program, week N, session ID, calendar
 Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `session-cancel`,
 `goal-add`, `feedback --rpe 7`, `proposals`, `proposal approve|reject ID`.
 
+## App
+A mobile-first web app (Next.js PWA, coming next) over a private, read-only HTTP API. The API
+reads the same analytics views as the CLI and computes nothing of its own.
+
+```bash
+uv run lifter-api                  # http://127.0.0.1:8000, interactive docs at /docs
+```
+
+| Endpoint | Screen |
+|---|---|
+| `GET /weeks/current`, `/weeks`, `/weeks/{id}` | The week: review, intent, sessions with status and Garmin line |
+| `GET /sessions/{id}` | A session: parts, planned and done side by side, metcon target and result |
+| `GET /calendar?start=&end=` | Sessions and activities between two days |
+| `GET /program` | Cycle and blocks, strength sessions done against the block target |
+| `GET /health?days=14` | Daily metrics, Garmin recovery values and alerts |
+| `GET /goals`, `/bests` | Goals with milestones, best logged loads |
+| `GET /proposals?status=pending` | The agents' proposals |
+
+The API has no authentication yet, so it only listens on `127.0.0.1` and opens its database
+connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it from a browser.
+
 ## Project structure
 | Path | Content |
 |---|---|
 | `src/lifter/cli.py` | Command-line entry point |
+| `src/lifter/api/` | Read-only HTTP API of the app (FastAPI) |
 | `src/lifter/garmin.py`, `sync.py` | MCP client (read-only allowlist), Garmin to raw layer |
 | `src/lifter/domain.py`, `program.py` | Sessions in parts, exercises, goals, rules, proposal lifecycle; program file loader |
 | `examples/program.yaml` | Synthetic CrossFit program, every field of the format |

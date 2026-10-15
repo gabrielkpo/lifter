@@ -59,6 +59,30 @@ class Week(BaseModel):
     patterns_done: list[str]
 
 
+class WeekExercise(BaseModel):
+    """One exercise in one week, planned or done (analytics.week_exercise_progress)."""
+
+    week_id: int
+    week_number: int
+    phase: str
+    exercise: str
+    category: str
+    pattern: str
+    origin: Literal["planned", "done"]
+    sets: int
+    reps: float | None
+    top_load_kg: float | None
+    avg_rir: float | None
+
+
+class BlockDetail(BaseModel):
+    """A block of the cycle: its progress, its weeks and how each exercise evolved."""
+
+    block: Block
+    weeks: list[Week]
+    progress: list[WeekExercise]
+
+
 class GarminLine(BaseModel):
     """A session's Garmin line (analytics.session_garmin), summed over its activities."""
 
@@ -236,9 +260,22 @@ class Goal(BaseModel):
 
 class Best(BaseModel):
     exercise: str
+    category: str
+    pattern: str
     reps: float
     best_load_kg: float
     day: date
+
+
+class HistoryPoint(BaseModel):
+    """The heaviest logged set of an exercise on a day (analytics.exercise_history)."""
+
+    exercise: str
+    day: date
+    session_id: int
+    top_load_kg: float
+    reps: float | None
+    sets: int | None
 
 
 class Proposal(BaseModel):

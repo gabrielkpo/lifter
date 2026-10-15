@@ -138,11 +138,16 @@ Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `sessio
 `goal-add`, `feedback --rpe 7`, `proposals`, `proposal approve|reject ID`.
 
 ## App
-A mobile-first web app (Next.js PWA, coming next) over a private, read-only HTTP API. The API
-reads the same analytics views as the CLI and computes nothing of its own.
+A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private, read-only HTTP
+API (FastAPI, `src/lifter/api/`). The API reads the same analytics views as the CLI and
+computes nothing of its own. Five tabs: **WOD** (the week, day by day, and each session planned
+against done), **PRs** (best loads by kind and family), **Coach** (chat, with the agents),
+**Planning** (cycle, blocks counted in strength sessions, weeks, goals) and **Health** (recovery
+read against the sessions of each day); the profile opens from the avatar.
 
 ```bash
 uv run lifter-api                  # http://127.0.0.1:8000, interactive docs at /docs
+cd web && npm ci && npm run dev    # http://localhost:3000
 ```
 
 | Endpoint | Screen |
@@ -163,6 +168,7 @@ connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it f
 |---|---|
 | `src/lifter/cli.py` | Command-line entry point |
 | `src/lifter/api/` | Read-only HTTP API of the app (FastAPI) |
+| `web/` | The app: Next.js PWA, mobile first |
 | `src/lifter/garmin.py`, `sync.py` | MCP client (read-only allowlist), Garmin to raw layer |
 | `src/lifter/domain.py`, `program.py` | Sessions in parts, exercises, goals, rules, proposal lifecycle; program file loader |
 | `examples/program.yaml` | Synthetic CrossFit program, every field of the format |

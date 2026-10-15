@@ -48,6 +48,25 @@ def test_the_program_shows_each_block_with_its_strength_sessions(api, program):
     assert cycle["blocks"][0]["intent"].startswith("Volume")
 
 
+def test_a_block_shows_its_weeks_and_each_exercise_week_by_week(api, program):
+    block_id = api.get("/program").json()["cycles"][0]["blocks"][0]["id"]
+
+    body = api.get(f"/blocks/{block_id}").json()
+
+    assert body["block"]["kind"] == "accumulation"
+    assert [w["number"] for w in body["weeks"]] == [1, 2]
+    bench = {
+        (p["week_number"], p["origin"]): p
+        for p in body["progress"]
+        if p["exercise"] == "Bench press"
+    }
+    # week 1: planned 3x10 @ 50 RIR 3, done 3x10 @ 52.5 RIR 2
+    assert (bench[1, "planned"]["reps"], bench[1, "planned"]["top_load_kg"]) == (30, 50)
+    assert (bench[1, "done"]["top_load_kg"], bench[1, "done"]["avg_rir"]) == (52.5, 2)
+    assert not any(p["exercise"] == "Row" for p in body["progress"])  # warm-up left out
+    assert api.get("/blocks/999999").status_code == 404
+
+
 def test_weeks_list_the_review_of_each_week(api, program):
     weeks = api.get("/weeks").json()
 
@@ -205,7 +224,24 @@ def test_active_goals_come_first(api, conn):
 def test_bests_list_the_best_load_per_exercise_and_reps(api, program):
     bests = api.get("/bests").json()
 
-    assert {"exercise": "Bench press", "reps": 1, "best_load_kg": 70, "day": "2026-02-23"} in bests
+    assert {
+        "exercise": "Bench press",
+        "category": "strength",
+        "pattern": "push",
+        "reps": 1,
+        "best_load_kg": 70,
+        "day": "2026-02-23",
+    } in bests
+
+
+def test_history_gives_the_heaviest_set_per_day_of_an_exercise(api, program):
+    points = api.get("/history", params={"exercise": ["bench PRESS", "Unknown"]}).json()
+
+    assert [(p["day"], p["top_load_kg"], p["reps"]) for p in points] == [
+        ("2026-02-23", 70, 1),  # history session: a single
+        ("2026-03-02", 52.5, 10),
+    ]
+    assert api.get("/history").status_code == 422  # at least one name
 
 
 def test_proposals_are_filtered_by_status(api, conn):

@@ -25,6 +25,7 @@ from lifter.db import connect
 LOCAL_HOSTS = ["127.0.0.1", "localhost"]
 MAX_CALENDAR_DAYS = 366
 MAX_HEALTH_DAYS = 90
+MAX_HISTORY_NAMES = 10
 
 
 def read_only_url(url: str) -> str:
@@ -116,6 +117,29 @@ def create_app(database_url: str, app_origins: list[str] | None = None) -> FastA
                 for cycle in cycles
             ]
         )
+
+    @app.get("/blocks/{block_id}")
+    def block(conn: Conn, block_id: int) -> models.BlockDetail:
+        """A block: its progress, its weeks with their intent, each exercise week by week."""
+        row = conn.execute(
+            "select bp.block_id as id, bp.position, bp.kind, bp.start_date, bp.end_date,"
+            " b.intent, bp.target_strength_sessions, bp.strength_sessions_done"
+            " from block_progress bp join block b on b.id = bp.block_id"
+            " where bp.block_id = %s",
+            (block_id,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, f"block {block_id} does not exist")
+        weeks = conn.execute(
+            WEEK_SQL + " where ws.block_id = %s order by ws.start_date, ws.week_id", (block_id,)
+        ).fetchall()
+        progress = conn.execute(
+            "select week_id, week_number, phase, exercise, category, pattern, origin, sets,"
+            " reps, top_load_kg, avg_rir from week_exercise_progress where block_id = %s"
+            " order by week_start, exercise, origin",
+            (block_id,),
+        ).fetchall()
+        return models.BlockDetail(block=row, weeks=weeks, progress=progress)
 
     @app.get("/weeks")
     def weeks(conn: Conn) -> list[models.Week]:
@@ -253,7 +277,22 @@ def create_app(database_url: str, app_origins: list[str] | None = None) -> FastA
     def bests(conn: Conn) -> list[models.Best]:
         """Best logged load per exercise and repetition count."""
         return conn.execute(
-            "select exercise, reps, best_load_kg, day from exercise_best order by exercise, reps"
+            "select b.exercise, e.category, e.pattern, b.reps, b.best_load_kg, b.day"
+            " from exercise_best b join exercise e on e.name = b.exercise"
+            " order by b.exercise, b.reps"
+        ).fetchall()
+
+    @app.get("/history")
+    def history(
+        conn: Conn,
+        exercise: Annotated[list[str], Query(min_length=1, max_length=MAX_HISTORY_NAMES)],
+    ) -> list[models.HistoryPoint]:
+        """The heaviest logged set per day of the named exercises (case-insensitive names,
+        several when the bank spells a movement more than one way), oldest first."""
+        return conn.execute(
+            "select exercise, day, session_id, top_load_kg, reps, sets from exercise_history"
+            " where lower(exercise) = any(%s) order by day, exercise",
+            ([name.strip().lower() for name in exercise],),
         ).fetchall()
 
     @app.get("/proposals")

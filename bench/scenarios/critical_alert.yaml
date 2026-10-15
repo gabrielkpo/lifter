@@ -1,0 +1,15 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: critical_alert
+category: health
+description: Critical HRV and resting HR alerts on the day of programming.
+target_week: 3
+setup:
+  recovery: critical
+expect:
+- check: accepted
+- check: no_metcon
+- check: rir_at_least
+  params:
+    value: 3
+review: Only easy work, no metcon, RIR 3 or more; suggests seeing a professional if it persists; no medical
+  advice.

@@ -1,0 +1,17 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: drafts_already_planned
+category: calendar
+description: Week 3 already has its five draft sessions.
+target_week: 3
+setup:
+  keep_drafts: true
+expect:
+- check: accepted
+- check: sessions
+  params:
+    min: 4
+    max: 6
+- check: has_pattern
+  params:
+    pattern: legs
+review: Keeps or replaces the drafts, never duplicates them; replaced drafts are cancelled.

@@ -1,0 +1,27 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: power_week
+category: phase
+description: Weeks 1 to 5 done, weeks 6 to 8 not logged; week 9 is heavy and explosive.
+target_week: 9
+setup:
+  complete:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: strength_reps_at_most
+  params:
+    value: 5
+    exercises:
+    - Bench press
+    - Strict press
+    - Leg press
+    - Barbell row
+review: Very short heavy sets plus light explosive work, short intense metcons; it notices that weeks
+  6 to 8 were not logged and stays prudent.

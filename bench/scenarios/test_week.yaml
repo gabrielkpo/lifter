@@ -1,0 +1,29 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: test_week
+category: phase
+description: Weeks 1 to 5 done; week 12 is the test week.
+target_week: 12
+setup:
+  complete:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+expect:
+- check: accepted
+- check: includes_single
+  params:
+    exercise: Bench press
+- check: includes_metcon
+  params:
+    format: amrap
+    duration_minutes: 25
+- check: excludes_flags
+  params:
+    flags:
+    - running
+    - impact
+    - free_barbell_legs
+review: Tests spread over different days (bench max, strict pull-ups, legs symmetry without a max), the
+  benchmark repeated identically, little else.

@@ -1,0 +1,21 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: pull_and_legs_skipped
+category: review
+description: Week 2's pull and legs sessions were skipped.
+target_week: 3
+setup:
+  skip:
+  - week: 2
+    title: Weightlifting + Pull + Metcon
+  - week: 2
+    title: Legs + Metcon
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: has_pattern
+  params:
+    pattern: pull
+review: Pull and legs prioritised over a second push or the big WOD if the week is short; loads restart
+  from week 1.

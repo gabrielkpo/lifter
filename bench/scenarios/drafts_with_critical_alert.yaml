@@ -1,0 +1,16 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: drafts_with_critical_alert
+category: calendar
+description: Week 3's drafts (with metcons) are planned and a critical alert is on.
+target_week: 3
+setup:
+  keep_drafts: true
+  recovery: critical
+expect:
+- check: accepted
+- check: no_metcon
+- check: sessions
+  params:
+    min: 2
+    max: 6
+review: Cancels or replaces the hard drafts with easy sessions; nothing hard left in the week.

@@ -1,0 +1,743 @@
+{
+  "planner": "copy",
+  "model": null,
+  "summary": {
+    "runs": 20,
+    "accepted_rate": 0.75,
+    "first_plan_violations": 15,
+    "final_violations": 15,
+    "schema_failures": 0,
+    "unsourced_numbers": 0,
+    "expectations_met_rate": 0.671,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "seconds": 0.0
+  },
+  "runs": [
+    {
+      "scenario": "after_deload",
+      "category": "phase",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 4,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_least Bench press 65",
+          "passed": false,
+          "detail": "loads [52.5]"
+        },
+        {
+          "check": "strength_reps_at_most 6",
+          "passed": false,
+          "detail": "Barbell row x10, Bench press x8, Leg press x10"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.01
+    },
+    {
+      "scenario": "bench_rir_missed",
+      "category": "review",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "load_at_most Bench press 62.5",
+          "passed": true,
+          "detail": "loads [62.5]"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "bench_too_easy",
+      "category": "review",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "load_at_least Bench press 65",
+          "passed": false,
+          "detail": "loads [62.5]"
+        },
+        {
+          "check": "load_at_most Bench press 65",
+          "passed": true,
+          "detail": "loads [62.5]"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "critical_alert",
+      "category": "health",
+      "run": 1,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 4,
+      "final_violations": 4,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 1,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "no_metcon",
+          "passed": false,
+          "detail": "2026-01-19, 2026-01-22, 2026-01-23, 2026-01-24"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.01
+    },
+    {
+      "scenario": "deload_week",
+      "category": "phase",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 6,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": false,
+          "detail": "46 sets vs 46 (1.00, expected 0.3..0.6)"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": false,
+          "detail": "Barbell row RIR 2, Bench press RIR 2, Dips RIR 2, Leg curl RIR 2, Leg press RIR 2, Romanian deadlift RIR 2, Strict press RIR 2, Strict pull-up RIR 2"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "max_metcons",
+          "passed": false,
+          "detail": "4 metcon(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": true,
+          "detail": "5 sessions (expected 3..5)"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "drafts_already_planned",
+      "category": "calendar",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": false,
+          "detail": "10 sessions (expected 4..6)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "drafts_with_critical_alert",
+      "category": "calendar",
+      "run": 1,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 8,
+      "final_violations": 8,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 0,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "no_metcon",
+          "passed": false,
+          "detail": "2026-01-19, 2026-01-22, 2026-01-23, 2026-01-24"
+        },
+        {
+          "check": "sessions",
+          "passed": false,
+          "detail": "10 sessions (expected 2..6)"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.01
+    },
+    {
+      "scenario": "first_week",
+      "category": "phase",
+      "run": 1,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 1,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 5,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": false,
+          "detail": "0 sessions (expected 4..6)"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": true,
+          "detail": "ok"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": false,
+          "detail": "missing"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "intensification_week",
+      "category": "phase",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 4,
+      "expectations": 5,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_least Bench press 70",
+          "passed": true,
+          "detail": "loads [70.0]"
+        },
+        {
+          "check": "strength_reps_at_most 6",
+          "passed": false,
+          "detail": "Barbell row x10, Bench press x8, Leg press x12, Strict press x8"
+        },
+        {
+          "check": "includes_metcon amrap",
+          "passed": true,
+          "detail": "2026-02-14"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "knee_pain",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 4,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_most Leg press 105",
+          "passed": false,
+          "detail": "loads [115.0]"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "legs_skipped",
+      "category": "review",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_most Leg press 115",
+          "passed": true,
+          "detail": "loads [115.0]"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "light_pain_ignored",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_least Leg press 115",
+          "passed": true,
+          "detail": "loads [115.0]"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "load_spike",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": true,
+          "detail": "46 sets vs 46 (1.00, expected None..1.0)"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "low_recovery",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "light_first_days 2",
+          "passed": false,
+          "detail": "2026-01-19 Weightlifting + Push + Metcon"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "missed_whole_week",
+      "category": "review",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 4,
+      "expectations": 4,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_most Bench press 62.5",
+          "passed": true,
+          "detail": "loads [62.5]"
+        },
+        {
+          "check": "load_at_most Leg press 115",
+          "passed": true,
+          "detail": "loads [115.0]"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "power_week",
+      "category": "phase",
+      "run": 1,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 1,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 1,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": false,
+          "detail": "missing"
+        },
+        {
+          "check": "strength_reps_at_most 5",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "pull_and_legs_skipped",
+      "category": "review",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "has_pattern pull",
+          "passed": true,
+          "detail": "found"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "short_sleep",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "light_first_days 1",
+          "passed": false,
+          "detail": "2026-01-19 Weightlifting + Push + Metcon"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "test_week",
+      "category": "phase",
+      "run": 1,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 1,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 1,
+      "expectations": 4,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "includes_single Bench press",
+          "passed": false,
+          "detail": "missing"
+        },
+        {
+          "check": "includes_metcon amrap",
+          "passed": false,
+          "detail": "missing"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
+      "scenario": "volume_peak_week",
+      "category": "phase",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "unsourced_numbers": 0,
+      "expectations_met": 6,
+      "expectations": 6,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": true,
+          "detail": "5 sessions (expected 4..6)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": true,
+          "detail": "46 sets vs 46 (1.00, expected 0.9..1.4)"
+        },
+        {
+          "check": "load_at_most Bench press 65",
+          "passed": true,
+          "detail": "loads [62.5]"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    }
+  ]
+}

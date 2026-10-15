@@ -8,9 +8,11 @@ into proposals (create_session, cancel_session) that the athlete approves or rej
 applies them (lifter.domain). A plan still refused after the retries proposes nothing.
 """
 
+import operator
+import time
 from dataclasses import dataclass, field
 from datetime import date
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 import psycopg
 from langgraph.graph import END, START, StateGraph
@@ -29,6 +31,7 @@ class State(TypedDict, total=False):
     context: PlanningContext
     plan: WeekPlan | None
     verdict: Verdict | None
+    verdicts: Annotated[list[Verdict], operator.add]  # one per attempt, for the bench
     feedback: list[str]
     attempts: int
 
@@ -48,7 +51,11 @@ def build_graph(planner: Planner):
             verdict = state["verdict"]
         else:
             verdict = check(state["plan"], state["context"])
-        return {"verdict": verdict, "feedback": [str(v) for v in verdict.violations]}
+        return {
+            "verdict": verdict,
+            "verdicts": [verdict],
+            "feedback": [str(v) for v in verdict.violations],
+        }
 
     def route(state: State) -> str:
         if state["verdict"].ok or state["attempts"] >= MAX_ATTEMPTS:
@@ -70,6 +77,8 @@ class WeekPlannerResult:
     plan: WeekPlan | None
     verdict: Verdict
     attempts: int
+    verdicts: list[Verdict] = field(default_factory=list)
+    seconds: float = 0.0
     proposal_ids: list[int] = field(default_factory=list)
 
     @property
@@ -87,9 +96,17 @@ def run_week_planner(
     propose: bool = False,
 ) -> WeekPlannerResult:
     ctx = build_context(conn, week_number=week_number, today=today, mode=mode)
-    state = build_graph(planner).invoke({"context": ctx, "attempts": 0, "feedback": []})
+    started = time.monotonic()
+    state = build_graph(planner).invoke(
+        {"context": ctx, "attempts": 0, "feedback": [], "verdicts": []}
+    )
     result = WeekPlannerResult(
-        context=ctx, plan=state.get("plan"), verdict=state["verdict"], attempts=state["attempts"]
+        context=ctx,
+        plan=state.get("plan"),
+        verdict=state["verdict"],
+        attempts=state["attempts"],
+        verdicts=state["verdicts"],
+        seconds=time.monotonic() - started,
     )
     if propose and result.accepted:
         result.proposal_ids = propose_plan(conn, result.plan, ctx)

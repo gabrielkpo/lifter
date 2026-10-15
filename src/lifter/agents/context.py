@@ -6,7 +6,9 @@ week's phase. Every number it may cite is in this context, so the guardrail can 
 
 Privacy: Garmin activity names never enter the context (they can contain a place). In the
 default `indicators` mode, free text written by the athlete (session notes, deviations, week
-reviews, goal notes) stays out too; `full` adds it (setting LIFTER_LLM_CONTEXT).
+reviews, goal and feedback notes) stays out too; `full` adds it (setting LIFTER_LLM_CONTEXT).
+Feedback scales (RPE, fatigue, pain) and the pain location are always in: the stop rule needs
+them.
 """
 
 from datetime import date, timedelta
@@ -20,6 +22,7 @@ ContextMode = Literal["indicators", "full"]
 RECOVERY_DAYS = 7
 ALERT_DAYS = 3
 RECENT_LOAD_DAYS = 28
+FEEDBACK_DAYS = 14
 
 
 class PlanningError(ValueError):
@@ -53,6 +56,9 @@ class LineInfo(BaseModel):
 class PartInfo(BaseModel):
     kind: str
     format: str | None
+    duration_minutes: float | None
+    rounds: int | None
+    interval_seconds: int | None
     target_seconds: int | None
     target_rounds: float | None
     result_seconds: int | None
@@ -136,6 +142,19 @@ class RecentLoad(BaseModel):
     day: date
 
 
+class Feedback(BaseModel):
+    """What the athlete reported after a session or in the morning (scales: docs/domain.md)."""
+
+    day: date
+    kind: str
+    session_title: str | None
+    rpe: int | None
+    fatigue: int | None
+    pain: int | None
+    pain_location: str | None
+    notes: str | None = None
+
+
 class Goal(BaseModel):
     title: str
     exercise: str | None
@@ -156,6 +175,7 @@ class PlanningContext(BaseModel):
     rules: list[Rule]
     exercises: list[Exercise]
     recent_loads: list[RecentLoad]
+    feedback: list[Feedback]
     goals: list[Goal]
 
 
@@ -197,8 +217,8 @@ def _sessions(conn: psycopg.Connection, week_id: int, mode: ContextMode) -> list
     ids = [r["id"] for r in rows]
     parts = _rows(
         conn,
-        "select session_id, position, kind, format, target_seconds, target_rounds,"
-        " result_seconds, result_rounds from session_part"
+        "select session_id, position, kind, format, duration_minutes, rounds, interval_seconds,"
+        " target_seconds, target_rounds, result_seconds, result_rounds from session_part"
         " where session_id = any(%s) order by session_id, position",
         (ids,),
     )
@@ -233,6 +253,9 @@ def _sessions(conn: psycopg.Connection, week_id: int, mode: ContextMode) -> list
             PartInfo(
                 kind=part["kind"],
                 format=part["format"],
+                duration_minutes=_num(part["duration_minutes"]),
+                rounds=part["rounds"],
+                interval_seconds=part["interval_seconds"],
                 target_seconds=part["target_seconds"],
                 target_rounds=_num(part["target_rounds"]),
                 result_seconds=part["result_seconds"],
@@ -341,6 +364,14 @@ def build_context(
         " order by l.exercise, l.quantity, l.load_kg desc, p.day desc",
         (today - timedelta(days=RECENT_LOAD_DAYS), today),
     )
+    feedback = _rows(
+        conn,
+        "select f.day, f.kind, p.title as session_title, f.rpe, f.fatigue, f.pain,"
+        " f.pain_location, f.notes"
+        " from feedback f left join planned_session p on p.id = f.planned_session_id"
+        " where f.day between %s and %s order by f.day, f.id",
+        (today - timedelta(days=FEEDBACK_DAYS - 1), today),
+    )
     goals = _rows(
         conn,
         "select g.title, e.name as exercise,"
@@ -366,5 +397,8 @@ def build_context(
         rules=[Rule(**r) for r in rules],
         exercises=[Exercise(**e) for e in exercises],
         recent_loads=[RecentLoad(**r) for r in recent],
+        feedback=[
+            Feedback(**{**f, "notes": f["notes"] if mode == "full" else None}) for f in feedback
+        ],
         goals=[Goal(**{**g, "notes": g["notes"] if mode == "full" else None}) for g in goals],
     )

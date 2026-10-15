@@ -20,7 +20,8 @@ START → plan (LLM) → guard (code) ─ accepted ─────────�
   already planned in the target week, 7 days of recovery (`daily_metrics`, readiness and Body
   Battery from `daily_recovery`), alerts of the last 3 days, the athlete's rules, the exercise
   bank, the heaviest logged load of each exercise per repetition count (28 days, so a deload
-  week does not become the reference), active goals with their next milestone.
+  week does not become the reference), the athlete's feedback of the last 14 days (RPE,
+  fatigue, pain and where), active goals with their next milestone.
 - **Plan** (`agents/plan.py`): a typed `WeekPlan` (summary, sessions with parts and prescribed
   lines, a rationale per session, sessions of the week it replaces). Unknown fields are
   refused; a metcon has a target, never a time cap; results and done lines cannot be
@@ -77,9 +78,9 @@ dates, loads); it stops invented figures and computed differences, not a misattr
 ## What is sent to Mistral
 
 - `indicators` (default): the structured context above, without any free text written by the
-  athlete.
-- `full`: adds session notes, deviations, week reviews and goal notes, which may describe pain
-  or injuries.
+  athlete; feedback scales and pain location are included (the stop rule needs them).
+- `full`: adds session notes, deviations, week reviews, goal and feedback notes, which may
+  describe pain or injuries.
 - Never: Garmin activity names (they can contain a place), raw Garmin series, the Garmin token.
 
 The public demo only ever sends synthetic athletes.

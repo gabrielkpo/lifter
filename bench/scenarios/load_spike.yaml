@@ -1,0 +1,16 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: load_spike
+category: health
+description: The last 7 days carried far more load than usual (ACWR above 1.5).
+target_week: 3
+setup:
+  recovery: overload
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: volume_vs_previous
+  params:
+    max: 1.0
+review: No volume increase this week despite the volume-peak phase; mentions the load spike.

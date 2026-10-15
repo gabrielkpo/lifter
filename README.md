@@ -138,10 +138,38 @@ uv run lifter plan-week            # the week planner agent, dry run (needs MIST
 Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `session-cancel`,
 `goal-add`, `feedback --rpe 7`, `proposals`, `proposal approve|reject ID`.
 
+## App
+A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private, read-only HTTP
+API (FastAPI, `src/lifter/api/`). The API reads the same analytics views as the CLI and
+computes nothing of its own. Five tabs: **WOD** (the week, day by day, and each session planned
+against done), **PRs** (best loads by kind and family), **Coach** (chat, with the agents),
+**Planning** (cycle, blocks counted in strength sessions, weeks, goals) and **Health** (recovery
+read against the sessions of each day); the profile opens from the avatar.
+
+```bash
+uv run lifter-api                  # http://127.0.0.1:8000, interactive docs at /docs
+cd web && npm ci && npm run dev    # http://localhost:3000
+```
+
+| Endpoint | Screen |
+|---|---|
+| `GET /weeks/current`, `/weeks`, `/weeks/{id}` | The week: review, intent, sessions with status and Garmin line |
+| `GET /sessions/{id}` | A session: parts, planned and done side by side, metcon target and result |
+| `GET /calendar?start=&end=` | Sessions and activities between two days |
+| `GET /program` | Cycle and blocks, strength sessions done against the block target |
+| `GET /health?days=14` | Daily metrics, Garmin recovery values and alerts |
+| `GET /goals`, `/bests` | Goals with milestones, best logged loads |
+| `GET /proposals?status=pending` | The agents' proposals |
+
+The API has no authentication yet, so it only listens on `127.0.0.1` and opens its database
+connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it from a browser.
+
 ## Project structure
 | Path | Content |
 |---|---|
 | `src/lifter/cli.py` | Command-line entry point |
+| `src/lifter/api/` | Read-only HTTP API of the app (FastAPI) |
+| `web/` | The app: Next.js PWA, mobile first |
 | `src/lifter/garmin.py`, `sync.py` | MCP client (read-only allowlist), Garmin to raw layer |
 | `src/lifter/domain.py`, `program.py` | Sessions in parts, exercises, goals, rules, proposal lifecycle; program file loader |
 | `examples/program.yaml` | Synthetic CrossFit program, every field of the format |

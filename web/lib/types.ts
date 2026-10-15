@@ -239,3 +239,12 @@ export interface BlockDetail {
   weeks: Week[];
   progress: WeekExercise[];
 }
+
+export interface HistoryPoint {
+  exercise: string;
+  day: string;
+  session_id: number;
+  top_load_kg: number;
+  reps: number | null;
+  sets: number | null;
+}

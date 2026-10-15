@@ -45,7 +45,7 @@ export const CATALOGUE: Kind[] = [
     families: [
       {
         key: "clean",
-        label: "Cleans",
+        label: "Clean",
         tone: "--blue",
         movements: [
           lift("Clean", ["Squat clean"]),
@@ -60,7 +60,7 @@ export const CATALOGUE: Kind[] = [
       },
       {
         key: "snatch",
-        label: "Snatches",
+        label: "Snatch",
         tone: "--red",
         movements: [
           lift("Snatch", ["Squat snatch"]),
@@ -76,7 +76,7 @@ export const CATALOGUE: Kind[] = [
       },
       {
         key: "jerk",
-        label: "Jerks",
+        label: "Jerk",
         tone: "--green",
         movements: [
           lift("Push jerk"),

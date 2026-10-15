@@ -234,6 +234,16 @@ def test_bests_list_the_best_load_per_exercise_and_reps(api, program):
     } in bests
 
 
+def test_history_gives_the_heaviest_set_per_day_of_an_exercise(api, program):
+    points = api.get("/history", params={"exercise": ["bench PRESS", "Unknown"]}).json()
+
+    assert [(p["day"], p["top_load_kg"], p["reps"]) for p in points] == [
+        ("2026-02-23", 70, 1),  # history session: a single
+        ("2026-03-02", 52.5, 10),
+    ]
+    assert api.get("/history").status_code == 422  # at least one name
+
+
 def test_proposals_are_filtered_by_status(api, conn):
     pid = domain.propose(
         conn,

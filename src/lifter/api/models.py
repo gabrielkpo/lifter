@@ -267,6 +267,17 @@ class Best(BaseModel):
     day: date
 
 
+class HistoryPoint(BaseModel):
+    """The heaviest logged set of an exercise on a day (analytics.exercise_history)."""
+
+    exercise: str
+    day: date
+    session_id: int
+    top_load_kg: float
+    reps: float | None
+    sets: int | None
+
+
 class Proposal(BaseModel):
     id: int
     kind: str

@@ -25,6 +25,7 @@ from lifter.db import connect
 LOCAL_HOSTS = ["127.0.0.1", "localhost"]
 MAX_CALENDAR_DAYS = 366
 MAX_HEALTH_DAYS = 90
+MAX_HISTORY_NAMES = 10
 
 
 def read_only_url(url: str) -> str:
@@ -279,6 +280,19 @@ def create_app(database_url: str, app_origins: list[str] | None = None) -> FastA
             "select b.exercise, e.category, e.pattern, b.reps, b.best_load_kg, b.day"
             " from exercise_best b join exercise e on e.name = b.exercise"
             " order by b.exercise, b.reps"
+        ).fetchall()
+
+    @app.get("/history")
+    def history(
+        conn: Conn,
+        exercise: Annotated[list[str], Query(min_length=1, max_length=MAX_HISTORY_NAMES)],
+    ) -> list[models.HistoryPoint]:
+        """The heaviest logged set per day of the named exercises (case-insensitive names,
+        several when the bank spells a movement more than one way), oldest first."""
+        return conn.execute(
+            "select exercise, day, session_id, top_load_kg, reps, sets from exercise_history"
+            " where lower(exercise) = any(%s) order by day, exercise",
+            ([name.strip().lower() for name in exercise],),
         ).fetchall()
 
     @app.get("/proposals")

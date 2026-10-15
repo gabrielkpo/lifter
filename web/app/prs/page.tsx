@@ -1,11 +1,12 @@
 "use client";
 
 import { type CSSProperties, useState } from "react";
+import TimeChart from "@/components/TimeChart";
 import TopBar from "@/components/TopBar";
 import { useApi } from "@/lib/api";
 import { CATALOGUE, type Family, type Kind, matches, type Movement } from "@/lib/catalogue";
 import { num, shortDate } from "@/lib/format";
-import type { Best, Goal } from "@/lib/types";
+import type { Best, Goal, HistoryPoint } from "@/lib/types";
 
 const SHOWN_REP_MAXES = [1, 3, 5];
 
@@ -15,6 +16,8 @@ export default function PrsPage() {
   const [kindKey, setKindKey] = useState<Kind["key"]>("lift");
   const [family, setFamily] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // The movement whose progression curve is open.
+  const [open, setOpen] = useState<string | null>(null);
 
   const logged = bests.status === "ok" ? bests.data : [];
   // The athlete's own benchmarks (goals of kind benchmark) join the public ones.
@@ -85,17 +88,24 @@ export default function PrsPage() {
           </h2>
           <ul className="list">
             {f.movements.map((m) => (
-              <li key={m.name}>
-                <span>
-                  {m.name}
-                  {m.description && (
-                    <>
-                      <br />
-                      <span className="small">{m.description}</span>
-                    </>
-                  )}
-                </span>
-                <Record movement={m} bests={logged} />
+              <li key={m.name} className="expandable">
+                <button
+                  className="row"
+                  aria-expanded={open === m.name}
+                  onClick={() => setOpen(open === m.name ? null : m.name)}
+                >
+                  <span>
+                    {m.name}
+                    {m.description && (
+                      <>
+                        <br />
+                        <span className="small">{m.description}</span>
+                      </>
+                    )}
+                  </span>
+                  <Record movement={m} bests={logged} />
+                </button>
+                {open === m.name && <MovementHistory movement={m} />}
               </li>
             ))}
           </ul>
@@ -134,5 +144,36 @@ function Record({ movement, bests }: { movement: Movement; bests: Best[] }) {
         </span>
       ))}
     </span>
+  );
+}
+
+/** The movement's heaviest logged set, session after session. */
+function MovementHistory({ movement }: { movement: Movement }) {
+  const names = [movement.name, ...(movement.aliases ?? [])];
+  const query = names.map((n) => `exercise=${encodeURIComponent(n)}`).join("&");
+  const history = useApi<HistoryPoint[]>(movement.record === "rep_max" ? `/history?${query}` : null);
+  if (movement.record !== "rep_max") {
+    return <p className="history small">No record yet. Entering records comes with the next step.</p>;
+  }
+  if (history.status !== "ok") return <p className="history small">{history.status === "loading" ? "Loading…" : history.message}</p>;
+  if (history.data.length === 0) {
+    return <p className="history small">Not logged yet: the curve starts with your first set.</p>;
+  }
+  // Two spellings of a movement on the same day: keep the heavier.
+  const byDay = new Map<string, HistoryPoint>();
+  for (const p of history.data) {
+    const kept = byDay.get(p.day);
+    if (!kept || p.top_load_kg > kept.top_load_kg) byDay.set(p.day, p);
+  }
+  const points = [...byDay.values()].map((p) => ({
+    day: p.day,
+    value: p.top_load_kg,
+    note: p.reps !== null ? `${p.sets ?? 1}×${num(p.reps)}` : undefined,
+  }));
+  return (
+    <div className="history">
+      <p className="small">Heaviest set per session (kg)</p>
+      <TimeChart points={points} unit="kg" />
+    </div>
   );
 }

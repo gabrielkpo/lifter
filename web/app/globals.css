@@ -575,3 +575,34 @@ button {
     margin-bottom: 0;
   }
 }
+
+/* PR rows open on a progression curve. */
+.list li.expandable {
+  display: block;
+  padding: 0;
+}
+.list li.expandable > button {
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  font-size: 19px;
+  color: var(--muted);
+  align-items: baseline;
+}
+.list li.expandable > button[aria-expanded="true"] {
+  color: var(--text);
+}
+.history {
+  margin: 0;
+  padding: 0 16px 16px;
+}
+.timechart {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+}
+.timechart .axis {
+  font-size: 10px;
+  fill: var(--muted);
+}

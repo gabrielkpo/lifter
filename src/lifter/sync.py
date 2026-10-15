@@ -2,7 +2,11 @@
 
 Each answer is stored as received (see sql/001_raw.sql). Days and activities already stored
 are not fetched again, except the most recent days: Garmin often completes a day late
-(sleep synced in the morning, training load computed after upload).
+(sleep synced in the morning, training load computed after upload). `refresh=True` refetches
+everything in the range, for edits made in Garmin after that window.
+
+An activity that a complete listing no longer returns was deleted or merged in Garmin: it is
+tombstoned so the metrics stop counting it (sql/002_activity_tombstone.sql).
 """
 
 import asyncio
@@ -40,7 +44,8 @@ def parse_response(text: str) -> tuple[str, Any]:
     ("No HRV data found for ...", "Error retrieving ...").
     """
     try:
-        return "ok", json.loads(text)
+        # NaN and Infinity are valid for Python's json but rejected by Postgres jsonb.
+        return "ok", json.loads(text, parse_constant=lambda _: None)
     except json.JSONDecodeError:
         return ("empty" if text.startswith("No ") else "error"), None
 
@@ -98,15 +103,20 @@ class Syncer:
         *,
         today: date | None = None,
         delay_seconds: float = 0.0,
+        refresh: bool = False,
     ):
         self.caller = caller
         self.conn = conn
         self.today = today or date.today()
         self.delay_seconds = delay_seconds
+        self.refresh = refresh
         self.report = SyncReport()
 
-    def _is_recent(self, day: date) -> bool:
-        return day >= self.today - timedelta(days=REFRESH_DAYS)
+    def _is_final(self, day: date | None) -> bool:
+        """A stored answer for this day is trusted as final and not fetched again."""
+        if self.refresh or day is None:
+            return False
+        return day < self.today - timedelta(days=REFRESH_DAYS)
 
     async def _fetch(self, tool: str, natural_key: str, params: dict) -> Any:
         """Call one tool, store and log the answer. Returns the payload, or None."""
@@ -128,19 +138,26 @@ class Syncer:
         return payload
 
     async def sync(self, start: date, end: date) -> SyncReport:
-        await self._sync_activities(start, end)
+        listed_ids = await self._sync_activities(start, end)
+        if listed_ids is not None:
+            self._update_tombstones(start, end, listed_ids)
         day = start
         while day <= end:
             for tool in DAILY_TOOLS:
                 key = day.isoformat()
-                if not self._is_recent(day) and is_stored(self.conn, tool, key):
+                if self._is_final(day) and is_stored(self.conn, tool, key):
                     self.report.add("skipped")
                     continue
                 await self._fetch(tool, key, {"date": key})
             day += timedelta(days=1)
         return self.report
 
-    async def _sync_activities(self, start: date, end: date) -> None:
+    async def _sync_activities(self, start: date, end: date) -> set[int] | None:
+        """Fetch the listing and the details of each activity.
+
+        Returns the ids listed in the range, or None if the listing is incomplete.
+        """
+        listed_ids: set[int] = set()
         page = 0
         while True:
             params = {
@@ -152,18 +169,34 @@ class Syncer:
             key = f"{start.isoformat()}..{end.isoformat()}#{page}"
             listing = await self._fetch("get_activities_by_date", key, params)
             if not isinstance(listing, dict):
-                return
+                return None
             for activity in listing.get("activities", []):
+                listed_ids.add(int(activity["id"]))
                 await self._sync_activity(activity)
             if not listing.get("has_more"):
-                return
+                return listed_ids
             page = listing.get("next_page", page + 1)
+
+    def _update_tombstones(self, start: date, end: date, listed_ids: set[int]) -> None:
+        """Tombstone stored activities of the range missing from a complete listing."""
+        ids = list(listed_ids)
+        with self.conn.transaction():
+            self.conn.execute("delete from activity_tombstone where activity_id = any(%s)", (ids,))
+            self.conn.execute(
+                """
+                insert into activity_tombstone (activity_id)
+                select activity_id from stg_activity
+                where activity_date between %s and %s and not (activity_id = any(%s))
+                on conflict do nothing
+                """,
+                (start, end, ids),
+            )
 
     async def _sync_activity(self, activity: dict) -> None:
         activity_id = str(activity["id"])
         start_time = activity.get("start_time")  # "YYYY-MM-DD HH:MM:SS", local time
         # An activity without a start time is always refetched rather than trusted as final.
-        final = start_time is not None and not self._is_recent(date.fromisoformat(start_time[:10]))
+        final = self._is_final(date.fromisoformat(start_time[:10]) if start_time else None)
         for tool in ACTIVITY_TOOLS:
             if final and is_stored(self.conn, tool, activity_id):
                 self.report.add("skipped")
@@ -179,5 +212,7 @@ async def sync_range(
     *,
     today: date | None = None,
     delay_seconds: float = 0.0,
+    refresh: bool = False,
 ) -> SyncReport:
-    return await Syncer(caller, conn, today=today, delay_seconds=delay_seconds).sync(start, end)
+    syncer = Syncer(caller, conn, today=today, delay_seconds=delay_seconds, refresh=refresh)
+    return await syncer.sync(start, end)

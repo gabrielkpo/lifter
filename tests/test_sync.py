@@ -1,6 +1,7 @@
 import asyncio
 import json
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 
@@ -134,3 +135,109 @@ def test_mcp_client_refuses_write_tools():
     caller = McpToolCaller("http://127.0.0.1:1/mcp", "unused")
     with pytest.raises(PermissionError):
         asyncio.run(caller.call("schedule_workout", {"workout_id": 1, "date": "2026-03-02"}))
+
+
+def test_activity_missing_from_a_complete_listing_is_tombstoned(conn):
+    run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))
+    answers = two_days()
+    answers[("get_activities_by_date", 0)] = listing([])  # deleted in Garmin Connect
+    run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
+
+    assert conn.execute("select activity_id from activity_tombstone").fetchall() == [(11,)]
+    assert conn.execute("select count(*) from stg_activity").fetchone()[0] == 0
+
+    run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))  # listed again: restored
+    assert conn.execute("select count(*) from activity_tombstone").fetchone()[0] == 0
+    assert conn.execute("select count(*) from stg_activity").fetchone()[0] == 1
+
+
+def test_incomplete_listing_tombstones_nothing(conn):
+    run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))
+    answers = two_days()
+    answers[("get_activities_by_date", 0)] = "Error retrieving activities by date: timeout"
+    run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
+
+    assert conn.execute("select count(*) from activity_tombstone").fetchone()[0] == 0
+
+
+def test_activity_without_details_is_counted_as_missing(conn):
+    answers = two_days()
+    answers[("get_activity", 11)] = "Error retrieving activity: timeout"
+    run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
+
+    row = conn.execute(
+        "select sessions, sessions_missing_details from daily_load where day = %s", (D1,)
+    ).fetchone()
+    assert row == (0, 1)
+
+
+def test_nan_in_a_payload_is_stored_as_null(conn):
+    answers = two_days()
+    answers[("get_hrv_data", D1.isoformat())] = (
+        '{"date": "2026-03-02", "last_night_avg_hrv_ms": NaN}'
+    )
+    report = run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
+
+    assert report.counts["error"] == 0
+    row = conn.execute("select hrv_ms from stg_hrv where day = %s", (D1,)).fetchone()
+    assert row == (None,)
+
+
+def test_refresh_refetches_final_days(conn):
+    run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))
+    caller = FakeCaller(two_days())
+    asyncio.run(sync_range(caller, conn, D1, D2, today=date(2026, 6, 1), refresh=True))
+
+    assert len(caller.calls) == 7  # listing, 2 activity tools, 2 days x 2 daily tools
+
+
+class FakeSession:
+    def __init__(self, result=None, exc=None):
+        self.result, self.exc = result, exc
+
+    async def call_tool(self, tool, arguments):
+        if self.exc:
+            raise self.exc
+        return self.result
+
+
+def connected_caller(session):
+    caller = McpToolCaller("http://127.0.0.1:1/mcp", "unused")
+    caller._session = session
+    return caller
+
+
+def test_mcp_client_joins_text_content():
+    result = SimpleNamespace(
+        content=[
+            SimpleNamespace(type="text", text='{"a": '),
+            SimpleNamespace(type="text", text="1}"),
+        ],
+        is_error=False,
+    )
+    assert asyncio.run(connected_caller(FakeSession(result)).call("get_hrv_data", {})) == '{"a": 1}'
+
+
+def test_mcp_client_turns_failures_into_tool_errors():
+    error_result = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text="boom")], is_error=True
+    )
+    with pytest.raises(ToolError, match="boom"):
+        asyncio.run(connected_caller(FakeSession(error_result)).call("get_hrv_data", {}))
+    with pytest.raises(ToolError, match="ConnectionError"):
+        asyncio.run(
+            connected_caller(FakeSession(exc=ConnectionError("reset"))).call("get_hrv_data", {})
+        )
+
+
+def test_transport_failure_is_logged_and_the_sync_goes_on(conn):
+    class FlakyCaller(FakeCaller):
+        async def call(self, tool, arguments):
+            if tool == "get_sleep_summary" and arguments["date"] == D1.isoformat():
+                raise ToolError("ReadTimeout: timed out")
+            return await super().call(tool, arguments)
+
+    report = run_sync(conn, FlakyCaller(two_days()), today=date(2026, 6, 1))
+
+    assert report.counts["error"] == 1
+    assert report.counts["stored"] == 6

@@ -45,7 +45,12 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
             with connect(settings.database_url) as conn:
                 migrate(conn)
                 return await sync_range(
-                    caller, conn, start, end, delay_seconds=settings.sync_delay_seconds
+                    caller,
+                    conn,
+                    start,
+                    end,
+                    delay_seconds=settings.sync_delay_seconds,
+                    refresh=args.refresh,
                 )
 
     report = asyncio.run(run())
@@ -77,6 +82,9 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--days", type=int, default=30, help="days back from --end (default 30)")
     sync.add_argument("--start", type=date.fromisoformat, help="first day, YYYY-MM-DD")
     sync.add_argument("--end", type=date.fromisoformat, help="last day, YYYY-MM-DD (default today)")
+    sync.add_argument(
+        "--refresh", action="store_true", help="refetch days and activities already stored"
+    )
     sync.set_defaults(func=cmd_sync)
 
     metrics = sub.add_parser("metrics", help="print the daily metrics of the last days")

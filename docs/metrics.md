@@ -1,8 +1,8 @@
 # Metric definitions
 
 These are the only numbers the agents are allowed to cite: an agent reads them, it never
-recomputes them. They live in SQL views (`src/lifter/sql/003_metrics.sql`); this page and the
-SQL change together, and `tests/test_metrics.py` pins each definition with hand-computed cases.
+recomputes them. They live in SQL views (`src/lifter/sql/views.sql`, recreated by every `lifter migrate`); this
+page and the SQL change together, and `tests/test_metrics.py` pins each definition with hand-computed cases.
 
 Thresholds are **version 1**: reasonable starting points for one athlete, to be tuned with the
 evaluation bench. They are training heuristics, **not medical criteria**.
@@ -16,6 +16,8 @@ Garmin MCP ──► raw_garmin_payload (JSON as received, deduplicated by hash)
      stg_activity, stg_activity_hr_zone, stg_sleep, stg_hrv   (typed, latest payload per key)
                   │
                   ▼
+     activity_tombstone (activities a complete listing no longer returns) filters stg_activity
+                  │
      daily_load ─► daily_base (one row per calendar day) ─► daily_metrics ─► daily_alerts
      stg_activity + stg_activity_hr_zone ─► weekly_training
 ```
@@ -26,9 +28,14 @@ Garmin MCP ──► raw_garmin_payload (JSON as received, deduplicated by hash)
 | `get_activity_hr_in_timezones` | activity id | minutes per heart rate zone |
 | `get_sleep_summary` | day (wake-up day) | sleep duration, resting heart rate |
 | `get_hrv_data` | day | last night average HRV |
-| `get_activities_by_date` | range and page | list of activity ids to fetch |
+| `get_activities_by_date` | range and page | list of activity ids to fetch; activities missing details; deleted activities |
 
 Garmin files a night under the day you wake up, so "sleep of day D" is the night before D.
+
+An activity that a complete listing of its date range no longer returns (deleted or merged in
+Garmin Connect) is recorded in `activity_tombstone` and ignored by every view; it is restored
+if a later listing returns it again. An incomplete listing (error on any page) tombstones
+nothing.
 
 ## Rules shared by all metrics
 
@@ -45,6 +52,7 @@ Garmin files a night under the day you wake up, so "sleep of day D" is the night
 | Column | Definition |
 |---|---|
 | `load` | Sum of Garmin `training_load` of the activities that start that day (local time). An activity without a load counts as 0 (`daily_load.sessions_without_load` counts them). |
+| `sessions_missing_details` | Activities listed by Garmin that day whose details could not be fetched: their load is **unknown**, not zero. A non-zero value means the day's load is underestimated. |
 | `acute_load_7d` | Sum of `load` over the day and the 6 days before. Rounded to 0.1. |
 | `chronic_load_28d` | Sum of `load` over the day and the 27 days before, divided by 4: a weekly average over 4 weeks, comparable to the acute load. Rounded to 0.1. |
 | `acwr` | Acute to chronic workload ratio: `acute_load_7d / chronic_load_28d` (unrounded values), rounded to 0.01. `NULL` with less than 28 days of history or a chronic load of 0. |
@@ -57,7 +65,7 @@ which use exponentially weighted averages.
 | Column | Definition |
 |---|---|
 | `hrv_baseline_28d` | Mean of the nightly HRV over the 28 previous days, **today excluded**. Needs at least 14 measured nights. |
-| `hrv_delta_pct` | `100 × (hrv_ms − baseline) / baseline`, rounded to 0.1. |
+| `hrv_delta_pct` | `100 × (hrv_ms − baseline) / baseline`, rounded to 0.1. `NULL` if the baseline is 0. |
 | `hrv_7d_delta_pct` | Same, with the 7-day mean HRV (today included) instead of today's value. |
 | `rhr_baseline_28d` | Mean resting heart rate over the 28 previous days, today excluded, at least 14 days. |
 | `rhr_delta_bpm` | `resting_hr_bpm − baseline`, rounded to 0.1. |

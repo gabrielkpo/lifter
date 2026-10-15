@@ -1,5 +1,7 @@
 # Lifter
 
+[![CI](https://github.com/gabrielkpo/lifter/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielkpo/lifter/actions/workflows/ci.yml)
+
 Training coach agent built on Garmin data: it reads metrics through the Garmin MCP server,
 analyses recovery and load, proposes a weekly plan and never writes to Garmin without approval.
 
@@ -39,7 +41,9 @@ Step 1 of the plan: Garmin data is copied into Postgres and turned into document
 
 - `lifter sync` calls the Garmin MCP server ([garmin-mcp-remote](https://github.com/gabrielkpo/garmin-mcp-remote))
   with **read tools only** and stores every answer as raw JSON, deduplicated by hash. Days
-  already stored are not fetched again, except the last 3 (Garmin completes them late).
+  already stored are not fetched again, except the last 3 (Garmin completes them late);
+  `--refresh` refetches the whole range. One failed call is logged and the sync goes on.
+  Activities deleted in Garmin are detected and stop counting.
 - SQL views turn the raw layer into daily metrics: acute and chronic load, ACWR, HRV and
   resting heart rate against a personal baseline, a recovery score, a trend and alerts.
   Every definition is in [docs/metrics.md](docs/metrics.md).

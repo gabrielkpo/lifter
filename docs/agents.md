@@ -19,8 +19,8 @@ START → plan (LLM) → guard (code) ─ accepted ─────────�
   status, parts, planned and done lines, metcon targets and results, Garmin minutes), sessions
   already planned in the target week, 7 days of recovery (`daily_metrics`, readiness and Body
   Battery from `daily_recovery`), alerts of the last 3 days, the athlete's rules, the exercise
-  bank, the last logged load of each exercise (28 days), active goals with their next
-  milestone.
+  bank, the heaviest logged load of each exercise per repetition count (28 days, so a deload
+  week does not become the reference), active goals with their next milestone.
 - **Plan** (`agents/plan.py`): a typed `WeekPlan` (summary, sessions with parts and prescribed
   lines, a rationale per session, sessions of the week it replaces). Unknown fields are
   refused; a metcon has a target, never a time cap; results and done lines cannot be
@@ -48,15 +48,15 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `exercise_bank` | An exercise that is not in the bank |
 | `cancellations` | Cancelling a session that is not an open session of the target week |
 | `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values (agents read numbers, they never compute them) |
-| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3 |
+| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3, in the plan or in a session of the week it keeps |
 | `forbid_flag` (rule) | An exercise carrying a forbidden flag (`running`, `impact`, `free_barbell_legs`…) |
 | `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max |
-| `weekly_pattern` (rule) | A week without strength work on the given pattern (legs every week) |
+| `weekly_pattern` (rule) | A week without strength work on the given pattern (legs every week), counting the sessions the plan keeps |
 | `no_max_before_test` (rule) | A single to failure, or a line marked as a max, outside the peak and test weeks |
 | `fresh_first` (rule) | Weightlifting or gymnastics placed after the metcon |
 | `metcon_no_row` (rule) | A listed exercise (the rower) inside a metcon |
 | `metcon_light_barbell` (rule) | A weightlifting line above the given load inside a metcon |
-| `progression` (rule) | A load more than one step (2.5 kg upper body, 5 kg lower body) above the last logged set at as many reps or more |
+| `progression` (rule) | A load more than one step (2.5 kg upper body, 5 kg lower body) above the heaviest set logged in 28 days at as many reps or more |
 
 Rules without a code, or with a code the guardrail does not know, are context for the planner
 only; the CLI reports how many were not checked. A low recovery score on the last day is a

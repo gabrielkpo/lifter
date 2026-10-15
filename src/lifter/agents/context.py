@@ -122,14 +122,18 @@ class Exercise(BaseModel):
 
 
 class RecentLoad(BaseModel):
-    """The heaviest set of the last session that logged this exercise with a load."""
+    """The heaviest logged load of an exercise for a repetition count, over the last 28 days.
+
+    Kept per repetition count, not per last session, so a deload week does not become the
+    reference the week after.
+    """
 
     exercise: str
     pattern: str
-    day: date
-    load_kg: float
     reps: float | None
+    load_kg: float
     rir: int | None
+    day: date
 
 
 class Goal(BaseModel):
@@ -330,11 +334,11 @@ def build_context(
     )
     recent = _rows(
         conn,
-        "select distinct on (l.exercise) l.exercise, l.pattern, p.day, l.load_kg,"
-        " l.quantity as reps, l.rir"
+        "select distinct on (l.exercise, l.quantity) l.exercise, l.pattern,"
+        " l.quantity as reps, l.load_kg, l.rir, p.day"
         " from session_line l join planned_session p on p.id = l.session_id"
         " where l.origin = 'done' and l.load_kg is not null and p.day between %s and %s"
-        " order by l.exercise, p.day desc, l.load_kg desc",
+        " order by l.exercise, l.quantity, l.load_kg desc, p.day desc",
         (today - timedelta(days=RECENT_LOAD_DAYS), today),
     )
     goals = _rows(

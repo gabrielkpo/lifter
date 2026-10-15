@@ -107,9 +107,9 @@ def test_the_context_holds_the_week_the_review_and_the_last_loads(ctx):
     assert ctx.target_week.intent["push"] == "One more set, not more load. RIR 3."
     review = ctx.previous_week
     assert (review.number, review.done, review.missed) == (1, 2, 2)
-    loads = {r.exercise: (r.load_kg, r.reps, r.rir) for r in ctx.recent_loads}
-    assert loads["Bench press"] == (52.5, 10, 2)
-    assert loads["Leg press"] == (105, 12, 3)
+    loads = {(r.exercise, r.reps): (r.load_kg, r.rir) for r in ctx.recent_loads}
+    assert loads[("Bench press", 10)] == (52.5, 2)
+    assert loads[("Leg press", 12)] == (105, 3)
     assert ctx.target_week.block_target_strength_sessions == 12
     assert [g.title for g in ctx.goals][0] == "Bench press 80 kg"
 
@@ -351,3 +351,52 @@ def test_plan_week_needs_a_key(monkeypatch, capsys):
     monkeypatch.setenv("MISTRAL_API_KEY", "")
     assert main(["plan-week"]) == 2
     assert "MISTRAL_API_KEY is not set" in capsys.readouterr().out
+
+
+def test_a_deload_week_is_not_the_progression_reference(conn, program, ctx):
+    from lifter.agents.context import RecentLoad
+
+    deload = RecentLoad(
+        exercise="Bench press", pattern="push", reps=8, load_kg=40, rir=4, day=date(2026, 3, 7)
+    )
+    after_deload = ctx.model_copy(update={"recent_loads": [*ctx.recent_loads, deload]})
+    plan = good_plan()
+    plan.sessions[0].parts[1].lines[0] = PlanLine(
+        exercise="Bench press", sets=4, quantity=8, load_kg=55, rir=2
+    )
+    # heaviest at 8 reps or more: 52.5 x 10, so 55 is one step up; the 40 x 8 deload is ignored
+    assert "progression" not in checks(plan, after_deload)
+
+
+def test_kept_draft_sessions_count_for_legs_and_for_alerts(conn, program):
+    draft = domain.create_session(
+        conn,
+        domain.SessionIn(
+            day=date(2026, 3, 12),
+            title="Legs draft",
+            week_id=2,
+            parts=[
+                domain.PartIn(
+                    kind="strength",
+                    planned=[domain.LineIn(exercise="Leg press", sets=3, quantity=12, rir=2)],
+                )
+            ],
+        ),
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    legs_rule = guardrail.Rule(
+        code="weekly_pattern", text="Legs every week.", params={"pattern": "legs"}
+    )
+    ctx = ctx.model_copy(update={"rules": [*ctx.rules, legs_rule]})
+    no_legs = good_plan()
+    no_legs.sessions.pop()  # the plan keeps the draft for the legs
+    assert "weekly_pattern" not in checks(no_legs, ctx)
+    assert "weekly_pattern" in checks(
+        no_legs.model_copy(update={"cancel_session_ids": [draft]}), ctx
+    )
+
+    alert = Alert(day=TODAY, alert="abnormal_hrv", severity="critical", value=-35, threshold=-30)
+    alarmed = ctx.model_copy(update={"alerts": [alert]})
+    easy = WeekPlan(summary="Week 2 stays easy.", sessions=[])
+    messages = [v.message for v in guardrail.check(easy, alarmed).violations]
+    assert any("Legs draft" in m for m in messages)

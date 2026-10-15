@@ -49,6 +49,15 @@ def _lines(session: PlanSession) -> Iterator[tuple[PlanPart, PlanLine]]:
             yield part, line
 
 
+def _kept(plan: WeekPlan, ctx: PlanningContext):
+    """Sessions already planned in the week that the plan keeps (does not cancel)."""
+    return [
+        s
+        for s in ctx.sessions_already_planned
+        if s.session_id not in plan.cancel_session_ids and s.status in ("planned", "missed")
+    ]
+
+
 def _top_load(line: PlanLine) -> float | None:
     return line.load_kg_max if line.load_kg_max is not None else line.load_kg
 
@@ -114,6 +123,17 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
     if not critical:
         return
     names = ", ".join(sorted({a.alert for a in critical}))
+    for kept in _kept(plan, ctx):
+        hard = any(p.kind == "metcon" for p in kept.parts) or any(
+            line.rir is not None and line.rir < 3 for p in kept.parts for line in p.planned
+        )
+        if hard:
+            yield Violation(
+                "critical_alert",
+                f"critical health alert ({names}): the planned session {kept.session_id}"
+                f" '{kept.title}' is hard, cancel or replace it",
+                str(kept.day),
+            )
     for s in plan.sessions:
         hard = any(p.kind == "metcon" for p in s.parts) or any(
             line.rir is not None and line.rir < 3 for _, line in _lines(s)
@@ -163,6 +183,12 @@ def rule_weekly_pattern(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Ite
         for s in plan.sessions
         for part, line in _lines(s)
         if part.kind == "strength"
+    ) or any(
+        patterns.get(line.exercise) == pattern
+        for kept in _kept(plan, ctx)
+        for part in kept.parts
+        if part.kind == "strength"
+        for line in part.planned
     )
     if pattern and not trained:
         yield Violation("weekly_pattern", f"no strength work on '{pattern}': {rule.text}")
@@ -227,24 +253,29 @@ def rule_metcon_light_barbell(
 
 
 def rule_progression(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
-    """Loads go up by one step at most from the last logged set at as many reps or more."""
+    """Loads go up by one step at most from the heaviest set logged at as many reps or more."""
     upper = rule.params.get("upper_kg", 2.5)
     lower = rule.params.get("lower_kg", 5)
-    last = {r.exercise: r for r in ctx.recent_loads}
     for s in plan.sessions:
         for part, line in _lines(s):
-            ref = last.get(line.exercise)
             top = _top_load(line)
-            if part.kind == "metcon" or ref is None or top is None or line.quantity is None:
+            if part.kind == "metcon" or top is None or line.quantity is None:
                 continue
-            if ref.reps is not None and line.quantity < ref.reps:
-                continue  # fewer reps than the reference: a heavier load is expected
+            # Sets logged at fewer reps say nothing about this load: a heavier one is expected.
+            refs = [
+                r
+                for r in ctx.recent_loads
+                if r.exercise == line.exercise and r.reps is not None and r.reps >= line.quantity
+            ]
+            if not refs:
+                continue
+            ref = max(refs, key=lambda r: r.load_kg)
             step = lower if ref.pattern in LOWER_BODY else upper
             if top > ref.load_kg + step:
                 yield Violation(
                     "progression",
-                    f"'{line.exercise}' at {top:g} kg: last logged {ref.load_kg:g} kg"
-                    f" ({ref.day}), so at most {ref.load_kg + step:g} kg",
+                    f"'{line.exercise}' at {top:g} kg: heaviest logged {ref.load_kg:g} kg"
+                    f" x {ref.reps:g} ({ref.day}), so at most {ref.load_kg + step:g} kg",
                     str(s.day),
                 )
 

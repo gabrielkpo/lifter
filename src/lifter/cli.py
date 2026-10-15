@@ -440,9 +440,12 @@ def _plan_lines(plan) -> list[str]:
 
 
 def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
+    import httpx
+
     from lifter.agents.context import PlanningError
     from lifter.agents.planner import MistralPlanner
     from lifter.agents.week import run_week_planner
+    from lifter.domain import DomainError
 
     if not settings.mistral_api_key:
         print("MISTRAL_API_KEY is not set (see .env.example)")
@@ -465,8 +468,11 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
                 mode=settings.llm_context,
                 propose=args.propose,
             )
-    except PlanningError as exc:
+    except (PlanningError, DomainError) as exc:
         print(printable(f"refused: {exc}"))
+        return 1
+    except httpx.HTTPError as exc:  # the message names the URL, never the key
+        print(printable(f"Mistral API error: {exc}"))
         return 1
     week = result.context.target_week
     out = [f"week {week.number} ({week.phase}), {week.start_date} to {week.end_date}"]

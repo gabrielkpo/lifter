@@ -140,7 +140,8 @@ select
     -- (PRODUCTIVE_1 -> PRODUCTIVE, NO_STATUS_2 -> NO_STATUS).
     nullif(regexp_replace(payload ->> 'training_status_feedback', '_[0-9]+$', ''), '')
         as garmin_training_status,
-    (payload ->> 'training_status')::int as garmin_training_status_code,
+    case when payload ->> 'training_status' ~ '^-?[0-9]+$'
+        then (payload ->> 'training_status')::int end as garmin_training_status_code,
     payload ->> 'training_status_feedback' as garmin_training_status_feedback,
     (payload ->> 'vo2_max_precise')::numeric as vo2_max,
     (payload ->> 'cycling_vo2_max_precise')::numeric as cycling_vo2_max,

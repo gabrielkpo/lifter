@@ -71,3 +71,15 @@ def test_intensity_minutes_with_only_vigorous_minutes(conn):
     store_payload(conn, "get_stats", DAY.isoformat(), {}, stats)
 
     assert recovery(conn)["intensity_minutes"] == 30
+
+
+def test_unexpected_status_code_does_not_break_the_view(conn):
+    status = dict(training_status(DAY), training_status="PRODUCTIVE")  # not the usual integer
+    store_payload(conn, "get_training_status", DAY.isoformat(), {}, status)
+    store_payload(conn, "get_stats", DAY.isoformat(), {}, daily_stats(DAY))
+
+    assert recovery(conn)["garmin_training_status"] == "PRODUCTIVE"  # label still read
+    code = conn.execute(
+        "select garmin_training_status_code from stg_training_status where day = %s", (DAY,)
+    ).fetchone()
+    assert code == (None,)

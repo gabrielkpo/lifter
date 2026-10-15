@@ -450,3 +450,27 @@ def test_pain_without_a_loaded_session_is_a_warning(conn, program):
     verdict = guardrail.check(good_plan(), ctx)
     assert "stop_rule" not in {v.check for v in verdict.violations}
     assert any("pain 6/10" in w and "not checked by code" in w for w in verdict.warnings)
+
+
+def test_a_later_pain_free_session_lifts_the_cap(conn, program):
+    report_pain(conn, pain=5)  # legs on 2026-03-07, leg press 105
+    later = domain.create_session(
+        conn,
+        domain.SessionIn(
+            day=date(2026, 3, 8),
+            title="Legs check",
+            parts=[
+                domain.PartIn(
+                    kind="strength",
+                    done=[domain.LineIn(exercise="Leg press", sets=2, quantity=10, load_kg=95)],
+                )
+            ],
+        ),
+    )
+    domain.add_feedback(
+        conn, domain.FeedbackIn(day=date(2026, 3, 8), planned_session_id=later, pain=0)
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    ctx = ctx.model_copy(update={"rules": [*ctx.rules, STOP]})
+
+    assert "stop_rule" not in checks(good_plan(), ctx)

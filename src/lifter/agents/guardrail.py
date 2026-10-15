@@ -292,23 +292,32 @@ def rule_stop_rule(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator
     """Pain above the threshold after a session: two load steps back on what it loaded.
 
     Every loaded exercise of the painful session is capped at its load that day minus `steps`
-    steps (2.5 kg upper body, 5 kg lower body by default). Pain reported without a session, or
-    on a session without loads, cannot be checked by code: it is a warning (see `check`).
+    steps (2.5 kg upper body, 5 kg lower body by default), until a later session loading it is
+    reported without such pain. Pain reported without a session, or on a session without
+    loads, cannot be checked by code: it is a warning (see `check`).
     """
     steps = rule.params.get("steps", 2)
     upper = rule.params.get("upper_kg", 2.5)
     lower = rule.params.get("lower_kg", 5)
     patterns = {e.name: e.pattern for e in ctx.exercises}
-    caps: dict[str, tuple[float, str]] = {}
-    for fb in _painful(rule, ctx):
+    pain_max = rule.params.get("pain_max", 3)
+    # The latest reported session that loaded each exercise decides: a later session reported
+    # without pain lifts the cap (feedback is ordered by day).
+    latest = {}
+    for fb in ctx.feedback:
+        if fb.pain is None:
+            continue
         for line in fb.lines:
-            top = line.load_kg_max if line.load_kg_max is not None else line.load_kg
-            step = lower if patterns.get(line.exercise) in LOWER_BODY else upper
-            cap = top - steps * step
-            where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
-            reason = f"{where} after '{fb.session_title}' on {fb.day}, {top:g} kg that day"
-            if line.exercise not in caps or cap < caps[line.exercise][0]:
-                caps[line.exercise] = (cap, reason)
+            latest[line.exercise] = (fb, line)
+    caps: dict[str, tuple[float, str]] = {}
+    for exercise, (fb, line) in latest.items():
+        if fb.pain <= pain_max:
+            continue
+        top = line.load_kg_max if line.load_kg_max is not None else line.load_kg
+        step = lower if patterns.get(exercise) in LOWER_BODY else upper
+        where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
+        reason = f"{where} after '{fb.session_title}' on {fb.day}, {top:g} kg that day"
+        caps[exercise] = (top - steps * step, reason)
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)

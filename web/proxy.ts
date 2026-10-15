@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { isAllowedHost } from "./lib/hosts";
+import { allowedHosts, isAllowedHost } from "./lib/hosts";
 
-/** Refuse any request whose Host is not this machine (DNS rebinding, LAN access). */
+const ALLOWED = allowedHosts(process.env);
+
+/** Refuse any request whose Host is not this app's (DNS rebinding, LAN access). */
 export function proxy(request: NextRequest) {
-  if (!isAllowedHost(request.headers.get("host"))) {
+  if (!isAllowedHost(request.headers.get("host"), ALLOWED)) {
     return new NextResponse("Unknown host", { status: 400 });
   }
   return NextResponse.next();

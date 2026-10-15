@@ -166,6 +166,16 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 The API has no authentication yet, so it only listens on `127.0.0.1` and opens its database
 connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it from a browser.
 
+**Deployment (first step).** The interface is deployed on Vercel (project root `web/`), behind
+Vercel's Deployment Protection (Vercel Authentication on every deployment, production
+included). The data does not move: the API and the database stay on the athlete's machine, and
+the deployed page reads them from the browser at `http://127.0.0.1:8000`, so it shows data only
+on that machine, with the API running and the deployment's origin listed in
+`LIFTER_APP_ORIGINS`. Chromium-based browsers ask once to allow access to the local network.
+Reaching the data from a phone needs the API behind a tunnel and a token, called from the Next
+server; that is a later step. On Vercel, the app answers only its own host names
+(`VERCEL_URL`, `VERCEL_BRANCH_URL`, `VERCEL_PROJECT_PRODUCTION_URL`, plus `LIFTER_WEB_HOSTS`).
+
 ## Project structure
 | Path | Content |
 |---|---|

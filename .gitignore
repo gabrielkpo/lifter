@@ -12,3 +12,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+# Vercel project link and pulled variables (local)
+.vercel/
+.env.local

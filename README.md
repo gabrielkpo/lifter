@@ -210,7 +210,10 @@ uv run pre-commit install         # ruff (locked version) and gitleaks before ea
 uv run pytest                     # needs a local Postgres (TEST_DATABASE_URL)
 ```
 Pull requests use Conventional Commits titles, go through a security review and a code review
-before opening, and need green tests, gitleaks and PR title checks. Releases start at `v0.1.0`.
+before opening, and need green tests, gitleaks and PR title checks. Releases start at `v0.1.0`:
+release-please keeps a release pull request open from the Conventional Commits on `main`
+(changelog, version in `pyproject.toml`, `src/lifter/__init__.py` and `uv.lock`); a release is
+published only when that pull request is merged.
 
 ## License
 [MIT](LICENSE)

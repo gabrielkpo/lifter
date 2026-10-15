@@ -5,19 +5,21 @@
 
 Nothing is written unless asked: `run_week_planner(..., propose=True)` turns an accepted plan
 into proposals (create_session, cancel_session) that the athlete approves or rejects; code
-applies them (lifter.domain). A plan still refused after the retries proposes nothing.
+applies them (lifter.domain). A plan still refused after the retries proposes nothing. With a
+`trigger`, the run is recorded in the audit log (lifter.agents.audit), errors included.
 """
 
 import operator
 import time
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated, TypedDict
 
 import psycopg
 from langgraph.graph import END, START, StateGraph
 
 from lifter import domain
+from lifter.agents.audit import Step, record_run
 from lifter.agents.context import ContextMode, PlanningContext, build_context
 from lifter.agents.guardrail import Verdict, Violation, check
 from lifter.agents.plan import WeekPlan
@@ -36,14 +38,33 @@ class State(TypedDict, total=False):
     attempts: int
 
 
-def build_graph(planner: Planner):
+def build_graph(planner: Planner, steps: list[Step] | None = None):
+    """The graph; `steps` collects each attempt's answer, tokens and seconds for the audit."""
+    steps = steps if steps is not None else []
+
     def plan_node(state: State) -> State:
         attempts = state.get("attempts", 0) + 1
+        tokens_in, tokens_out = planner.usage.input_tokens, planner.usage.output_tokens
+        started = time.monotonic()
+
+        def step(plan):
+            steps.append(
+                Step(
+                    attempt=attempts,
+                    plan=plan,
+                    input_tokens=planner.usage.input_tokens - tokens_in,
+                    output_tokens=planner.usage.output_tokens - tokens_out,
+                    seconds=time.monotonic() - started,
+                )
+            )
+
         try:
             plan = planner(state["context"], state.get("feedback", []))
         except PlannerOutputError as exc:
+            step(None)
             refused = Verdict([Violation("schema", str(exc))], [], [])
             return {"plan": None, "verdict": refused, "attempts": attempts}
+        step(plan)
         return {"plan": plan, "verdict": None, "attempts": attempts}
 
     def guard_node(state: State) -> State:
@@ -80,6 +101,7 @@ class WeekPlannerResult:
     verdicts: list[Verdict] = field(default_factory=list)
     seconds: float = 0.0
     proposal_ids: list[int] = field(default_factory=list)
+    run_id: int | None = None
 
     @property
     def accepted(self) -> bool:
@@ -94,12 +116,29 @@ def run_week_planner(
     today: date | None = None,
     mode: ContextMode = "indicators",
     propose: bool = False,
+    trigger: str | None = None,
 ) -> WeekPlannerResult:
+    """Plan a week; `trigger` (cli, app, job, bench) records the run in the audit log."""
     ctx = build_context(conn, week_number=week_number, today=today, mode=mode)
+    started_at = datetime.now(UTC)
     started = time.monotonic()
-    state = build_graph(planner).invoke(
-        {"context": ctx, "attempts": 0, "feedback": [], "verdicts": []}
-    )
+    steps: list[Step] = []
+    audit = {
+        "agent": AUTHOR,
+        "trigger": trigger,
+        "model": getattr(planner, "model", None),
+        "ctx": ctx,
+        "started_at": started_at,
+        "steps": steps,
+    }
+    try:
+        state = build_graph(planner, steps).invoke(
+            {"context": ctx, "attempts": 0, "feedback": [], "verdicts": []}
+        )
+    except Exception as exc:
+        if trigger:  # the error's type and message only: never the request or its headers
+            record_run(conn, **audit, verdicts=[], error=f"{type(exc).__name__}: {exc}")
+        raise
     result = WeekPlannerResult(
         context=ctx,
         plan=state.get("plan"),
@@ -110,6 +149,15 @@ def run_week_planner(
     )
     if propose and result.accepted:
         result.proposal_ids = propose_plan(conn, result.plan, ctx)
+    if trigger:
+        result.run_id = record_run(
+            conn,
+            **audit,
+            verdicts=result.verdicts,
+            final_plan=result.plan,
+            accepted=result.accepted,
+            proposal_ids=result.proposal_ids,
+        )
     return result
 
 

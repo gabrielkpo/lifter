@@ -66,7 +66,11 @@ def run_scenario(
     for run in range(1, runs + 1):
         planner = make_planner()
         result = run_week_planner(
-            conn, planner, week_number=scenario.target_week, today=scenario.today
+            conn,
+            planner,
+            week_number=scenario.target_week,
+            today=scenario.today,
+            trigger="bench",
         )
         outcomes = evaluate(scenario.expect, result)
         first = result.verdicts[0].violations if result.verdicts else []

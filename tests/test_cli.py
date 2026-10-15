@@ -121,3 +121,18 @@ def test_control_characters_are_escaped_in_tables():
     out = format_table(("rationale",), [("ok\x1b[2K\rhidden",)])
     assert "\x1b" not in out and "\r" not in out
     assert "\\x1b[2K\\rhidden" in out
+
+
+def test_error_messages_escape_control_characters(monkeypatch, capsys, conn, database_url):
+    from lifter import domain
+
+    session = {
+        "day": "2026-03-02",
+        "title": "Push",
+        "parts": [{"kind": "strength", "planned": [{"exercise": "Bench\x1b[2K\rapplied"}]}],
+    }
+    pid = domain.propose(conn, "create_session", session, "Unknown exercise.", "coach")
+    assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 1
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\r" not in out
+    assert "refused:" in out and "\\x1b[2K\\rapplied" in out

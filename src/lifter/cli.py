@@ -155,7 +155,7 @@ def cmd_program_load(settings: Settings, args: argparse.Namespace) -> int:
     try:
         program = read_program(args.file)
     except (OSError, yaml.YAMLError) as exc:
-        print(f"cannot read {args.file}: {exc}")
+        print(printable(f"cannot read {args.file}: {exc}"))
         return 2
 
     def load(conn):
@@ -321,9 +321,9 @@ def _with_domain(settings: Settings, action) -> int:
         with connect(settings.database_url) as conn:
             message = action(conn)
     except DomainError as exc:
-        print(f"refused: {exc}")
+        print(printable(f"refused: {exc}"))
         return 1
-    print(message)
+    print(printable(message))
     return 0
 
 
@@ -517,5 +517,5 @@ def main(argv: list[str] | None = None) -> int:
         problems = "; ".join(
             f"{'.'.join(str(p) for p in e['loc']) or 'input'}: {e['msg']}" for e in exc.errors()
         )
-        print(f"invalid input: {problems}")
+        print(printable(f"invalid input: {problems}"))
         return 2

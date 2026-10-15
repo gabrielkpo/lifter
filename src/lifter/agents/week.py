@@ -38,9 +38,13 @@ class State(TypedDict, total=False):
     attempts: int
 
 
-def build_graph(planner: Planner, steps: list[Step] | None = None):
-    """The graph; `steps` collects each attempt's answer, tokens and seconds for the audit."""
+def build_graph(
+    planner: Planner, steps: list[Step] | None = None, verdicts: list[Verdict] | None = None
+):
+    """The graph. For the audit, `steps` collects each attempt's answer, tokens and seconds, and
+    `verdicts` the guardrail's verdict on it; both survive a run that crashes midway."""
     steps = steps if steps is not None else []
+    verdicts = verdicts if verdicts is not None else []
 
     def plan_node(state: State) -> State:
         attempts = state.get("attempts", 0) + 1
@@ -72,6 +76,7 @@ def build_graph(planner: Planner, steps: list[Step] | None = None):
             verdict = state["verdict"]
         else:
             verdict = check(state["plan"], state["context"])
+        verdicts.append(verdict)
         return {
             "verdict": verdict,
             "verdicts": [verdict],
@@ -123,6 +128,7 @@ def run_week_planner(
     started_at = datetime.now(UTC)
     started = time.monotonic()
     steps: list[Step] = []
+    verdicts: list[Verdict] = []
     audit = {
         "agent": AUTHOR,
         "trigger": trigger,
@@ -130,30 +136,33 @@ def run_week_planner(
         "ctx": ctx,
         "started_at": started_at,
         "steps": steps,
+        "verdicts": verdicts,
     }
     try:
-        state = build_graph(planner, steps).invoke(
+        state = build_graph(planner, steps, verdicts).invoke(
             {"context": ctx, "attempts": 0, "feedback": [], "verdicts": []}
         )
+        result = WeekPlannerResult(
+            context=ctx,
+            plan=state.get("plan"),
+            verdict=state["verdict"],
+            attempts=state["attempts"],
+            verdicts=state["verdicts"],
+            seconds=time.monotonic() - started,
+        )
+        if propose and result.accepted:
+            result.proposal_ids = propose_plan(conn, result.plan, ctx)
     except Exception as exc:
         if trigger:  # the error's type and message only: never the request or its headers
-            record_run(conn, **audit, verdicts=[], error=f"{type(exc).__name__}: {exc}")
+            try:
+                record_run(conn, **audit, error=f"{type(exc).__name__}: {exc}")
+            except psycopg.Error as audit_error:  # keep the real error first
+                exc.add_note(f"the run could not be recorded in the audit log: {audit_error}")
         raise
-    result = WeekPlannerResult(
-        context=ctx,
-        plan=state.get("plan"),
-        verdict=state["verdict"],
-        attempts=state["attempts"],
-        verdicts=state["verdicts"],
-        seconds=time.monotonic() - started,
-    )
-    if propose and result.accepted:
-        result.proposal_ids = propose_plan(conn, result.plan, ctx)
     if trigger:
         result.run_id = record_run(
             conn,
             **audit,
-            verdicts=result.verdicts,
             final_plan=result.plan,
             accepted=result.accepted,
             proposal_ids=result.proposal_ids,

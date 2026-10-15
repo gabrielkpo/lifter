@@ -118,3 +118,49 @@ def test_runs_and_run_print_the_audit(monkeypatch, capsys, conn, program, databa
     assert "attempt 1: 2 session(s)" in out
     assert "[no_failure_on_legs] (2026-03-11)" in out
     assert main(["run", "999"]) == 1
+
+
+def test_a_crash_after_a_refused_attempt_keeps_its_violations(conn, program):
+    bad = good_plan()
+    bad.sessions[1].parts[0].lines[0].rir = 0
+    planner = Costly(bad, TimeoutError("Mistral timed out"))
+    with pytest.raises(TimeoutError):
+        run_week_planner(conn, planner, week_number=2, today=TODAY, trigger="cli")
+
+    run_id, status = conn.execute("select id, status from agent_run").fetchone()
+    assert status == "error"
+    (first,) = steps(conn, run_id)
+    assert [v["check"] for v in first[2]] == ["no_failure_on_legs"]
+
+
+def test_a_failure_while_proposing_is_audited(conn, program, monkeypatch):
+    from lifter import domain
+
+    def broken(*args, **kwargs):
+        raise domain.DomainError("proposal store unavailable")
+
+    monkeypatch.setattr("lifter.agents.week.domain.propose", broken)
+    with pytest.raises(domain.DomainError):
+        run_week_planner(
+            conn, Costly(good_plan()), week_number=2, today=TODAY, propose=True, trigger="cli"
+        )
+    row = conn.execute("select status, error, attempts from agent_run").fetchone()
+    assert row == ("error", "DomainError: proposal store unavailable", 1)
+
+
+def test_an_audit_failure_does_not_hide_the_real_error(conn, program, monkeypatch):
+    import psycopg
+
+    def no_audit(*args, **kwargs):
+        raise psycopg.OperationalError("connection lost")
+
+    monkeypatch.setattr("lifter.agents.week.record_run", no_audit)
+    with pytest.raises(TimeoutError) as raised:
+        run_week_planner(
+            conn,
+            Costly(TimeoutError("Mistral timed out")),
+            week_number=2,
+            today=TODAY,
+            trigger="cli",
+        )
+    assert any("could not be recorded" in note for note in raised.value.__notes__)

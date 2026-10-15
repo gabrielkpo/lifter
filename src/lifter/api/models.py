@@ -236,6 +236,8 @@ class Goal(BaseModel):
 
 class Best(BaseModel):
     exercise: str
+    category: str
+    pattern: str
     reps: float
     best_load_kg: float
     day: date

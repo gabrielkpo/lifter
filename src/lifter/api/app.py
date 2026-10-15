@@ -253,7 +253,9 @@ def create_app(database_url: str, app_origins: list[str] | None = None) -> FastA
     def bests(conn: Conn) -> list[models.Best]:
         """Best logged load per exercise and repetition count."""
         return conn.execute(
-            "select exercise, reps, best_load_kg, day from exercise_best order by exercise, reps"
+            "select b.exercise, e.category, e.pattern, b.reps, b.best_load_kg, b.day"
+            " from exercise_best b join exercise e on e.name = b.exercise"
+            " order by b.exercise, b.reps"
         ).fetchall()
 
     @app.get("/proposals")

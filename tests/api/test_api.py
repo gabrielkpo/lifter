@@ -205,7 +205,14 @@ def test_active_goals_come_first(api, conn):
 def test_bests_list_the_best_load_per_exercise_and_reps(api, program):
     bests = api.get("/bests").json()
 
-    assert {"exercise": "Bench press", "reps": 1, "best_load_kg": 70, "day": "2026-02-23"} in bests
+    assert {
+        "exercise": "Bench press",
+        "category": "strength",
+        "pattern": "push",
+        "reps": 1,
+        "best_load_kg": 70,
+        "day": "2026-02-23",
+    } in bests
 
 
 def test_proposals_are_filtered_by_status(api, conn):

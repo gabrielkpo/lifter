@@ -1,4 +1,6 @@
-from lifter.db import migrate, migration_files
+import psycopg
+
+from lifter.db import connect, migrate, migration_files
 
 
 def test_migrations_are_ordered_and_idempotent(conn):
@@ -35,3 +37,10 @@ def test_tables_are_created_in_public(conn):
         " where table_name in ('raw_garmin_payload', 'sync_log', 'activity_tombstone')"
     ).fetchall()
     assert rows == [("public",)] * 3
+
+
+def test_connect_keeps_options_from_the_url(database_url):
+    url = psycopg.conninfo.make_conninfo(database_url, options="-c statement_timeout=1234")
+    with connect(url) as conn:
+        assert conn.execute("show statement_timeout").fetchone() == ("1234ms",)
+        assert conn.execute("show search_path").fetchone() == ("analytics,public",)

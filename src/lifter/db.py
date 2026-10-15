@@ -10,14 +10,20 @@ import hashlib
 from importlib import resources
 
 import psycopg
+from psycopg.conninfo import conninfo_to_dict
 
 VIEWS_FILE = "views.sql"
 SEARCH_PATH = "analytics,public"
 
 
 def connect(url: str) -> psycopg.Connection:
-    """Autocommit connection: callers group writes with `conn.transaction()`."""
-    return psycopg.connect(url, autocommit=True, options=f"-c search_path={SEARCH_PATH}")
+    """Autocommit connection: callers group writes with `conn.transaction()`.
+
+    The search_path is appended to any `options` already set in the URL, not substituted.
+    """
+    options = conninfo_to_dict(url).get("options", "")
+    options = f"{options} -c search_path={SEARCH_PATH}".strip()
+    return psycopg.connect(url, autocommit=True, options=options)
 
 
 def migration_files() -> list[tuple[str, str]]:

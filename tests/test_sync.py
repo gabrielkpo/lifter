@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from lifter.garmin import McpToolCaller, ToolError
-from lifter.sync import MAX_CONSECUTIVE_ERRORS, SyncAborted, sync_range
+from lifter.sync import MAX_CONSECUTIVE_ERRORS, SyncAborted, parse_response, sync_range
 from synthetic import activity, hr_zones, hrv, sleep
 
 D1, D2 = date(2026, 3, 2), date(2026, 3, 3)
@@ -289,3 +289,15 @@ def test_transport_failure_is_logged_and_the_sync_goes_on(conn):
 
     assert report.counts["error"] == 1
     assert report.counts["stored"] == 6
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Error retrieving activity: Read timed out",
+        "Error retrieving activity: HTTP error: API Error 429 - Too Many Requests",
+        "Error retrieving activity: HTTP 503 Service Unavailable (request 4040404)",
+    ],
+)
+def test_only_a_garmin_404_counts_as_not_found(text):
+    assert parse_response(text) == ("error", None)

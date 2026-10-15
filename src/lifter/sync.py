@@ -28,7 +28,8 @@ ACTIVITY_TOOLS = ("get_activity", "get_activity_hr_in_timezones")
 REFRESH_DAYS = 3
 PAGE_SIZE = 100
 MAX_CONSECUTIVE_ERRORS = 5  # the server is down or unreachable: stop instead of hammering it
-NOT_FOUND = re.compile(r"\b404\b")
+# The Garmin client reports a missing resource as "API Error 404" / "HTTP 404 Not Found".
+NOT_FOUND = re.compile(r"\bHTTP 404\b|\bAPI Error 404\b")
 
 
 class SyncAborted(RuntimeError):

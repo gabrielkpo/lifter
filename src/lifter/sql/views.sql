@@ -1,14 +1,11 @@
--- Views and functions: repeatable, dropped and recreated by every `lifter migrate`
--- (tables live in the numbered migrations). Change a view here, never in a migration.
+-- Views and functions of the `analytics` schema: repeatable, recreated by `lifter migrate`
+-- whenever this file changes (tables live in the numbered migrations, in `public`).
+-- Change a view here, never in a migration.
 -- Every metric definition and threshold is documented in docs/metrics.md; change both together.
 
-do $$
-declare v record;
-begin
-    for v in select table_name from information_schema.views where table_schema = 'public' loop
-        execute format('drop view if exists %I cascade', v.table_name);
-    end loop;
-end $$;
+drop schema if exists analytics cascade;
+create schema analytics;
+set local search_path = analytics, public;
 
 -- Staging layer: typed columns read from the latest payload of each key.
 create view latest_garmin_payload as

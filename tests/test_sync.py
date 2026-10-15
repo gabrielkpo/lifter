@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from lifter.garmin import McpToolCaller, ToolError
-from lifter.sync import sync_range
+from lifter.sync import MAX_CONSECUTIVE_ERRORS, SyncAborted, sync_range
 from synthetic import activity, hr_zones, hrv, sleep
 
 D1, D2 = date(2026, 3, 2), date(2026, 3, 3)
@@ -137,10 +137,17 @@ def test_mcp_client_refuses_write_tools():
         asyncio.run(caller.call("schedule_workout", {"workout_id": 1, "date": "2026-03-02"}))
 
 
-def test_activity_missing_from_a_complete_listing_is_tombstoned(conn):
+NOT_FOUND = (
+    "Error retrieving activity: Garmin Connect request failed: HTTP error: "
+    "API Error 404 - HTTP 404 Not Found."
+)
+
+
+def test_activity_confirmed_deleted_is_tombstoned_then_restored(conn):
     run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))
     answers = two_days()
-    answers[("get_activities_by_date", 0)] = listing([])  # deleted in Garmin Connect
+    answers[("get_activities_by_date", 0)] = listing([])  # no longer listed
+    answers[("get_activity", 11)] = NOT_FOUND  # and Garmin confirms it is gone
     run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
 
     assert conn.execute("select activity_id from activity_tombstone").fetchall() == [(11,)]
@@ -149,6 +156,47 @@ def test_activity_missing_from_a_complete_listing_is_tombstoned(conn):
     run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))  # listed again: restored
     assert conn.execute("select count(*) from activity_tombstone").fetchone()[0] == 0
     assert conn.execute("select count(*) from stg_activity").fetchone()[0] == 1
+
+
+def test_activity_missing_from_listing_but_found_is_kept(conn):
+    # A paging shift or a date boundary can drop an activity from a listing: never delete
+    # on that alone.
+    run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))
+    answers = two_days()
+    answers[("get_activities_by_date", 0)] = listing([])
+    caller = FakeCaller(answers)
+    run_sync(conn, caller, today=date(2026, 6, 1))
+
+    assert ("get_activity", {"activity_id": 11}) in caller.calls
+    assert conn.execute("select count(*) from activity_tombstone").fetchone()[0] == 0
+    assert conn.execute("select count(*) from stg_activity").fetchone()[0] == 1
+
+
+def test_listed_activity_without_details_deleted_later_stops_counting(conn):
+    answers = two_days()
+    answers[("get_activity", 11)] = "Error retrieving activity: timeout"
+    run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
+    answers = two_days()
+    answers[("get_activities_by_date", 0)] = listing([])
+    answers[("get_activity", 11)] = NOT_FOUND
+    run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
+
+    row = conn.execute(
+        "select coalesce(sum(sessions_missing_details), 0) from daily_load"
+    ).fetchone()
+    assert row == (0,)
+
+
+def test_sync_stops_after_consecutive_failures(conn):
+    class DeadCaller(FakeCaller):
+        async def call(self, tool, arguments):
+            self.calls.append((tool, arguments))
+            raise ToolError("ConnectError: connection refused")
+
+    caller = DeadCaller({})
+    with pytest.raises(SyncAborted):
+        asyncio.run(sync_range(caller, conn, D1, date(2026, 3, 31), today=date(2026, 6, 1)))
+    assert len(caller.calls) == MAX_CONSECUTIVE_ERRORS
 
 
 def test_incomplete_listing_tombstones_nothing(conn):

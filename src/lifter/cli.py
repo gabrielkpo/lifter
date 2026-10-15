@@ -32,7 +32,7 @@ def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
 
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     from lifter.garmin import McpToolCaller
-    from lifter.sync import sync_range
+    from lifter.sync import SyncAborted, sync_range
 
     if not settings.garmin_mcp_token:
         print("GARMIN_MCP_TOKEN is not set (see .env.example)")
@@ -53,7 +53,11 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
                     refresh=args.refresh,
                 )
 
-    report = asyncio.run(run())
+    try:
+        report = asyncio.run(run())
+    except SyncAborted as exc:
+        print(f"sync stopped: {exc}")
+        return 1
     print(f"sync {start} -> {end}: " + ", ".join(f"{k}={v}" for k, v in report.counts.items()))
     return 1 if report.counts["error"] else 0
 

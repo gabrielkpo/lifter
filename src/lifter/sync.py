@@ -5,13 +5,15 @@ are not fetched again, except the most recent days: Garmin often completes a day
 (sleep synced in the morning, training load computed after upload). `refresh=True` refetches
 everything in the range, for edits made in Garmin after that window.
 
-An activity that a complete listing no longer returns was deleted or merged in Garmin: it is
-tombstoned so the metrics stop counting it (sql/002_activity_tombstone.sql).
+A stored activity that a complete listing no longer returns is checked with get_activity:
+only a confirmed "not found" tombstones it, so the metrics stop counting it
+(sql/004_activity_tombstone.sql). Paging shifts or date boundaries never delete anything.
 """
 
 import asyncio
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -25,6 +27,12 @@ DAILY_TOOLS = ("get_sleep_summary", "get_hrv_data")
 ACTIVITY_TOOLS = ("get_activity", "get_activity_hr_in_timezones")
 REFRESH_DAYS = 3
 PAGE_SIZE = 100
+MAX_CONSECUTIVE_ERRORS = 5  # the server is down or unreachable: stop instead of hammering it
+NOT_FOUND = re.compile(r"\b404\b")
+
+
+class SyncAborted(RuntimeError):
+    """Too many consecutive failed calls: the sync stopped early."""
 
 
 @dataclass
@@ -40,14 +48,17 @@ class SyncReport:
 def parse_response(text: str) -> tuple[str, Any]:
     """Classify a tool answer: ("ok", payload), ("empty", None) or ("error", None).
 
-    The server answers JSON on success and plain sentences otherwise
-    ("No HRV data found for ...", "Error retrieving ...").
+    The server answers JSON on success and plain sentences otherwise: "No HRV data found
+    for ...", or "Error retrieving ...". An error carrying HTTP 404 means the resource does
+    not exist (a deleted activity), so it is "empty", not a failure.
     """
     try:
         # NaN and Infinity are valid for Python's json but rejected by Postgres jsonb.
         return "ok", json.loads(text, parse_constant=lambda _: None)
     except json.JSONDecodeError:
-        return ("empty" if text.startswith("No ") else "error"), None
+        if text.startswith("No ") or NOT_FOUND.search(text):
+            return "empty", None
+        return "error", None
 
 
 def payload_sha256(payload: Any) -> str:
@@ -111,6 +122,7 @@ class Syncer:
         self.delay_seconds = delay_seconds
         self.refresh = refresh
         self.report = SyncReport()
+        self.consecutive_errors = 0
 
     def _is_final(self, day: date | None) -> bool:
         """A stored answer for this day is trusted as final and not fetched again."""
@@ -118,8 +130,8 @@ class Syncer:
             return False
         return day < self.today - timedelta(days=REFRESH_DAYS)
 
-    async def _fetch(self, tool: str, natural_key: str, params: dict) -> Any:
-        """Call one tool, store and log the answer. Returns the payload, or None."""
+    async def _fetch(self, tool: str, natural_key: str, params: dict) -> tuple[str, Any]:
+        """Call one tool, store and log the answer. Returns (status, payload or None)."""
         try:
             text = await self.caller.call(tool, params)
             kind, payload = parse_response(text)
@@ -135,12 +147,15 @@ class Syncer:
                 status = kind
                 log_call(self.conn, tool, natural_key, status, text[:500])
         self.report.add(status)
-        return payload
+        self.consecutive_errors = self.consecutive_errors + 1 if status == "error" else 0
+        if self.consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+            raise SyncAborted(f"{MAX_CONSECUTIVE_ERRORS} failed calls in a row, last: {text[:200]}")
+        return status, payload
 
     async def sync(self, start: date, end: date) -> SyncReport:
         listed_ids = await self._sync_activities(start, end)
         if listed_ids is not None:
-            self._update_tombstones(start, end, listed_ids)
+            await self._reconcile_deleted(start, end, listed_ids)
         day = start
         while day <= end:
             for tool in DAILY_TOOLS:
@@ -167,7 +182,7 @@ class Syncer:
                 "page_size": PAGE_SIZE,
             }
             key = f"{start.isoformat()}..{end.isoformat()}#{page}"
-            listing = await self._fetch("get_activities_by_date", key, params)
+            _, listing = await self._fetch("get_activities_by_date", key, params)
             if not isinstance(listing, dict):
                 return None
             for activity in listing.get("activities", []):
@@ -177,20 +192,39 @@ class Syncer:
                 return listed_ids
             page = listing.get("next_page", page + 1)
 
-    def _update_tombstones(self, start: date, end: date, listed_ids: set[int]) -> None:
-        """Tombstone stored activities of the range missing from a complete listing."""
-        ids = list(listed_ids)
-        with self.conn.transaction():
-            self.conn.execute("delete from activity_tombstone where activity_id = any(%s)", (ids,))
-            self.conn.execute(
-                """
-                insert into activity_tombstone (activity_id)
-                select activity_id from stg_activity
-                where activity_date between %s and %s and not (activity_id = any(%s))
-                on conflict do nothing
-                """,
-                (start, end, ids),
+    async def _reconcile_deleted(self, start: date, end: date, listed_ids: set[int]) -> None:
+        """Ask Garmin about each known activity of the range missing from a complete listing.
+
+        Only a confirmed "not found" tombstones it; an activity found again is restored.
+        """
+        self._restore(listed_ids)
+        known = self.conn.execute(
+            """
+            select activity_id from stg_activity where activity_date between %s and %s
+            union
+            select activity_id from stg_activity_listed where activity_date between %s and %s
+            """,
+            (start, end, start, end),
+        ).fetchall()
+        for (activity_id,) in known:
+            if activity_id in listed_ids:
+                continue
+            status, _ = await self._fetch(
+                "get_activity", str(activity_id), {"activity_id": activity_id}
             )
+            if status == "empty":
+                self.conn.execute(
+                    "insert into activity_tombstone (activity_id) values (%s)"
+                    " on conflict do nothing",
+                    (activity_id,),
+                )
+            elif status != "error":
+                self._restore({activity_id})
+
+    def _restore(self, activity_ids: set[int]) -> None:
+        self.conn.execute(
+            "delete from activity_tombstone where activity_id = any(%s)", (list(activity_ids),)
+        )
 
     async def _sync_activity(self, activity: dict) -> None:
         activity_id = str(activity["id"])

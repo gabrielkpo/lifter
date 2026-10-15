@@ -1,8 +1,8 @@
 # Metric definitions
 
 These are the only numbers the agents are allowed to cite: an agent reads them, it never
-recomputes them. They live in SQL views (`src/lifter/sql/views.sql`, recreated by every `lifter migrate`); this
-page and the SQL change together, and `tests/test_metrics.py` pins each definition with hand-computed cases.
+recomputes them. They live in SQL views of the `analytics` schema (`src/lifter/sql/views.sql`, recreated by
+`lifter migrate` whenever the file changes); this page and the SQL change together, and `tests/test_metrics.py` pins each definition with hand-computed cases.
 
 Thresholds are **version 1**: reasonable starting points for one athlete, to be tuned with the
 evaluation bench. They are training heuristics, **not medical criteria**.
@@ -16,7 +16,7 @@ Garmin MCP ──► raw_garmin_payload (JSON as received, deduplicated by hash)
      stg_activity, stg_activity_hr_zone, stg_sleep, stg_hrv   (typed, latest payload per key)
                   │
                   ▼
-     activity_tombstone (activities a complete listing no longer returns) filters stg_activity
+     activity_tombstone (activities Garmin confirms deleted) filters stg_activity
                   │
      daily_load ─► daily_base (one row per calendar day) ─► daily_metrics ─► daily_alerts
      stg_activity + stg_activity_hr_zone ─► weekly_training
@@ -32,10 +32,11 @@ Garmin MCP ──► raw_garmin_payload (JSON as received, deduplicated by hash)
 
 Garmin files a night under the day you wake up, so "sleep of day D" is the night before D.
 
-An activity that a complete listing of its date range no longer returns (deleted or merged in
-Garmin Connect) is recorded in `activity_tombstone` and ignored by every view; it is restored
-if a later listing returns it again. An incomplete listing (error on any page) tombstones
-nothing.
+When a complete listing of a date range no longer returns a known activity, the sync asks
+Garmin for it (`get_activity`). Only a confirmed "not found" (HTTP 404) records it in
+`activity_tombstone`, and every view then ignores it (deleted or merged in Garmin Connect).
+An activity found again, or listed again later, is restored. An incomplete listing, a paging
+shift or a date boundary never tombstones anything.
 
 ## Rules shared by all metrics
 

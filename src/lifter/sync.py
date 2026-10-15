@@ -1,8 +1,9 @@
 """Copy Garmin data from the MCP server into the raw layer of Postgres.
 
-Each answer is stored as received (see sql/001_raw.sql). Days and activities already stored
-are not fetched again, except the most recent days: Garmin often completes a day late
-(sleep synced in the morning, training load computed after upload). `refresh=True` refetches
+Each answer is stored as received (see sql/001_raw.sql). Days and activities Garmin already
+answered (with data, or with "no data") are not fetched again, except the most recent days:
+Garmin often completes a day late (sleep synced in the morning, training load computed after
+upload). `refresh=True` refetches
 everything in the range, for edits made in Garmin after that window.
 
 A stored activity that a complete listing no longer returns is checked with get_activity:
@@ -23,7 +24,15 @@ from psycopg.types.json import Jsonb
 
 from lifter.garmin import ToolCaller, ToolError
 
-DAILY_TOOLS = ("get_sleep_summary", "get_hrv_data")
+# One call per day and tool. get_stats carries Body Battery, stress, resting HR, SpO2,
+# respiration and intensity minutes; get_training_status carries Garmin's own load and VO2max.
+DAILY_TOOLS = (
+    "get_sleep_summary",
+    "get_hrv_data",
+    "get_stats",
+    "get_training_readiness",
+    "get_training_status",
+)
 ACTIVITY_TOOLS = ("get_activity", "get_activity_hr_in_timezones")
 REFRESH_DAYS = 3
 PAGE_SIZE = 100
@@ -99,10 +108,16 @@ def log_call(
     )
 
 
-def is_stored(conn: psycopg.Connection, tool: str, natural_key: str) -> bool:
+def is_known(conn: psycopg.Connection, tool: str, natural_key: str) -> bool:
+    """Garmin already answered for this key: a stored payload, or a logged "no data"."""
     row = conn.execute(
-        "select 1 from raw_garmin_payload where tool = %s and natural_key = %s limit 1",
-        (tool, natural_key),
+        """
+        select 1 from raw_garmin_payload where tool = %s and natural_key = %s
+        union all
+        select 1 from sync_log where tool = %s and natural_key = %s and status = 'empty'
+        limit 1
+        """,
+        (tool, natural_key, tool, natural_key),
     ).fetchone()
     return row is not None
 
@@ -161,7 +176,7 @@ class Syncer:
         while day <= end:
             for tool in DAILY_TOOLS:
                 key = day.isoformat()
-                if self._is_final(day) and is_stored(self.conn, tool, key):
+                if self._is_final(day) and is_known(self.conn, tool, key):
                     self.report.add("skipped")
                     continue
                 await self._fetch(tool, key, {"date": key})
@@ -233,7 +248,7 @@ class Syncer:
         # An activity without a start time is always refetched rather than trusted as final.
         final = self._is_final(date.fromisoformat(start_time[:10]) if start_time else None)
         for tool in ACTIVITY_TOOLS:
-            if final and is_stored(self.conn, tool, activity_id):
+            if final and is_known(self.conn, tool, activity_id):
                 self.report.add("skipped")
                 continue
             await self._fetch(tool, activity_id, {"activity_id": int(activity_id)})

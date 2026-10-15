@@ -22,6 +22,21 @@ METRIC_COLUMNS = (
     "trend",
 )
 
+RECOVERY_COLUMNS = (
+    "day",
+    "sleep_hours",
+    "sleep_score",
+    "body_battery_highest",
+    "body_battery_lowest",
+    "avg_stress",
+    "readiness_score",
+    "readiness_level",
+    "garmin_acute_load",
+    "garmin_chronic_load",
+    "garmin_training_status",
+    "vo2_max",
+)
+
 
 def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
     with connect(settings.database_url) as conn:
@@ -62,16 +77,24 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     return 1 if report.counts["error"] else 0
 
 
-def cmd_metrics(settings: Settings, args: argparse.Namespace) -> int:
+def print_last_days(settings: Settings, view: str, columns: tuple[str, ...], days: int) -> int:
+    """Print the last `days` rows of an analytics view, oldest first, tab-separated."""
     with connect(settings.database_url) as conn:
         rows = conn.execute(
-            f"select {', '.join(METRIC_COLUMNS)} from daily_metrics order by day desc limit %s",
-            (args.days,),
+            f"select {', '.join(columns)} from {view} order by day desc limit %s", (days,)
         ).fetchall()
-    print("\t".join(METRIC_COLUMNS))
+    print("\t".join(columns))
     for row in reversed(rows):
         print("\t".join("" if v is None else str(v) for v in row))
     return 0
+
+
+def cmd_metrics(settings: Settings, args: argparse.Namespace) -> int:
+    return print_last_days(settings, "daily_metrics", METRIC_COLUMNS, args.days)
+
+
+def cmd_recovery(settings: Settings, args: argparse.Namespace) -> int:
+    return print_last_days(settings, "daily_recovery", RECOVERY_COLUMNS, args.days)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -94,6 +117,10 @@ def build_parser() -> argparse.ArgumentParser:
     metrics = sub.add_parser("metrics", help="print the daily metrics of the last days")
     metrics.add_argument("--days", type=int, default=14)
     metrics.set_defaults(func=cmd_metrics)
+
+    recovery = sub.add_parser("recovery", help="print Garmin's recovery and form values")
+    recovery.add_argument("--days", type=int, default=14)
+    recovery.set_defaults(func=cmd_recovery)
     return parser
 
 

@@ -66,7 +66,15 @@ select
     natural_key::date as day,
     (payload ->> 'sleep_seconds')::numeric as sleep_seconds,
     (payload ->> 'sleep_score')::numeric as sleep_score,
-    (payload ->> 'resting_heart_rate_bpm')::numeric as resting_hr_bpm
+    (payload ->> 'resting_heart_rate_bpm')::numeric as resting_hr_bpm,
+    (payload ->> 'deep_sleep_seconds')::numeric as deep_sleep_seconds,
+    (payload ->> 'light_sleep_seconds')::numeric as light_sleep_seconds,
+    (payload ->> 'rem_sleep_seconds')::numeric as rem_sleep_seconds,
+    (payload ->> 'awake_seconds')::numeric as awake_seconds,
+    (payload ->> 'awake_count')::numeric as awake_count,
+    (payload ->> 'avg_sleep_stress')::numeric as avg_sleep_stress,
+    (payload ->> 'avg_overnight_hrv')::numeric as avg_overnight_hrv_ms,
+    (payload ->> 'avg_spo2_percent')::numeric as sleep_avg_spo2_percent
 from latest_garmin_payload
 where tool = 'get_sleep_summary';
 
@@ -77,6 +85,68 @@ select
     payload ->> 'status' as garmin_hrv_status
 from latest_garmin_payload
 where tool = 'get_hrv_data';
+
+-- Garmin's own daily values (get_stats): Body Battery, stress, resting HR, SpO2, respiration.
+create view stg_daily_stats as
+select
+    natural_key::date as day,
+    (payload ->> 'total_steps')::numeric as steps,
+    (payload ->> 'active_calories')::numeric as active_calories,
+    (payload ->> 'moderate_intensity_minutes')::numeric as moderate_intensity_minutes,
+    (payload ->> 'vigorous_intensity_minutes')::numeric as vigorous_intensity_minutes,
+    (payload ->> 'resting_heart_rate_bpm')::numeric as garmin_resting_hr_bpm,
+    (payload ->> 'avg_stress_level')::numeric as avg_stress,
+    (payload ->> 'max_stress_level')::numeric as max_stress,
+    payload ->> 'stress_qualifier' as stress_qualifier,
+    (payload ->> 'body_battery_charged')::numeric as body_battery_charged,
+    (payload ->> 'body_battery_drained')::numeric as body_battery_drained,
+    (payload ->> 'body_battery_highest')::numeric as body_battery_highest,
+    (payload ->> 'body_battery_lowest')::numeric as body_battery_lowest,
+    (payload ->> 'avg_spo2_percent')::numeric as avg_spo2_percent,
+    (payload ->> 'lowest_spo2_percent')::numeric as lowest_spo2_percent,
+    (payload ->> 'avg_waking_respiration')::numeric as avg_waking_respiration
+from latest_garmin_payload
+where tool = 'get_stats'
+    and jsonb_typeof(payload) = 'object';
+
+-- Garmin training readiness: one or more snapshots a day; the earliest one is the morning
+-- value (after waking up), the one that matters to plan the day.
+create view stg_training_readiness as
+select distinct on (day)
+    day, score, level, feedback, recovery_time_hours, acute_load, hrv_weekly_avg_ms,
+    snapshot_time
+from (
+    select
+        natural_key::date as day,
+        (snap ->> 'score')::numeric as score,
+        snap ->> 'level' as level,
+        snap ->> 'feedback' as feedback,
+        (snap ->> 'recovery_time_hours')::numeric as recovery_time_hours,
+        (snap ->> 'acute_load')::numeric as acute_load,
+        (snap ->> 'hrv_weekly_avg')::numeric as hrv_weekly_avg_ms,
+        (snap ->> 'timestamp')::timestamp as snapshot_time
+    from latest_garmin_payload,
+        jsonb_array_elements(payload) as snap
+    where tool = 'get_training_readiness'
+        and jsonb_typeof(payload) = 'array'
+) snapshots
+order by day, snapshot_time nulls last;
+
+-- Garmin training status: its own acute / chronic load (exponentially weighted), status, VO2max.
+create view stg_training_status as
+select
+    natural_key::date as day,
+    payload ->> 'training_status' as garmin_training_status,
+    payload ->> 'fitness_trend' as garmin_fitness_trend,
+    (payload ->> 'vo2_max_precise')::numeric as vo2_max,
+    (payload ->> 'cycling_vo2_max_precise')::numeric as cycling_vo2_max,
+    (payload ->> 'acute_load')::numeric as garmin_acute_load,
+    (payload ->> 'chronic_load')::numeric as garmin_chronic_load,
+    (payload ->> 'load_ratio')::numeric as garmin_load_ratio,
+    payload ->> 'acwr_status' as garmin_acwr_status
+from latest_garmin_payload
+where tool = 'get_training_status'
+    and jsonb_typeof(payload) = 'object';
 
 -- Business metrics. Statuses are computed on the rounded values that agents will cite.
 
@@ -120,9 +190,11 @@ create view daily_base as
 with bounds as (
     select
         least((select min(day) from stg_hrv), (select min(day) from stg_sleep),
-              (select min(day) from daily_load)) as first_day,
+              (select min(day) from daily_load), (select min(day) from stg_daily_stats))
+            as first_day,
         greatest((select max(day) from stg_hrv), (select max(day) from stg_sleep),
-                 (select max(day) from daily_load)) as last_day
+                 (select max(day) from daily_load), (select max(day) from stg_daily_stats))
+            as last_day
 ),
 calendar as (
     select d::date as day
@@ -286,3 +358,40 @@ select
 from stg_activity a
 left join zones z using (activity_id)
 group by 1, 2;
+
+-- Recovery and form, one row per calendar day: Garmin's own values next to the sleep details.
+-- These are Garmin's figures, stored as received and rounded only for display; Lifter's own
+-- definitions stay in daily_metrics.
+create view daily_recovery as
+select
+    b.day,
+    round(s.sleep_seconds / 3600.0, 2) as sleep_hours,
+    s.sleep_score,
+    round(s.deep_sleep_seconds / 60.0) as deep_sleep_minutes,
+    round(s.rem_sleep_seconds / 60.0) as rem_sleep_minutes,
+    round(s.awake_seconds / 60.0) as awake_minutes,
+    s.awake_count,
+    s.avg_sleep_stress,
+    d.body_battery_highest,
+    d.body_battery_lowest,
+    d.body_battery_charged,
+    d.body_battery_drained,
+    d.avg_stress,
+    d.stress_qualifier,
+    d.garmin_resting_hr_bpm,
+    d.avg_spo2_percent,
+    d.avg_waking_respiration,
+    d.moderate_intensity_minutes + 2 * d.vigorous_intensity_minutes as intensity_minutes,
+    r.score as readiness_score,
+    r.level as readiness_level,
+    r.recovery_time_hours,
+    t.garmin_training_status,
+    t.garmin_acute_load,
+    t.garmin_chronic_load,
+    t.garmin_load_ratio,
+    t.vo2_max
+from daily_base b
+left join stg_sleep s using (day)
+left join stg_daily_stats d using (day)
+left join stg_training_readiness r using (day)
+left join stg_training_status t using (day);

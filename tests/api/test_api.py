@@ -20,7 +20,7 @@ APP_ORIGIN = "http://localhost:3000"
 
 @pytest.fixture
 def api(conn, database_url):
-    return TestClient(create_app(database_url, [APP_ORIGIN]))
+    return TestClient(create_app(database_url, [APP_ORIGIN]), base_url="http://127.0.0.1:8000")
 
 
 @pytest.fixture
@@ -154,6 +154,10 @@ def test_the_current_week_is_the_one_containing_today(api, conn, program):
     assert body["week"]["number"] == 3
     assert body["sessions"] == [] and body["block_intent"] is None
 
+    # a session outside any week, on a day of this one, belongs to it on screen
+    domain.create_session(conn, domain.SessionIn(day=monday + timedelta(days=2), title="Extra"))
+    assert [s["title"] for s in api.get("/weeks/current").json()["sessions"]] == ["Extra"]
+
 
 def test_health_returns_the_last_days_oldest_first_with_alerts(api, conn):
     first_day = date(2026, 3, 1)
@@ -187,6 +191,15 @@ def test_goals_come_with_their_milestones_in_order(api, program):
         ("2026-04-26", 77.5),
     ]
     assert len(goals) == 3
+
+
+def test_active_goals_come_first(api, conn):
+    for title, status in (("A", "abandoned"), ("B", "achieved"), ("C", "active")):
+        conn.execute(
+            "insert into goal (title, status, target_text) values (%s, %s, 'x')", (title, status)
+        )
+
+    assert [g["status"] for g in api.get("/goals").json()] == ["active", "abandoned", "achieved"]
 
 
 def test_bests_list_the_best_load_per_exercise_and_reps(api, program):
@@ -226,3 +239,10 @@ def test_only_the_app_origin_may_call_the_api_from_a_browser(api):
     other = api.get("/bests", headers={"Origin": "https://example.com"})
     assert "access-control-allow-origin" not in other.headers
     assert api.post("/bests").status_code == 405
+
+
+def test_a_rebound_host_name_is_refused(api):
+    # DNS rebinding: a page on evil.example rebinds its name to 127.0.0.1; the Host stays its own
+    response = api.get("/health", headers={"Host": "evil.example:8000"})
+    assert response.status_code == 400
+    assert api.get("/health", headers={"Host": "localhost:8000"}).status_code == 200

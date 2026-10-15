@@ -12,6 +12,7 @@ from typing import Annotated, Any
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from psycopg.rows import dict_row
 
@@ -19,6 +20,9 @@ from lifter import __version__
 from lifter.api import models
 from lifter.db import connect
 
+# Host headers the API answers: without this check, a page whose name a DNS server rebinds to
+# 127.0.0.1 would be same-origin with the API and could read it, CORS or not.
+LOCAL_HOSTS = ["127.0.0.1", "localhost"]
 MAX_CALENDAR_DAYS = 366
 MAX_HEALTH_DAYS = 90
 
@@ -48,9 +52,11 @@ def garmin_line(row: dict[str, Any]) -> models.GarminLine | None:
 WEEK_SQL = """
     select ws.week_id as id, w.cycle_id, ws.block_id, ws.block, ws.number, ws.start_date,
         ws.phase, w.title, w.intent, w.review, ws.sessions, ws.done, ws.missed, ws.cancelled,
-        ws.strength_sessions_done, coalesce(ws.patterns_done, '{}') as patterns_done
+        ws.strength_sessions_done, coalesce(ws.patterns_done, '{}') as patterns_done,
+        b.intent as block_intent
     from week_summary ws
     join training_week w on w.id = ws.week_id
+    left join block b on b.id = ws.block_id
 """
 
 GARMIN_COLUMNS = (
@@ -60,18 +66,21 @@ GARMIN_COLUMNS = (
 
 
 def week_detail(conn: psycopg.Connection, week: dict[str, Any]) -> models.WeekDetail:
-    block = conn.execute("select intent from block where id = %s", (week["block_id"],)).fetchone()
+    # The week's sessions, plus those outside any week (added by the athlete or an agent) on
+    # one of its days.
     rows = conn.execute(
         "select s.planned_session_id as id, s.day, s.title, s.kind, s.status, s.moved_from,"
         f" s.logged, {GARMIN_COLUMNS}"
         " from planned_session_status s"
         " left join session_garmin g using (planned_session_id)"
-        " where s.week_id = %s order by s.day, s.planned_session_id",
-        (week["id"],),
+        " where s.week_id = %s"
+        " or (s.week_id is null and s.day between %s and %s::date + 6)"
+        " order by s.day, s.planned_session_id",
+        (week["id"], week["start_date"], week["start_date"]),
     ).fetchall()
     return models.WeekDetail(
         week=models.Week.model_validate(week),
-        block_intent=block["intent"] if block else None,
+        block_intent=week["block_intent"],
         sessions=[models.SessionSummary(**row, garmin=garmin_line(row)) for row in rows],
     )
 
@@ -80,6 +89,7 @@ def create_app(database_url: str, app_origins: list[str] | None = None) -> FastA
     """The API on `database_url`, opened read-only; `app_origins` may call it from a browser."""
     app = FastAPI(title="Lifter API", version=__version__)
     app.state.database_url = read_only_url(database_url)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOCAL_HOSTS)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=app_origins or [],
@@ -228,7 +238,7 @@ def create_app(database_url: str, app_origins: list[str] | None = None) -> FastA
             " g.baseline_text, g.baseline_date, g.target_value, g.target_text, g.target_date,"
             " g.status, g.notes"
             " from goal g left join exercise e on e.id = g.exercise_id"
-            " order by g.status, g.target_date nulls last, g.id"
+            " order by g.status <> 'active', g.status, g.target_date nulls last, g.id"
         ).fetchall()
         milestones = conn.execute(
             "select goal_id, day, label, value, value_text from goal_milestone"

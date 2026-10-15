@@ -13,24 +13,34 @@ evaluation bench. They are training heuristics, **not medical criteria**.
 Garmin MCP ──► raw_garmin_payload (JSON as received, deduplicated by hash)
                   │
                   ▼
-     stg_activity, stg_activity_hr_zone, stg_sleep, stg_hrv   (typed, latest payload per key)
+     stg_activity, stg_activity_hr_zone, stg_sleep, stg_hrv,
+     stg_daily_stats, stg_training_readiness, stg_training_status   (typed, latest payload per key)
                   │
                   ▼
      activity_tombstone (activities Garmin confirms deleted) filters stg_activity
                   │
      daily_load ─► daily_base (one row per calendar day) ─► daily_metrics ─► daily_alerts
      stg_activity + stg_activity_hr_zone ─► weekly_training
+     daily_base + sleep, daily stats, readiness, training status ─► daily_recovery
 ```
 
 | Source tool | Natural key | Used for |
 |---|---|---|
 | `get_activity` | activity id | training load, duration, type |
 | `get_activity_hr_in_timezones` | activity id | minutes per heart rate zone |
-| `get_sleep_summary` | day (wake-up day) | sleep duration, resting heart rate |
+| `get_sleep_summary` | day (wake-up day) | sleep duration, score, phases, awakenings, resting heart rate |
 | `get_hrv_data` | day | last night average HRV |
+| `get_stats` | day | Body Battery, stress, Garmin resting heart rate, SpO2, respiration, intensity minutes, steps |
+| `get_training_readiness` | day | training readiness score and level (morning snapshot) |
+| `get_training_status` | day | Garmin training status, Garmin acute and chronic load, VO2max |
 | `get_activities_by_date` | range and page | list of activity ids to fetch; activities missing details; deleted activities |
 
 Garmin files a night under the day you wake up, so "sleep of day D" is the night before D.
+
+A day for which Garmin answered "no data" is asked again until that answer comes more than 3
+days after the day (a watch offline for a few days uploads them later); then it is final, and
+only `lifter sync --refresh` asks again. An activity answered "no data" is final at once.
+`get_training_status` costs two Garmin requests per day (the server also reads the device list).
 
 When a complete listing of a date range no longer returns a known activity, the sync asks
 Garmin for it (`get_activity`). Only a confirmed "not found" (HTTP 404) records it in
@@ -122,3 +132,25 @@ block any intense plan and advise seeing a health professional; Lifter gives no 
 
 Per ISO week (Monday start) and activity type: sessions, duration in minutes, total load, and
 minutes in each heart rate zone (Garmin zones 1 to 5, from `get_activity_hr_in_timezones`).
+
+## Recovery and form (`daily_recovery`)
+
+Garmin's own values, one row per calendar day, next to the sleep details. Lifter stores and
+shows them as Garmin computes them (rounded for display only); they are **not** Lifter's
+definitions, and an agent citing one names it as Garmin's (for example "Garmin training
+readiness 74"). Lifter's own load and recovery stay in `daily_metrics`.
+
+| Column | Source and meaning |
+|---|---|
+| `sleep_hours`, `sleep_score` | Sleep of the night before the day (`get_sleep_summary`) |
+| `deep_sleep_minutes`, `rem_sleep_minutes`, `awake_minutes`, `awake_count`, `avg_sleep_stress` | Sleep phases and awakenings of that night |
+| `body_battery_highest`, `body_battery_lowest`, `body_battery_charged`, `body_battery_drained` | Garmin Body Battery of the day (0 to 100) |
+| `avg_stress`, `stress_qualifier` | Garmin all-day stress (0 to 100) and its label |
+| `garmin_resting_hr_bpm` | Garmin's resting heart rate for the day (Lifter's baseline uses the sleep value) |
+| `avg_spo2_percent`, `avg_waking_respiration` | Blood oxygen and waking respiration rate, when the watch measures them |
+| `intensity_minutes` | Moderate minutes + 2 × vigorous minutes, Garmin's convention |
+| `readiness_score`, `readiness_level`, `recovery_time_hours` | Garmin training readiness: the **earliest snapshot of the day** (after waking up), the one that matters to plan the day |
+| `garmin_training_status`, `garmin_acute_load`, `garmin_chronic_load`, `garmin_load_ratio` | Garmin's training status and its own acute and chronic load (exponentially weighted), to compare with Lifter's rolling sums |
+| `vo2_max` | Garmin's running VO2max estimate (precise value) |
+
+`lifter recovery --days 14` prints the main columns.

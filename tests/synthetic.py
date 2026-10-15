@@ -67,3 +67,54 @@ def load_days(conn, first_day: date, days: list[dict]) -> None:
             store_payload(
                 conn, "get_sleep_summary", key, {}, sleep(d.get("sleep_hours"), d.get("rhr"))
             )
+
+
+def daily_stats(day: date, *, bb_high: int = 85, bb_low: int = 25, stress: int = 30) -> dict:
+    return {
+        "date": day.isoformat(),
+        "total_steps": 9000,
+        "active_calories": 600,
+        "moderate_intensity_minutes": 20,
+        "vigorous_intensity_minutes": 15,
+        "resting_heart_rate_bpm": 50,
+        "avg_stress_level": stress,
+        "max_stress_level": 90,
+        "stress_qualifier": "BALANCED",
+        "body_battery_charged": 60,
+        "body_battery_drained": 55,
+        "body_battery_highest": bb_high,
+        "body_battery_lowest": bb_low,
+        "avg_spo2_percent": 96,
+        "lowest_spo2_percent": 90,
+        "avg_waking_respiration": 14.5,
+    }
+
+
+def training_readiness(day: date, *snapshots: tuple[str, int, str]) -> list[dict]:
+    """Snapshots as (HH:MM, score, level), in any order."""
+    return [
+        {
+            "date": day.isoformat(),
+            "timestamp": f"{day.isoformat()}T{hhmm}:00.0",
+            "level": level,
+            "score": score,
+            "feedback": "SYNTHETIC",
+            "recovery_time_hours": 12.0,
+            "acute_load": 420,
+            "hrv_weekly_avg": 61,
+        }
+        for hhmm, score, level in snapshots
+    ]
+
+
+def training_status(day: date, *, acute: int = 420, chronic: int = 400) -> dict:
+    return {
+        "date": day.isoformat(),
+        "training_status": "PRODUCTIVE",
+        "fitness_trend": "IMPROVING",
+        "vo2_max_precise": 52.3,
+        "acute_load": acute,
+        "chronic_load": chronic,
+        "load_ratio": round(acute / chronic, 1),
+        "acwr_status": "OPTIMAL",
+    }

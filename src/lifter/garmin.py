@@ -15,6 +15,9 @@ READ_TOOLS = frozenset(
         "get_activity_hr_in_timezones",
         "get_sleep_summary",
         "get_hrv_data",
+        "get_stats",
+        "get_training_readiness",
+        "get_training_status",
     }
 )
 

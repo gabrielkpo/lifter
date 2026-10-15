@@ -118,33 +118,22 @@ function Block({ detail }: { detail: BlockDetail }) {
       )}
 
       <h2 className="section-title">Weeks</h2>
-      {weeks.map((w) => (
-        <details key={w.id} className="card week">
-          <summary className="row">
-            <span>
-              <strong>Week {w.number}</strong> · {label(w.phase)}
-              <br />
-              <span className="small muted">{shortDate(w.start_date)}</span>
-            </span>
-            <span className="small muted">
-              {w.done}/{w.sessions} done
-            </span>
-          </summary>
-          {w.title && <h3 style={{ marginTop: 12 }}>{w.title}</h3>}
-          {Object.entries(w.intent).map(([part, text]) => (
-            <p key={part} className="line">
-              <b>{label(part)}</b>
-              <span>{text}</span>
-            </p>
-          ))}
-          {w.review && (
-            <p className="line">
-              <b>Review</b>
-              <span>{w.review}</span>
-            </p>
-          )}
-        </details>
-      ))}
+      <ul className="list">
+        {weeks.map((w) => (
+          <li key={w.id} style={{ fontSize: 16 }}>
+            <Link href={`/planning/weeks/${w.id}`} className="row" style={{ width: "100%" }}>
+              <span>
+                <strong>Week {w.number}</strong> · {label(w.phase)}
+                <br />
+                <span className="small">{shortDate(w.start_date)}</span>
+              </span>
+              <span className="small">
+                {w.done}/{w.sessions} done ›
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

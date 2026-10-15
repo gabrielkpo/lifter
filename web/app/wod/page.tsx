@@ -158,5 +158,5 @@ function DaySession({
       </>
     );
   }
-  return <SessionView session={detail.data} heading={heading} />;
+  return <SessionView session={detail.data} mode="plan" heading={heading} />;
 }

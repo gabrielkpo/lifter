@@ -60,14 +60,16 @@ export default function PlanningPage() {
                   .filter((w) => w.cycle_id === cycle.id)
                   .map((w) => (
                     <li key={w.id} style={{ fontSize: 16 }}>
+                      <Link href={`/planning/weeks/${w.id}`} className="row" style={{ width: "100%" }}>
                       <span>
                         <strong>Week {w.number}</strong> · {label(w.phase)}
                         <br />
                         <span className="small">{shortDate(w.start_date)}</span>
                       </span>
                       <span className="small">
-                        {w.done}/{w.sessions} done · {w.strength_sessions_done} strength
+                        {w.done}/{w.sessions} done ›
                       </span>
+                      </Link>
                     </li>
                   ))}
               </ul>

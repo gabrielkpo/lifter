@@ -318,6 +318,7 @@ button {
 .list li strong {
   color: var(--text);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Planned vs done, side by side. */

@@ -20,7 +20,7 @@ export default function SessionPage() {
           <BackIcon />
         </Link>
       </header>
-      {state.status === "ok" ? <SessionView session={state.data} /> : <ApiStatus state={state} />}
+      {state.status === "ok" ? <SessionView session={state.data} mode="done" /> : <ApiStatus state={state} />}
     </>
   );
 }

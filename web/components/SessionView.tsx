@@ -1,17 +1,22 @@
-import { label, partFormat, partResult, partTarget, prescription, shortDate } from "@/lib/format";
 import type { ReactNode } from "react";
+import { label, partFormat, partResult, partTarget, prescription, shortDate } from "@/lib/format";
 import type { Line, Part, SessionDetail } from "@/lib/types";
 
-/** A session: each part with what was planned and what was done, side by side. */
+/**
+ * A session, in one of two readings:
+ * - "plan": the workout to do (the WOD tab): what is prescribed, then the athlete's note;
+ * - "done": what was actually done (the week page): logged lines, metcon result, Garmin line.
+ */
 export default function SessionView({
   session,
+  mode,
   heading,
 }: {
   session: SessionDetail;
-  /** Replaces the date and title header (the WOD tab shows its own). */
+  mode: "plan" | "done";
+  /** Replaces the date and title header (the WOD tab and the week page show their own). */
   heading?: ReactNode;
 }) {
-  const g = session.garmin;
   return (
     <>
       {heading ?? (
@@ -25,16 +30,92 @@ export default function SessionView({
           </div>
         </>
       )}
-      {session.moved_from && (
-        <p className="muted small">Moved from {shortDate(session.moved_from)}</p>
-      )}
 
       <div className="parts">
-        {session.parts.map((part) => (
-          <PartCard key={part.position} part={part} />
-        ))}
+        {session.parts
+          // Nothing prescribed (a warm-up left free): nothing to show in the plan.
+          .filter((part) => mode === "done" || part.planned.length > 0 || part.notes || part.format)
+          .map((part) =>
+          mode === "plan" ? (
+            <PlannedPart key={part.position} part={part} />
+          ) : (
+            <DonePart key={part.position} part={part} />
+          ),
+        )}
       </div>
 
+      {mode === "plan" ? <Note session={session} /> : <DoneFooter session={session} />}
+    </>
+  );
+}
+
+function PlannedPart({ part }: { part: Part }) {
+  const format = partFormat(part);
+  const target = partTarget(part);
+  return (
+    <section className={part.kind === "metcon" ? "card accent" : "card"}>
+      <h2>{part.title ?? label(part.kind)}</h2>
+      {(format || target) && (
+        <p className="small" style={{ marginBottom: 10 }}>
+          {[format, target].filter(Boolean).join(" · ")}
+        </p>
+      )}
+      <Lines lines={part.planned} />
+      {part.notes && <p className="small">{part.notes}</p>}
+    </section>
+  );
+}
+
+function DonePart({ part }: { part: Part }) {
+  const target = partTarget(part);
+  const result = partResult(part);
+  const logged = part.done.length > 0;
+  return (
+    <section className="card">
+      <div className="row">
+        <h2>{part.title ?? label(part.kind)}</h2>
+        {result && <strong>{result}</strong>}
+      </div>
+      {(partFormat(part) || target) && (
+        <p className="small" style={{ marginBottom: 10 }}>
+          {[partFormat(part), target].filter(Boolean).join(" · ")}
+        </p>
+      )}
+      {logged ? (
+        <Lines lines={part.done} />
+      ) : (
+        <div style={{ opacity: 0.5 }}>
+          <Lines lines={part.planned} />
+          <p className="small">Not logged: shown as planned.</p>
+        </div>
+      )}
+      {part.result_notes && <p className="small">{part.result_notes}</p>}
+    </section>
+  );
+}
+
+function Note({ session }: { session: SessionDetail }) {
+  return (
+    <section className="card">
+      <h2>Note</h2>
+      {session.notes || session.deviation ? (
+        <>
+          {session.notes && <p>{session.notes}</p>}
+          {session.deviation && <p>{session.deviation}</p>}
+        </>
+      ) : (
+        <p className="small">
+          What you did, added or skipped. Writing it from the app comes with the session log.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function DoneFooter({ session }: { session: SessionDetail }) {
+  const g = session.garmin;
+  return (
+    <>
       {g && (
         <section className="card">
           <h2>Garmin</h2>
@@ -48,45 +129,14 @@ export default function SessionView({
           </div>
         </section>
       )}
-
       {(session.notes || session.deviation) && (
         <section className="card">
-          <h2>Notes</h2>
+          <h2>Note</h2>
           {session.notes && <p>{session.notes}</p>}
-          {session.deviation && <p>Deviation: {session.deviation}</p>}
+          {session.deviation && <p>{session.deviation}</p>}
         </section>
       )}
     </>
-  );
-}
-
-function PartCard({ part }: { part: Part }) {
-  const target = partTarget(part);
-  const result = partResult(part);
-  const format = partFormat(part);
-  return (
-    <section className={part.kind === "metcon" ? "card accent" : "card"}>
-      <h2>{part.title ?? label(part.kind)}</h2>
-      {format && <p className="small">{format}</p>}
-      {(target || result) && (
-        <p className="row" style={{ marginTop: 6 }}>
-          <span>{target ?? ""}</span>
-          <strong style={{ color: "var(--text)" }}>{result ?? ""}</strong>
-        </p>
-      )}
-      <div className="compare">
-        <div>
-          <div className="head">Planned</div>
-          <Lines lines={part.planned} />
-        </div>
-        <div>
-          <div className="head">Done</div>
-          <Lines lines={part.done} />
-        </div>
-      </div>
-      {part.result_notes && <p className="small" style={{ marginTop: 8 }}>{part.result_notes}</p>}
-      {part.notes && <p className="small" style={{ marginTop: 8 }}>{part.notes}</p>}
-    </section>
   );
 }
 

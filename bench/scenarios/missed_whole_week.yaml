@@ -1,0 +1,32 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: missed_whole_week
+category: review
+description: Nothing of week 2 was done.
+target_week: 3
+setup:
+  skip:
+  - week: 2
+    title: Weightlifting + Push + Metcon
+  - week: 2
+    title: Cardio
+  - week: 2
+    title: Weightlifting + Pull + Metcon
+  - week: 2
+    title: Legs + Metcon
+  - week: 2
+    title: Benchmark WOD
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: load_at_most
+  params:
+    exercise: Bench press
+    kg: 62.5
+- check: load_at_most
+  params:
+    exercise: Leg press
+    kg: 115
+review: 'A re-entry week: volume of week 2 at most, loads from week 1 plus one step at most, no catching
+  up.'

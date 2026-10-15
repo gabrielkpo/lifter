@@ -1,0 +1,20 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: bench_rir_missed
+category: review
+description: 'Week 2: bench press failed, 6 reps instead of 8 at 62.5 kg.'
+target_week: 3
+setup:
+  log:
+  - week: 2
+    title: Weightlifting + Push + Metcon
+    exercise: Bench press
+    quantity: 6
+    rir: 0
+expect:
+- check: accepted
+- check: load_at_most
+  params:
+    exercise: Bench press
+    kg: 62.5
+review: No load increase on the bench (RIR not met); same load or slightly lighter, maybe fewer reps;
+  the rest progresses normally.

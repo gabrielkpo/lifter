@@ -501,6 +501,66 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
     return 0 if result.accepted else 1
 
 
+BENCH_DIR = Path(__file__).resolve().parents[2] / "bench"
+
+
+def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
+    from psycopg.conninfo import conninfo_to_dict
+
+    from lifter.bench.baseline import CopyLastWeek
+    from lifter.bench.runner import run_scenario, summary, write_results
+    from lifter.bench.scenario import read_scenarios
+
+    # The bench empties its database before every scenario: never the athlete's one.
+    bench_db = conninfo_to_dict(settings.bench_database_url).get("dbname", "")
+    real_db = conninfo_to_dict(settings.database_url).get("dbname", "")
+    if not bench_db.startswith("lifter_bench") or bench_db == real_db:
+        print("BENCH_DATABASE_URL must name a database starting with 'lifter_bench'")
+        return 2
+    if args.planner == "mistral":
+        from lifter.agents.planner import MistralPlanner
+
+        if not settings.mistral_api_key:
+            print("MISTRAL_API_KEY is not set (see .env.example)")
+            return 2
+
+        def make_planner():
+            return MistralPlanner(
+                api_key=settings.mistral_api_key,
+                model=settings.model,
+                language=settings.coach_language,
+            )
+
+        model = settings.model
+    else:
+        make_planner, model = CopyLastWeek, None
+
+    scenarios = read_scenarios(args.scenarios)
+    if args.only:
+        scenarios = [s for s in scenarios if s.name in args.only]
+    results = []
+    with connect(settings.bench_database_url) as conn:
+        migrate(conn)
+        for scenario in scenarios:
+            runs = run_scenario(conn, scenario, make_planner, args.runs)
+            results += runs
+            for r in runs:
+                failed = [o.check for o in r.outcomes if not o.passed]
+                print(
+                    printable(
+                        f"{r.scenario} #{r.run}: {'accepted' if r.accepted else 'refused'}"
+                        f" ({r.attempts} attempt(s)), expectations {r.expectations_met}"
+                        f"/{r.expectations}, first-plan violations {r.first_violations}"
+                        + (f", failed: {', '.join(failed)}" if failed else "")
+                    )
+                )
+    print(", ".join(f"{k}={v}" for k, v in summary(results).items()))
+    if args.out:
+        write_results(args.out, args.planner, model, results)
+        print(f"results written to {args.out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lifter", description="CrossFit coach on Garmin data.")
     parser.add_argument("--version", action="version", version=f"lifter {__version__}")
@@ -603,6 +663,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--propose", action="store_true", help="store the accepted plan as proposals to approve"
     )
     plan.set_defaults(func=cmd_plan_week)
+
+    bench = sub.add_parser("bench", help="run a planner on the evaluation bench's scenarios")
+    bench.add_argument("--planner", choices=["copy", "mistral"], default="copy")
+    bench.add_argument("--runs", type=int, default=1, help="runs per scenario (default 1)")
+    bench.add_argument("--only", nargs="*", help="scenario names (default: all)")
+    bench.add_argument("--scenarios", type=Path, default=BENCH_DIR / "scenarios")
+    bench.add_argument("--out", type=Path, help="write the results as JSON")
+    bench.set_defaults(func=cmd_bench)
 
     props = sub.add_parser("proposals", help="print the agents' pending proposals")
     props.add_argument("--all", action="store_true", help="include decided proposals")

@@ -1,0 +1,24 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: after_deload
+category: phase
+description: Weeks 1 to 4 done (4 was a deload at lighter loads); week 5 opens the strength block.
+target_week: 5
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: load_at_least
+  params:
+    exercise: Bench press
+    kg: 65
+- check: strength_reps_at_most
+  params:
+    value: 6
+    exercises:
+    - Bench press
+    - Strict press
+    - Leg press
+    - Barbell row
+review: Back to the pre-deload loads or above, on short sets (5 or so), longer rests; the deload loads
+  are not the reference.

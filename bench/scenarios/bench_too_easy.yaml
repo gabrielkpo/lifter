@@ -1,0 +1,22 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: bench_too_easy
+category: review
+description: 'Week 2: bench press at RIR 4 instead of 2.'
+target_week: 3
+setup:
+  log:
+  - week: 2
+    title: Weightlifting + Push + Metcon
+    exercise: Bench press
+    rir: 4
+expect:
+- check: accepted
+- check: load_at_least
+  params:
+    exercise: Bench press
+    kg: 65
+- check: load_at_most
+  params:
+    exercise: Bench press
+    kg: 65
+review: 'The bench goes up exactly one step (65 kg): RIR met with room to spare, but one step at most.'

@@ -1,0 +1,16 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: short_sleep
+category: health
+description: Three short nights (5 h) before the week.
+target_week: 3
+setup:
+  recovery: short_sleep
+expect:
+- check: accepted
+- check: has_pattern
+  params:
+    pattern: legs
+- check: light_first_days
+  params:
+    days: 1
+review: Monday stays light; the week keeps its structure.

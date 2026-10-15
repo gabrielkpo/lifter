@@ -1,0 +1,25 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: first_week
+category: phase
+description: Nothing logged yet; week 1 is the reference week.
+target_week: 1
+expect:
+- check: accepted
+- check: sessions
+  params:
+    min: 4
+    max: 6
+- check: rir_at_least
+  params:
+    value: 3
+- check: has_pattern
+  params:
+    pattern: legs
+- check: excludes_flags
+  params:
+    flags:
+    - running
+    - impact
+    - free_barbell_legs
+review: Bottom of the ranges, RIR 3, every movement pattern covered, a reference metcon; no history to
+  lean on, so prudent loads.

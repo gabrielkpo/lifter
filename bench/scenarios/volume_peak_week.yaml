@@ -1,0 +1,30 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: volume_peak_week
+category: phase
+description: Weeks 1 and 2 done as planned; week 3 is the volume peak of block 1.
+target_week: 3
+expect:
+- check: accepted
+- check: sessions
+  params:
+    min: 4
+    max: 6
+- check: has_pattern
+  params:
+    pattern: legs
+- check: excludes_flags
+  params:
+    flags:
+    - running
+    - impact
+    - free_barbell_legs
+- check: volume_vs_previous
+  params:
+    min: 0.9
+    max: 1.4
+- check: load_at_most
+  params:
+    exercise: Bench press
+    kg: 65
+review: Same frame as week 2 with a bit more volume at RIR 2, loads up one step at most, legs present,
+  a long metcon.

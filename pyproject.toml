@@ -3,7 +3,11 @@ name = "lifter"
 version = "0.1.0"
 description = "Training coach agent on Garmin data, with human approval before any write."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "mcp>=1.9",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.0",
+]
 
 [project.scripts]
 lifter = "lifter.cli:main"

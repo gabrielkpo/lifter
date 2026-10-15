@@ -117,6 +117,29 @@ def create_app(database_url: str, app_origins: list[str] | None = None) -> FastA
             ]
         )
 
+    @app.get("/blocks/{block_id}")
+    def block(conn: Conn, block_id: int) -> models.BlockDetail:
+        """A block: its progress, its weeks with their intent, each exercise week by week."""
+        row = conn.execute(
+            "select bp.block_id as id, bp.position, bp.kind, bp.start_date, bp.end_date,"
+            " b.intent, bp.target_strength_sessions, bp.strength_sessions_done"
+            " from block_progress bp join block b on b.id = bp.block_id"
+            " where bp.block_id = %s",
+            (block_id,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, f"block {block_id} does not exist")
+        weeks = conn.execute(
+            WEEK_SQL + " where ws.block_id = %s order by ws.start_date, ws.week_id", (block_id,)
+        ).fetchall()
+        progress = conn.execute(
+            "select week_id, week_number, phase, exercise, category, pattern, origin, sets,"
+            " reps, top_load_kg, avg_rir from week_exercise_progress where block_id = %s"
+            " order by week_start, exercise, origin",
+            (block_id,),
+        ).fetchall()
+        return models.BlockDetail(block=row, weeks=weeks, progress=progress)
+
     @app.get("/weeks")
     def weeks(conn: Conn) -> list[models.Week]:
         """The review of every week, in calendar order."""

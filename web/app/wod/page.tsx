@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import ApiStatus from "@/components/ApiStatus";
+import SessionView from "@/components/SessionView";
 import TopBar from "@/components/TopBar";
 import { useApi } from "@/lib/api";
-import { addDays, label, parseDay, today, weekday } from "@/lib/format";
-import type { SessionSummary, Week, WeekDetail } from "@/lib/types";
+import { addDays, label, parseDay, shortDate, today, weekday } from "@/lib/format";
+import type { SessionDetail, SessionSummary, Week, WeekDetail } from "@/lib/types";
 
 /** The week of training, day by day: the WOD tab. */
 export default function WodPage() {
@@ -114,42 +114,19 @@ function WeekView({
 
       {byDay(selected).length === 0 && <p className="empty">Rest day.</p>}
       {byDay(selected).map((session) => (
-        <SessionCard
+        <DaySession
           key={session.id}
           session={session}
           weekNumber={week.number}
           dayNumber={trainingDays.indexOf(session.day) + 1}
         />
       ))}
-
-      {Object.keys(week.intent).length > 0 && (
-        <section className="card accent">
-          <h2>Intent of the week</h2>
-          {Object.entries(week.intent).map(([part, text]) => (
-            <p key={part} className="line">
-              <b>{label(part)}</b>
-              <span>{text}</span>
-            </p>
-          ))}
-        </section>
-      )}
-      {detail.block_intent && (
-        <section className="card">
-          <h2>Block</h2>
-          <p>{detail.block_intent}</p>
-        </section>
-      )}
-      {week.review && (
-        <section className="card">
-          <h2>Review</h2>
-          <p>{week.review}</p>
-        </section>
-      )}
     </>
   );
 }
 
-function SessionCard({
+/** The session of the selected day, in full: header card, then its parts. */
+function DaySession({
   session,
   weekNumber,
   dayNumber,
@@ -158,9 +135,9 @@ function SessionCard({
   weekNumber: number;
   dayNumber: number;
 }) {
-  const g = session.garmin;
-  return (
-    <Link href={`/sessions/${session.id}`} className="card card-link">
+  const detail = useApi<SessionDetail>(`/sessions/${session.id}`);
+  const heading = (
+    <section className="card">
       <div className="row">
         <h2>
           {session.kind === "rest" ? "Rest" : `Week ${weekNumber} / Day ${dayNumber}`}
@@ -170,13 +147,16 @@ function SessionCard({
         </span>
       </div>
       <p>{session.title}</p>
-      {session.moved_from && <p className="small">Moved from {session.moved_from}</p>}
-      {g && (
-        <p className="small">
-          Garmin: {g.duration_minutes ?? "–"} min · {g.avg_hr_bpm ?? "–"} bpm avg ·{" "}
-          {g.z4_z5_minutes ?? "–"} min in Z4–Z5
-        </p>
-      )}
-    </Link>
+      {session.moved_from && <p className="small">Moved from {shortDate(session.moved_from)}</p>}
+    </section>
   );
+  if (detail.status !== "ok") {
+    return (
+      <>
+        {heading}
+        <ApiStatus state={detail} />
+      </>
+    );
+  }
+  return <SessionView session={detail.data} heading={heading} />;
 }

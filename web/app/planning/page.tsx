@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import ApiStatus from "@/components/ApiStatus";
 import TopBar from "@/components/TopBar";
 import { useApi } from "@/lib/api";
@@ -31,7 +32,11 @@ export default function PlanningPage() {
               const share = target ? Math.min(1, block.strength_sessions_done / target) : 0;
               const now = block.start_date <= today() && today() <= block.end_date;
               return (
-                <article key={block.id} className={now ? "card accent" : "card"}>
+                <Link
+                  key={block.id}
+                  href={`/planning/blocks/${block.id}`}
+                  className={now ? "card card-link accent" : "card card-link"}
+                >
                   <div className="row">
                     <h2>
                       Block {block.position} · {label(block.kind)}
@@ -46,8 +51,7 @@ export default function PlanningPage() {
                     {target ? ` / ${target}` : ""} strength sessions ·{" "}
                     {shortDate(block.start_date)} → {shortDate(block.end_date)}
                   </p>
-                  {block.intent && <p style={{ marginTop: 8 }}>{block.intent}</p>}
-                </article>
+                </Link>
               );
             })}
             {weeks.status === "ok" && (

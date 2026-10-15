@@ -219,3 +219,23 @@ export interface Best {
   best_load_kg: number;
   day: string;
 }
+
+export interface WeekExercise {
+  week_id: number;
+  week_number: number;
+  phase: string;
+  exercise: string;
+  category: string;
+  pattern: string;
+  origin: "planned" | "done";
+  sets: number;
+  reps: number | null;
+  top_load_kg: number | null;
+  avg_rir: number | null;
+}
+
+export interface BlockDetail {
+  block: Block;
+  weeks: Week[];
+  progress: WeekExercise[];
+}

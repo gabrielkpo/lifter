@@ -438,3 +438,139 @@ button {
 .bars > div[data-trained="true"] {
   background: var(--text);
 }
+
+/* Week-by-week charts (block page). */
+.charts {
+  display: grid;
+  gap: 12px;
+}
+.chart {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 14px 6px;
+}
+.chart figcaption {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.chart figcaption strong {
+  font-size: 20px;
+  color: var(--text);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.chart .axis {
+  font-size: 10px;
+  fill: var(--muted);
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.legend .key {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  margin-left: 8px;
+  border-top: 2px solid var(--text);
+}
+.legend .key.planned {
+  border-top: 2px dashed var(--muted);
+}
+.legend .key.deload {
+  height: 10px;
+  border: none;
+  background: var(--surface-2);
+}
+.week summary {
+  list-style: none;
+  cursor: pointer;
+}
+.week summary::-webkit-details-marker {
+  display: none;
+}
+.week[open] summary {
+  margin-bottom: 8px;
+}
+
+/* Large screens (a PC browser): the tab bar becomes a sidebar, the content widens and cards
+   sit side by side. The phone layout above stays the reference. */
+.brand {
+  display: none;
+}
+@media (min-width: 900px) {
+  :root {
+    --sidebar: 220px;
+  }
+  .app {
+    max-width: calc(var(--sidebar) + 1040px);
+    margin: 0 auto;
+    padding: 24px 40px 48px calc(var(--sidebar) + 40px);
+  }
+  .tabbar {
+    top: 0;
+    right: auto;
+    width: var(--sidebar);
+    border-top: none;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+    padding: 28px 14px;
+  }
+  .brand {
+    display: block;
+    margin: 0 12px 24px;
+    font-size: 26px;
+    font-weight: 800;
+  }
+  .tabbar ul {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: auto;
+  }
+  .tabbar a {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 12px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+  .tabbar a[aria-current="page"] {
+    background: var(--surface-2);
+  }
+  .search {
+    left: calc(var(--sidebar) + (100% - var(--sidebar)) / 2);
+    bottom: 24px;
+  }
+  .search-spacer {
+    height: 64px;
+  }
+  .stats {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .charts {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .parts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+  }
+  .parts .card {
+    margin-bottom: 0;
+  }
+}

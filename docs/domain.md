@@ -89,6 +89,7 @@ Proposal kinds: `create_session` (a whole session, with its parts and lines),
 | `week_summary` | The review of a week: sessions, done, missed, cancelled, strength sessions done (done sessions with a strength part), patterns trained |
 | `block_progress` | Strength sessions done in each block against its target |
 | `exercise_best` | Best logged load per exercise and repetition count |
+| `week_exercise_progress` | Per week and exercise, planned and done (warm-ups left out): lines, sets, repetitions (sets × reps, lines in reps only; no sets counts as one), heaviest load, average RIR of the lines that state one. Feeds the block page of the app |
 
 **Done or missed.** A session is `done` when a Garmin activity belongs to it, or when it was
 logged (a done line, a metcon result, or a feedback), since the watch is not always worn.

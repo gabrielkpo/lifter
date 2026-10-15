@@ -18,6 +18,7 @@ export default function TabBar() {
   const active = pathname.startsWith("/sessions") ? "/wod" : pathname;
   return (
     <nav className="tabbar" aria-label="Main">
+      <div className="brand">Lifter</div>
       <ul>
         {TABS.map(({ href, label, Icon }) => (
           <li key={href}>

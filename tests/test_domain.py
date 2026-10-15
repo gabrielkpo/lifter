@@ -354,3 +354,13 @@ def test_proposals_are_validated_before_being_stored(conn):
     with pytest.raises(domain.DomainError):
         domain.propose(conn, "cancel_session", {"session_id": 1}, "  ", "coach")
     assert conn.execute("select count(*) from proposal").fetchone() == (0,)
+
+
+def test_a_mobility_session_does_not_take_the_training_activity(conn, bank):
+    mobility = domain.create_session(
+        conn, domain.SessionIn(day=PAST, title="Morning mobility", kind="mobility")
+    )
+    training = domain.create_session(conn, push_session())
+    store_payload(conn, "get_activity", "1", {}, activity(1, PAST, load=80, activity_type="hiit"))
+
+    assert (status(conn, mobility), status(conn, training)) == ("missed", "done")

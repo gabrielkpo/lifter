@@ -440,17 +440,27 @@ where tool = 'get_scheduled_workouts'
 -- (planned_session.matched_activity_id) belongs to that session. Otherwise, on each day, the
 -- n-th session activity (by start time) goes to the n-th open session (by id); extra
 -- activities go to the day's last session, since one session is often recorded in two parts
--- (strength, then the metcon). An activity never belongs to two sessions; cancelled and rest
--- sessions take none.
+-- (strength, then the metcon). Mobility sessions, rarely recorded, take activities only on a
+-- day without another open session. An activity never belongs to two sessions; cancelled and
+-- rest sessions take none.
 create view session_activity as
-with open_sessions as (
+with candidates as (
+    select
+        id,
+        day,
+        kind,
+        bool_or(kind <> 'mobility') over (partition by day) as day_has_other
+    from planned_session
+    where status = 'planned' and kind <> 'rest' and matched_activity_id is null
+),
+open_sessions as (
     select
         id,
         day,
         row_number() over (partition by day order by id) as rank,
         count(*) over (partition by day) as sessions_that_day
-    from planned_session
-    where status = 'planned' and kind <> 'rest' and matched_activity_id is null
+    from candidates
+    where kind <> 'mobility' or not day_has_other
 ),
 free_activities as (
     select
@@ -578,11 +588,12 @@ join session_part sp on sp.id = se.part_id
 join exercise e on e.id = se.exercise_id;
 
 -- The review of each week, what the weekly programming starts from: sessions planned, done,
--- missed and cancelled, strength sessions done (they count toward the block), and the movement
--- patterns actually trained.
+-- missed and cancelled, strength sessions done (done sessions with a strength part: they count
+-- toward the block), and the movement patterns actually trained.
 create view week_summary as
 select
     w.id as week_id,
+    w.block_id,
     w.number,
     w.start_date,
     w.phase,
@@ -591,7 +602,12 @@ select
     count(*) filter (where s.status = 'done') as done,
     count(*) filter (where s.status = 'missed') as missed,
     count(*) filter (where s.status = 'cancelled') as cancelled,
-    count(*) filter (where s.status = 'done' and s.kind = 'training') as strength_sessions_done,
+    count(*) filter (
+        where s.status = 'done' and exists (
+            select 1 from session_part sp
+            where sp.session_id = s.planned_session_id and sp.kind = 'strength'
+        )
+    ) as strength_sessions_done,
     (
         select array_agg(distinct l.pattern order by l.pattern)
         from session_line l
@@ -615,9 +631,7 @@ select
     b.target_strength_sessions,
     coalesce(sum(ws.strength_sessions_done), 0) as strength_sessions_done
 from block b
-left join week_summary ws on ws.week_id in (
-    select id from training_week where block_id = b.id
-)
+left join week_summary ws on ws.block_id = b.id
 group by b.id;
 
 -- Best logged load per exercise and repetition count (sets done in reps with a load).

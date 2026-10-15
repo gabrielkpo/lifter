@@ -136,3 +136,12 @@ def test_error_messages_escape_control_characters(monkeypatch, capsys, conn, dat
     out = capsys.readouterr().out
     assert "\x1b" not in out and "\r" not in out
     assert "refused:" in out and "\\x1b[2K\\rapplied" in out
+
+
+def test_a_program_file_that_is_not_utf8_is_reported(
+    monkeypatch, capsys, conn, database_url, tmp_path
+):
+    path = tmp_path / "program.yaml"
+    path.write_bytes("name: Cycle d'été\n".encode("latin-1"))
+    assert run_cli(monkeypatch, database_url, "program", "load", str(path)) == 2
+    assert "cannot read" in capsys.readouterr().out

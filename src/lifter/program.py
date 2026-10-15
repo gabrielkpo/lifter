@@ -6,9 +6,10 @@ repository ships a synthetic example (`examples/program.yaml`); a real program s
 `data/`, which Git ignores.
 
 Loading is all or nothing. Without `replace`, it refuses a database that already holds a
-program; with `replace`, the previous cycles, sessions, goals and rules are deleted first (the
-exercise bank is updated in place). Feedback and proposals are kept, but lose their link to
-deleted sessions.
+program; with `replace`, what the previous program file created is deleted first: its cycle,
+weeks, sessions, goals and the rules (the exercise bank is updated in place). Sessions and
+goals added by the athlete or by approved proposals are kept, without their week; feedback on a
+deleted session loses its link to it.
 """
 
 from datetime import date
@@ -25,11 +26,11 @@ from lifter.domain import (
     GoalIn,
     RuleIn,
     SessionIn,
-    _insert,
-    _Model,
+    StrictModel,
     add_rule,
     create_goal,
     create_session,
+    insert_row,
     upsert_exercise,
 )
 
@@ -55,7 +56,7 @@ class WeekSessionIn(SessionIn):
     week_id: None = None
 
 
-class BlockIn(_Model):
+class BlockIn(StrictModel):
     position: int = Field(ge=1)
     kind: Literal["accumulation", "transmutation", "realisation"]
     start_date: date
@@ -64,7 +65,7 @@ class BlockIn(_Model):
     target_strength_sessions: int | None = Field(default=None, gt=0)
 
 
-class WeekIn(_Model):
+class WeekIn(StrictModel):
     number: int = Field(ge=0)
     block: int | None = None
     start_date: date
@@ -75,7 +76,7 @@ class WeekIn(_Model):
     sessions: list[WeekSessionIn] = []
 
 
-class ProgramIn(_Model):
+class ProgramIn(StrictModel):
     name: str = Field(min_length=1)
     start_date: date
     end_date: date
@@ -125,19 +126,6 @@ def read_program(path: Path) -> ProgramIn:
     return ProgramIn.model_validate(data)
 
 
-_PROGRAM_TABLES = (
-    "session_exercise",
-    "session_part",
-    "planned_session",
-    "goal_milestone",
-    "goal",
-    "athlete_rule",
-    "training_week",
-    "block",
-    "cycle",
-)
-
-
 def load_program(
     conn: psycopg.Connection, program: ProgramIn, *, replace: bool = False
 ) -> dict[str, int]:
@@ -147,11 +135,15 @@ def load_program(
         if existing and not replace:
             raise DomainError("a program is already loaded; load with replace to overwrite it")
         if replace:
-            for table in _PROGRAM_TABLES:
-                conn.execute(f"delete from {table}")  # names from the constant above
+            # Parts, lines, weeks and milestones follow by cascade; sessions of other sources
+            # stay in the calendar and lose their week.
+            conn.execute("delete from planned_session where source = 'program'")
+            conn.execute("delete from goal where source = 'program'")
+            conn.execute("delete from athlete_rule")
+            conn.execute("delete from cycle")
         for exercise in program.exercises:
             upsert_exercise(conn, exercise)
-        cycle_id = _insert(
+        cycle_id = insert_row(
             conn,
             "cycle",
             {
@@ -162,12 +154,12 @@ def load_program(
             },
         )
         block_ids = {
-            block.position: _insert(conn, "block", {"cycle_id": cycle_id} | block.model_dump())
+            block.position: insert_row(conn, "block", {"cycle_id": cycle_id} | block.model_dump())
             for block in program.blocks
         }
         sessions = 0
         for week in program.weeks:
-            week_id = _insert(
+            week_id = insert_row(
                 conn,
                 "training_week",
                 {
@@ -182,13 +174,15 @@ def load_program(
                 },
             )
             for session in week.sessions:
-                create_session(conn, SessionIn(**session.model_dump() | {"week_id": week_id}))
+                create_session(
+                    conn, SessionIn(**session.model_dump() | {"week_id": week_id}), "program"
+                )
                 sessions += 1
         for session in program.history:
-            create_session(conn, SessionIn(**session.model_dump()))
+            create_session(conn, SessionIn(**session.model_dump()), "program")
             sessions += 1
         for goal in program.goals:
-            create_goal(conn, goal.model_copy(update={"cycle_id": cycle_id}))
+            create_goal(conn, goal.model_copy(update={"cycle_id": cycle_id}), "program")
         for rule in program.rules:
             add_rule(conn, rule)
     return {

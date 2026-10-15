@@ -65,6 +65,7 @@ create table training_week (
 );
 
 -- A session in the calendar. Its content lives in session_part and session_exercise.
+-- `source` says who created it: the program file, the athlete, or an approved agent proposal.
 -- "done" and "missed" are derived by the views from the activities and the log; the stored
 -- status only records explicit decisions.
 create table planned_session (
@@ -77,6 +78,7 @@ create table planned_session (
     notes text,
     deviation text,
     status text not null default 'planned' check (status in ('planned', 'cancelled')),
+    source text not null default 'athlete' check (source in ('program', 'athlete', 'agent')),
     matched_activity_id bigint,
     moved_from date,
     created_at timestamptz not null default now(),
@@ -146,6 +148,7 @@ create table goal (
     target_text text,
     target_date date,
     status text not null default 'active' check (status in ('active', 'achieved', 'abandoned')),
+    source text not null default 'athlete' check (source in ('program', 'athlete', 'agent')),
     notes text,
     created_at timestamptz not null default now(),
     check (target_value is not null or target_text is not null)

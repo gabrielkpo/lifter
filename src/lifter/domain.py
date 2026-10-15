@@ -27,11 +27,13 @@ PositiveInt = Annotated[int, Field(gt=0)]
 PositiveNumber = Annotated[float, Field(gt=0)]
 
 
-class _Model(BaseModel):
+class StrictModel(BaseModel):
+    """Unknown fields are refused, text is stripped."""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-class ExerciseIn(_Model):
+class ExerciseIn(StrictModel):
     name: str = Field(min_length=1)
     category: Literal[
         "weightlifting", "gymnastics", "strength", "monostructural", "mobility", "other"
@@ -54,7 +56,7 @@ class ExerciseIn(_Model):
     notes: str | None = None
 
 
-class LineIn(_Model):
+class LineIn(StrictModel):
     """One exercise line: `sets` x `quantity` `unit` at `load_kg` (to `load_kg_max`), RIR."""
 
     exercise: str = Field(min_length=1)
@@ -75,7 +77,7 @@ class LineIn(_Model):
         return self
 
 
-class PartIn(_Model):
+class PartIn(StrictModel):
     kind: PartKind
     title: str | None = None
     notes: str | None = None
@@ -92,7 +94,7 @@ class PartIn(_Model):
     done: list[LineIn] = []
 
 
-class SessionIn(_Model):
+class SessionIn(StrictModel):
     day: date
     title: str = Field(min_length=1)
     kind: Literal["training", "cardio", "mobility", "rest"] = "training"
@@ -104,16 +106,16 @@ class SessionIn(_Model):
     parts: list[PartIn] = []
 
 
-class MoveSession(_Model):
+class MoveSession(StrictModel):
     session_id: int
     new_day: date
 
 
-class CancelSession(_Model):
+class CancelSession(StrictModel):
     session_id: int
 
 
-class MilestoneIn(_Model):
+class MilestoneIn(StrictModel):
     day: date
     label: str | None = None
     value: float | None = None
@@ -126,7 +128,7 @@ class MilestoneIn(_Model):
         return self
 
 
-class GoalIn(_Model):
+class GoalIn(StrictModel):
     title: str = Field(min_length=1)
     kind: Literal["strength", "skill", "benchmark", "other"] = "strength"
     exercise: str | None = None
@@ -148,13 +150,13 @@ class GoalIn(_Model):
         return self
 
 
-class RuleIn(_Model):
+class RuleIn(StrictModel):
     code: str | None = None
     text: str = Field(min_length=1)
     params: dict[str, Any] = {}
 
 
-class FeedbackIn(_Model):
+class FeedbackIn(StrictModel):
     day: date
     kind: Literal["session", "morning"] = "session"
     planned_session_id: int | None = None
@@ -166,7 +168,7 @@ class FeedbackIn(_Model):
     notes: str | None = None
 
 
-PROPOSAL_PAYLOADS: dict[str, type[_Model]] = {
+PROPOSAL_PAYLOADS: dict[str, type[StrictModel]] = {
     "create_session": SessionIn,
     "move_session": MoveSession,
     "cancel_session": CancelSession,
@@ -182,7 +184,7 @@ class _NotApproved(Exception):
     """Internal: the proposal is not in the approved state, nothing to record."""
 
 
-def _insert(conn: psycopg.Connection, table: str, values: dict[str, Any]) -> int:
+def insert_row(conn: psycopg.Connection, table: str, values: dict[str, Any]) -> int:
     """Insert a row; table and column names come from this module, never from input."""
     columns = ", ".join(values)
     placeholders = ", ".join(["%s"] * len(values))
@@ -223,14 +225,19 @@ def upsert_exercise(conn: psycopg.Connection, exercise: ExerciseIn) -> int:
     return row[0]
 
 
-def create_session(conn: psycopg.Connection, session: SessionIn) -> int:
+Source = Literal["program", "athlete", "agent"]
+
+
+def create_session(conn: psycopg.Connection, session: SessionIn, source: Source = "athlete") -> int:
     """Create a session with its parts and exercise lines, all or nothing."""
     names = {line.exercise for part in session.parts for line in part.planned + part.done}
     with conn.transaction():
         ids = exercise_ids(conn, names) if names else {}
-        session_id = _insert(conn, "planned_session", session.model_dump(exclude={"parts"}))
+        session_id = insert_row(
+            conn, "planned_session", session.model_dump(exclude={"parts"}) | {"source": source}
+        )
         for position, part in enumerate(session.parts, start=1):
-            part_id = _insert(
+            part_id = insert_row(
                 conn,
                 "session_part",
                 {"session_id": session_id, "position": position}
@@ -239,7 +246,7 @@ def create_session(conn: psycopg.Connection, session: SessionIn) -> int:
             for origin, lines in (("planned", part.planned), ("done", part.done)):
                 for line_position, line in enumerate(lines, start=1):
                     values = line.model_dump(exclude={"exercise"})
-                    _insert(
+                    insert_row(
                         conn,
                         "session_exercise",
                         {
@@ -279,32 +286,32 @@ def cancel_session(conn: psycopg.Connection, cancel: CancelSession) -> None:
         raise DomainError(f"session {cancel.session_id} does not exist or is already cancelled")
 
 
-def create_goal(conn: psycopg.Connection, goal: GoalIn) -> int:
+def create_goal(conn: psycopg.Connection, goal: GoalIn, source: Source = "athlete") -> int:
     with conn.transaction():
-        values = goal.model_dump(exclude={"exercise", "milestones"})
+        values = goal.model_dump(exclude={"exercise", "milestones"}) | {"source": source}
         if goal.exercise is not None:
             values["exercise_id"] = exercise_ids(conn, {goal.exercise})[goal.exercise]
-        goal_id = _insert(conn, "goal", values)
+        goal_id = insert_row(conn, "goal", values)
         for milestone in goal.milestones:
-            _insert(conn, "goal_milestone", {"goal_id": goal_id} | milestone.model_dump())
+            insert_row(conn, "goal_milestone", {"goal_id": goal_id} | milestone.model_dump())
     return goal_id
 
 
 def add_rule(conn: psycopg.Connection, rule: RuleIn) -> int:
-    return _insert(conn, "athlete_rule", rule.model_dump())
+    return insert_row(conn, "athlete_rule", rule.model_dump())
 
 
 def add_feedback(conn: psycopg.Connection, feedback: FeedbackIn) -> int:
-    return _insert(conn, "feedback", feedback.model_dump())
+    return insert_row(conn, "feedback", feedback.model_dump())
 
 
 # Proposals (agents)
 
 _APPLY = {
-    "create_session": lambda conn, p: {"session_id": create_session(conn, p)},
+    "create_session": lambda conn, p: {"session_id": create_session(conn, p, "agent")},
     "move_session": lambda conn, p: move_session(conn, p) or {},
     "cancel_session": lambda conn, p: cancel_session(conn, p) or {},
-    "create_goal": lambda conn, p: {"goal_id": create_goal(conn, p)},
+    "create_goal": lambda conn, p: {"goal_id": create_goal(conn, p, "agent")},
 }
 
 

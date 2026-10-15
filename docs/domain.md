@@ -30,10 +30,10 @@ Lifter coaches CrossFit only, with one method:
 | `cycle` | Training cycle | `name`, `start_date`, `end_date`, `notes`, `status` |
 | `block` | Block of a cycle | `position`, `kind` (accumulation, transmutation, realisation), dates, `intent`, `target_strength_sessions` |
 | `training_week` | Week of a cycle | `number` (0 for an entry week outside any block), `block_id`, `start_date`, `phase`, `intent` (JSON: weightlifting, push, pull, legs, metcon, notes), `review` |
-| `planned_session` | Session in the calendar | `day`, `title`, `kind` (training, cardio, mobility, rest), `week_id`, `notes`, `deviation` (gap with the plan, in words), `status` (planned, cancelled), `moved_from`, `matched_activity_id` |
+| `planned_session` | Session in the calendar | `day`, `title`, `kind` (training, cardio, mobility, rest), `week_id`, `notes`, `deviation` (gap with the plan, in words), `status` (planned, cancelled), `source` (program, athlete, agent), `moved_from`, `matched_activity_id` |
 | `session_part` | Part of a session, in order | `position`, `kind` (warmup, weightlifting, gymnastics, strength, metcon, cardio, mobility); for a metcon: `format` (for_time, amrap, emom, every_n, rounds, intervals), `duration_minutes`, `rounds`, `interval_seconds`, `target_seconds` or `target_rounds`, and once done `result_seconds`, `result_rounds`, `result_notes` |
 | `session_exercise` | Exercise line of a part | `origin` (`planned` or `done`), `exercise_id`, `sets`, `quantity` + `unit` (reps, cal, m, s, min), `load_kg` (+ `load_kg_max` for a range), `rir`, `rest_seconds`, `notes` |
-| `goal` | Goal | `kind` (strength, skill, benchmark), `exercise_id`, `unit`, baseline and target (a value or a text, e.g. "first rep without a band"), `target_date` |
+| `goal` | Goal | `kind` (strength, skill, benchmark), `exercise_id`, `unit`, baseline and target (a value or a text, e.g. "first rep without a band"), `target_date`, `source` |
 | `goal_milestone` | Dated step toward a goal | `day`, `label` (e.g. end of block 1), `value` or `value_text` |
 | `athlete_rule` | Permanent rule of the athlete | `code` (a rule the guardrail will check in code, step 3), `text`, `params` |
 | `feedback` | Report after a session, or morning check-in | `rpe` (1–10), `fatigue` (1–5), `pain` (0–10) + `pain_location`, `notes` |
@@ -50,8 +50,10 @@ Until the app exists, a YAML file is how a program gets in: `lifter program load
 a real one stays in `data/`, which Git ignores. The file is validated before anything is
 written: unknown fields are refused (a metcon has no `time_cap`), every exercise must be in
 the bank, every week in a declared block. Loading is all or nothing, and refuses a database
-that already holds a program unless `--replace` is given (which deletes the previous cycles,
-sessions, goals and rules; the exercise bank is updated in place). `history` holds sessions
+that already holds a program unless `--replace` is given, which first deletes what the previous
+program file created (its cycle, sessions and goals, and the rules); sessions and goals added by
+the athlete or by approved proposals are kept, without their week, and the exercise bank is
+updated in place. `history` holds sessions
 done before the cycle, outside any week.
 
 ## Who can change what
@@ -84,7 +86,7 @@ Proposal kinds: `create_session` (a whole session, with its parts and lines),
 | `planned_session_status` | Status of each session: `done`, `missed`, `planned`, `cancelled`, `rest` |
 | `calendar` | Lifter sessions, workouts scheduled in Garmin Connect, and activities that belong to no session |
 | `session_line` | Exercise lines with their exercise, category and pattern |
-| `week_summary` | The review of a week: sessions, done, missed, cancelled, strength sessions done, patterns trained |
+| `week_summary` | The review of a week: sessions, done, missed, cancelled, strength sessions done (done sessions with a strength part), patterns trained |
 | `block_progress` | Strength sessions done in each block against its target |
 | `exercise_best` | Best logged load per exercise and repetition count |
 
@@ -96,8 +98,9 @@ Past without either, it is `missed`.
 `strength_training`, `stop_watch`, `indoor_cardio`, ergs, `yoga`…); a bike commute or a walk
 counts in the training load but never completes a session. On each day, the n-th training
 activity goes to the n-th open session; extra activities go to the day's last session, since
-one session is often recorded in two parts (strength, then the metcon). An activity never
-belongs to two sessions, and cancelled or rest sessions take none.
+one session is often recorded in two parts (strength, then the metcon). Mobility sessions,
+rarely recorded, take an activity only on a day without another open session. An activity
+never belongs to two sessions, and cancelled or rest sessions take none.
 
 ## Garmin calendar
 

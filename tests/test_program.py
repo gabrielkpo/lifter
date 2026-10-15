@@ -105,3 +105,32 @@ def test_a_failed_load_writes_nothing(conn):
         load_program(conn, program)
     assert conn.execute("select count(*) from cycle").fetchone() == (0,)
     assert conn.execute("select count(*) from exercise").fetchone() == (0,)
+
+
+def test_a_done_session_without_a_strength_part_does_not_count_for_the_block(conn):
+    load_program(conn, read_program(EXAMPLE))
+    conn.execute(
+        "update session_part set result_rounds = 6 where session_id ="
+        " (select id from planned_session where title = 'Benchmark metcon')"
+    )
+
+    week = conn.execute(
+        "select done, strength_sessions_done from week_summary where number = 1"
+    ).fetchone()
+    assert week == (3, 2)
+
+
+def test_replace_keeps_what_the_athlete_and_the_agents_added(conn):
+    from lifter import domain
+
+    load_program(conn, read_program(EXAMPLE))
+    own = domain.create_session(conn, domain.SessionIn(day="2026-03-10", title="Extra"))
+    domain.create_goal(conn, domain.GoalIn(title="Agent goal", target_text="x"), "agent")
+
+    load_program(conn, read_program(EXAMPLE), replace=True)
+
+    row = conn.execute("select title, week_id from planned_session where id = %s", (own,))
+    assert row.fetchone() == ("Extra", None)
+    assert conn.execute("select count(*) from planned_session").fetchone() == (6,)
+    titles = {t for (t,) in conn.execute("select title from goal").fetchall()}
+    assert "Agent goal" in titles and len(titles) == 4

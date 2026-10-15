@@ -154,7 +154,7 @@ def cmd_program_load(settings: Settings, args: argparse.Namespace) -> int:
 
     try:
         program = read_program(args.file)
-    except (OSError, yaml.YAMLError) as exc:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
         print(printable(f"cannot read {args.file}: {exc}"))
         return 2
 
@@ -216,7 +216,8 @@ def cmd_session(settings: Settings, args: argparse.Namespace) -> int:
     with connect(settings.database_url) as conn:
         head = conn.execute(
             "select s.day, s.title, s.kind, s.status, s.moved_from, p.notes, p.deviation,"
-            " g.duration_minutes, g.avg_hr_bpm, g.max_hr_bpm, g.calories, g.z4_z5_minutes"
+            " g.activities, g.duration_minutes, g.avg_hr_bpm, g.max_hr_bpm, g.calories,"
+            " g.z4_z5_minutes"
             " from planned_session_status s join planned_session p on p.id = s.planned_session_id"
             " left join session_garmin g using (planned_session_id)"
             " where s.planned_session_id = %s",
@@ -237,11 +238,11 @@ def cmd_session(settings: Settings, args: argparse.Namespace) -> int:
             " order by part_position, origin desc, position",
             (args.id,),
         ).fetchall()
-    day, title, kind, status, moved_from, notes, deviation, *garmin = head
+    day, title, kind, status, moved_from, notes, deviation, activities, *garmin = head
     out = [printable(f"{day} {title} ({kind}, {status})")]
     if moved_from:
         out.append(f"  moved from {moved_from}")
-    if garmin[0] is not None:
+    if activities is not None:
         labels = ("min", "avg HR", "max HR", "kcal", "min in Z4-Z5")
         values = zip(garmin, labels, strict=True)
         out.append("  Garmin: " + ", ".join(f"{printable(v)} {k}" for v, k in values))
@@ -437,7 +438,10 @@ def build_parser() -> argparse.ArgumentParser:
     load = program_sub.add_parser("load", help="load a program file (YAML)")
     load.add_argument("file", type=Path)
     load.add_argument(
-        "--replace", action="store_true", help="delete the loaded program first, then load"
+        "--replace",
+        action="store_true",
+        help="delete what the previous program file created first (cycle, its sessions, goals"
+        " and rules), then load",
     )
     load.set_defaults(func=cmd_program_load)
 

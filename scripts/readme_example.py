@@ -41,6 +41,9 @@ def synthetic_days(seed: int = 7) -> list[dict]:
 def main(url: str) -> None:
     with connect(url) as conn:
         migrate(conn)
+        # Never mix synthetic rows into a database that already holds data (real or not).
+        if conn.execute("select exists (select 1 from raw_garmin_payload)").fetchone()[0]:
+            raise SystemExit("refusing: this database already has Garmin data, use an empty one")
         load_days(conn, FIRST_DAY, synthetic_days())
 
 

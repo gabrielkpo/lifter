@@ -401,6 +401,106 @@ def cmd_proposal_decide(settings: Settings, args: argparse.Namespace) -> int:
     return _with_domain(settings, decide)
 
 
+def _plan_lines(plan) -> list[str]:
+    out = [printable(plan.summary), ""]
+    for session_id in plan.cancel_session_ids:
+        out.append(f"cancel session {session_id}")
+    for session in plan.sessions:
+        out.append(printable(f"{session.day} {session.title} ({session.kind})"))
+        for position, part in enumerate(session.parts, start=1):
+            details = [
+                part.format and part.format.replace("_", " "),
+                part.duration_minutes and f"{part.duration_minutes:g} min",
+                part.rounds and f"{part.rounds} rounds",
+                part.target_seconds
+                and f"target {part.target_seconds // 60}'{part.target_seconds % 60:02d}",
+                part.target_rounds and f"target {part.target_rounds:g} rounds",
+            ]
+            details = [d for d in details if d]
+            out.append(
+                printable(
+                    f"  {position}. {part.kind}" + (f" [{', '.join(details)}]" if details else "")
+                )
+            )
+            for line in part.lines:
+                values = (
+                    line.exercise,
+                    line.sets,
+                    line.quantity,
+                    line.unit,
+                    line.load_kg,
+                    line.load_kg_max,
+                    line.rir,
+                    line.rest_seconds,
+                    line.notes,
+                )
+                out.append(f"     {_line(values)}")
+        out.append(printable(f"  why: {session.rationale}"))
+    return out
+
+
+def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
+    import httpx
+
+    from lifter.agents.context import PlanningError
+    from lifter.agents.planner import MistralPlanner
+    from lifter.agents.week import run_week_planner
+    from lifter.domain import DomainError
+
+    if not settings.mistral_api_key:
+        print("MISTRAL_API_KEY is not set (see .env.example)")
+        return 2
+    if settings.llm_context not in ("indicators", "full"):
+        print("LIFTER_LLM_CONTEXT must be 'indicators' or 'full'")
+        return 2
+    planner = MistralPlanner(
+        api_key=settings.mistral_api_key,
+        model=settings.model,
+        language=settings.coach_language,
+    )
+    try:
+        with connect(settings.database_url) as conn:
+            result = run_week_planner(
+                conn,
+                planner,
+                week_number=args.week,
+                today=args.today,
+                mode=settings.llm_context,
+                propose=args.propose,
+            )
+    except (PlanningError, DomainError) as exc:
+        print(printable(f"refused: {exc}"))
+        return 1
+    except httpx.HTTPError as exc:  # the message names the URL, never the key
+        print(printable(f"Mistral API error: {exc}"))
+        return 1
+    week = result.context.target_week
+    out = [f"week {week.number} ({week.phase}), {week.start_date} to {week.end_date}"]
+    if result.plan is not None:
+        out += _plan_lines(result.plan)
+    verdict = result.verdict
+    out.append("")
+    out.append(
+        f"guardrail: {'accepted' if verdict.ok else 'refused'} after {result.attempts} attempt(s)"
+    )
+    out += [printable(f"  violation {v}") for v in verdict.violations]
+    out += [printable(f"  warning {w}") for w in verdict.warnings]
+    out.append(f"  rules not checked by code: {len(verdict.unchecked_rules)}")
+    usage = planner.usage
+    out.append(
+        f"model {settings.model}: {usage.calls} call(s), {usage.input_tokens} input"
+        f" + {usage.output_tokens} output tokens"
+    )
+    if result.proposal_ids:
+        out.append(f"proposals created: {', '.join(map(str, result.proposal_ids))}")
+    elif args.propose and not result.accepted:
+        out.append("nothing proposed: the plan was refused")
+    else:
+        out.append("dry run: nothing proposed (use --propose)")
+    print("\n".join(out))
+    return 0 if result.accepted else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lifter", description="CrossFit coach on Garmin data.")
     parser.add_argument("--version", action="version", version=f"lifter {__version__}")
@@ -495,6 +595,14 @@ def build_parser() -> argparse.ArgumentParser:
     fb.add_argument("--where", help="where it hurts")
     fb.add_argument("--notes")
     fb.set_defaults(func=cmd_feedback)
+
+    plan = sub.add_parser("plan-week", help="the week planner agent programs a week (dry run)")
+    plan.add_argument("--week", type=int, help="week number in the cycle (default: next week)")
+    plan.add_argument("--today", type=date.fromisoformat, help="as if today were this day")
+    plan.add_argument(
+        "--propose", action="store_true", help="store the accepted plan as proposals to approve"
+    )
+    plan.set_defaults(func=cmd_plan_week)
 
     props = sub.add_parser("proposals", help="print the agents' pending proposals")
     props.add_argument("--all", action="store_true", help="include decided proposals")

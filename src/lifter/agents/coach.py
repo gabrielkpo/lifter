@@ -57,14 +57,15 @@ operation log_session.
 - A pain or limitation ("my wrist hurts"): record it, apply_change with operation \
 add_health_issue.
 - "undo" or "annule": undo the last change you applied, apply_change with operation undo and \
-its change_id, from recent_changes_in_this_conversation in the snapshot.
+the change_id of the latest undoable change in recent_changes_in_this_conversation.
 - Your own ideas: suggest_change, never apply_change; say which suggestion id to answer with.
 
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
 
 Finding what the athlete means: sessions, their parts, ids and versions are in the snapshot. A \
-session to move, change or cancel is an upcoming one (upcoming: true) unless the athlete names a \
+session to move, change or cancel is an upcoming one (upcoming: true: today or later, not done \
+nor cancelled) unless the athlete names a \
 past day; a session report is about a past or today's session. Two sessions can share a title \
 in different weeks: take the one in the week of the date the athlete gives, and on a Sunday \
 "this week" means the week starting tomorrow. Exercises keep their exact names from \
@@ -123,6 +124,9 @@ def _rows(conn: psycopg.Connection, query: str, params: tuple = ()) -> list[dict
     return conn.cursor(row_factory=dict_row).execute(query, params).fetchall()
 
 
+UNMOVABLE = ("done", "cancelled")
+
+
 def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None = None) -> dict:
     """What the coach knows before calling any tool, built by code: the sessions of the
     current and next training weeks with their week number, parts and ids, the exercise bank's
@@ -145,7 +149,8 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         ([s["id"] for s in sessions],),
     )
     for session in sessions:
-        session["upcoming"] = session["day"] >= today
+        # status is the dbt mart's: "missed" is judged on the real date, not on `today`
+        session["upcoming"] = session["day"] >= today and session["status"] not in UNMOVABLE
         session["parts"] = [
             {k: v for k, v in part.items() if k != "session_id"}
             for part in parts
@@ -165,7 +170,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
     changes = _rows(
         conn,
         "select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
-        " p.undone_by is not null as undone"
+        " p.undone_by is null and c.operation <> 'undo' as undoable"
         " from change_log c join proposal p on p.id = c.proposal_id"
         " join public.conversation_message m on m.id = p.message_id"
         " where m.conversation_id = %s order by c.id desc limit 5",

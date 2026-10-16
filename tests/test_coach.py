@@ -9,7 +9,7 @@ import pytest
 from langchain_core.messages import AIMessage, SystemMessage
 
 from lifter import operations
-from lifter.agents.coach import respond
+from lifter.agents.coach import respond, snapshot
 from lifter.program import load_program, read_program
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -285,3 +285,41 @@ def test_only_the_athletes_latest_message_can_be_answered(conn, program):
             respond(conn, model, conversation_id=conversation, message_id=message, today=TODAY)
     assert model.seen == []  # the model never ran
     assert conn.execute("select count(*) from agent_run").fetchone() == (0,)
+
+
+def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_changes(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    message = say(conn, "Décale la séance jambes au 2026-03-06 stp")
+    model = ScriptedChat(
+        tool_call(
+            "apply_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+            quote="Décale la séance jambes au 2026-03-06",
+        ),
+    )
+    moved = answer(conn, model, message).changes[0]["change_id"]
+
+    seen = snapshot(conn, TODAY, "c1")
+    legs = next(s for s in seen["sessions_this_week_and_next"] if s["id"] == sid)
+    assert legs["week"] == 1 and legs["parts"]
+    assert {"id", "version", "position", "kind", "title"} == set(legs["parts"][0])
+    for s in seen["sessions_this_week_and_next"]:
+        assert s["upcoming"] == (s["day"] >= TODAY and s["status"] not in ("done", "cancelled"))
+    assert any(s["upcoming"] for s in seen["sessions_this_week_and_next"])
+    assert seen["exercise_bank"] == sorted(seen["exercise_bank"]) and seen["exercise_bank"]
+    assert [
+        (c["change_id"], c["undoable"]) for c in seen["recent_changes_in_this_conversation"]
+    ] == [(moved, True)]
+    assert snapshot(conn, TODAY, "c2")["recent_changes_in_this_conversation"] == []
+
+    undo = say(conn, "annule")
+    model = ScriptedChat(
+        tool_call("apply_change", operation="undo", payload={"change_id": moved}, quote="annule")
+    )
+    answer(conn, model, undo)
+    changes = snapshot(conn, TODAY, "c1")["recent_changes_in_this_conversation"]
+    assert [(c["operation"], c["undoable"]) for c in changes] == [
+        ("undo", False),
+        ("move_session", False),
+    ]

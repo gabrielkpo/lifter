@@ -156,7 +156,9 @@ button {
   font-weight: 600;
   color: var(--text);
 }
-.pill[aria-pressed="true"] {
+/* A pressed pill, or the current view of a tab (components/PlanningTabs). */
+.pill[aria-pressed="true"],
+.pill[aria-current="page"] {
   background: var(--text);
   color: #000;
 }
@@ -683,12 +685,6 @@ button {
 }
 .splash-label[data-shown="true"] {
   opacity: 1;
-}
-
-/* The Planning tab's views (components/PlanningTabs): links shaped like the pills. */
-.pill[aria-current="page"] {
-  background: var(--text);
-  color: #000;
 }
 
 /* Data table (Planning, Goals): the first column names the row. Edge to edge, so the pinned first column covers the gutter; the cells carry the margins. */

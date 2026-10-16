@@ -208,3 +208,27 @@ def test_the_mistral_planner_caps_its_output(monkeypatch):
     monkeypatch.setattr("langchain_mistralai.ChatMistralAI", FakeChat)
     MistralPlanner(api_key="test-key", model="m", max_output_tokens=1234)
     assert seen["max_tokens"] == 1234
+
+
+def test_proposals_are_rolled_back_when_their_audit_cannot_be_written(conn, program, monkeypatch):
+    import psycopg
+
+    def audit_down(*args, **kwargs):
+        raise psycopg.OperationalError("audit table unavailable")
+
+    monkeypatch.setattr("lifter.agents.week.record_run", audit_down)
+    with pytest.raises(psycopg.OperationalError):
+        run_week_planner(
+            conn, Costly(good_plan()), week_number=2, today=TODAY, propose=True, trigger="cli"
+        )
+    assert conn.execute("select count(*) from proposal").fetchone() == (0,)
+
+
+def test_plan_week_reports_an_unreachable_database_without_a_traceback(monkeypatch, capsys):
+    from lifter.cli import main
+
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://lifter@127.0.0.1:1/lifter?connect_timeout=2")
+    assert main(["plan-week"]) == 3
+    assert "database: OperationalError" in capsys.readouterr().out

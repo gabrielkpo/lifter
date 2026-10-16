@@ -355,6 +355,54 @@ def test_days_empty_while_recent_are_asked_again_later(conn):
     assert ("get_training_status", {"date": D1.isoformat()}) in caller.calls
 
 
+def test_an_unreadable_activity_is_skipped_and_deletes_nothing(conn):
+    run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))  # activity 11 is known
+    answers = two_days()
+    answers[("get_activities_by_date", 0)] = listing(
+        [{"start_time": f"{D1} 07:00:00"}, {"id": 12, "start_time": "not a date"}]
+    )
+    answers[("get_activity", 12)] = activity(12, D2, load=40)
+    report = run_sync(conn, FakeCaller(answers), today=date(2026, 6, 1))
+
+    assert report.counts["error"] >= 1
+    assert conn.execute("select count(*) from activity_tombstone").fetchone() == (0,)
+    assert conn.execute("select count(*) from stg_activity where activity_id = 12").fetchone() == (
+        1,
+    )
+
+
+def test_sync_reports_an_unreachable_mcp_server_without_a_traceback(monkeypatch, capsys):
+    from lifter.cli import main
+
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("GARMIN_MCP_URL", "http://127.0.0.1:1/mcp")
+    monkeypatch.setenv("GARMIN_MCP_TOKEN", "token")
+    assert main(["sync", "--days", "1"]) == 3
+    out = capsys.readouterr().out
+    assert "cannot reach the Garmin MCP server at 127.0.0.1:1" in out and "token" not in out
+
+
+def test_sync_reports_an_unreachable_database_without_a_traceback(monkeypatch, capsys):
+    from lifter.cli import main
+
+    class Reachable:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc_info):
+            return None
+
+    monkeypatch.setattr("lifter.garmin.McpToolCaller", Reachable)
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("GARMIN_MCP_TOKEN", "token")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://lifter@127.0.0.1:1/lifter?connect_timeout=2")
+    assert main(["sync", "--days", "1"]) == 3
+    assert "database: OperationalError" in capsys.readouterr().out
+
+
 def test_a_listing_that_does_not_move_forward_stops_and_deletes_nothing(conn):
     run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))  # activity 11 is known
     answers = two_days()

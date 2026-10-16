@@ -51,6 +51,23 @@ class SyncAborted(RuntimeError):
     """Too many consecutive failed calls: the sync stopped early."""
 
 
+def _activity_id(activity: Any) -> int | None:
+    """The id of a listed activity, or None when the entry cannot be read."""
+    if not isinstance(activity, dict):
+        return None
+    try:
+        return int(activity["id"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _start_day(start_time: Any) -> date | None:
+    try:
+        return date.fromisoformat(start_time[:10])
+    except (TypeError, ValueError):
+        return None
+
+
 def _page_number(value: Any) -> int | None:
     """A page number as the server sent it (a whole number, or its digits as text)."""
     if isinstance(value, int) and not isinstance(value, bool):
@@ -244,6 +261,7 @@ class Syncer:
         Returns the ids listed in the range, or None if the listing is incomplete.
         """
         listed_ids: set[int] = set()
+        complete = True
         page = 0
         while True:
             params = {
@@ -257,10 +275,15 @@ class Syncer:
             if not isinstance(listing, dict):
                 return None
             for activity in listing.get("activities", []):
-                listed_ids.add(int(activity["id"]))
+                activity_id = _activity_id(activity)
+                if activity_id is None:  # unreadable entry: skipped, the listing is incomplete
+                    self.report.add("error")
+                    complete = False
+                    continue
+                listed_ids.add(activity_id)
                 await self._sync_activity(activity)
             if not listing.get("has_more"):
-                return listed_ids
+                return listed_ids if complete else None
             next_page = _page_number(listing.get("next_page", page + 1))
             # A server that does not move forward (same or earlier page, or no end) would loop
             # for ever: the listing is incomplete, so nothing is reconciled or deleted.
@@ -305,9 +328,9 @@ class Syncer:
 
     async def _sync_activity(self, activity: dict) -> None:
         activity_id = str(activity["id"])
-        start_time = activity.get("start_time")  # "YYYY-MM-DD HH:MM:SS", local time
-        # An activity without a start time is always refetched rather than trusted as final.
-        final = self._is_final(date.fromisoformat(start_time[:10]) if start_time else None)
+        # An activity without a readable start time is always refetched rather than trusted as
+        # final ("YYYY-MM-DD HH:MM:SS", local time).
+        final = self._is_final(_start_day(activity.get("start_time")))
         for tool in ACTIVITY_TOOLS:
             if final and is_known(self.conn, tool, activity_id):
                 self.report.add("skipped")

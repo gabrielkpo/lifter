@@ -168,8 +168,21 @@ def run_week_planner(
             verdicts=state["verdicts"],
             seconds=time.monotonic() - started,
         )
-        if propose and result.accepted:
-            result.proposal_ids = propose_plan(conn, result.plan, ctx)
+        # Proposals and their audit row commit together: a proposal never exists without the
+        # run that explains it.
+        with conn.transaction():
+            if propose and result.accepted:
+                result.proposal_ids = propose_plan(conn, result.plan, ctx)
+            if trigger:
+                budget = [v.message for v in result.verdict.violations if v.check == "budget"]
+                result.run_id = record_run(
+                    conn,
+                    **audit,
+                    error=f"BudgetExceeded: {budget[0]}" if budget else None,
+                    final_plan=result.plan,
+                    accepted=result.accepted,
+                    proposal_ids=result.proposal_ids,
+                )
     except Exception as exc:
         if trigger:  # the error's type and message only: never the request or its headers
             try:
@@ -177,16 +190,6 @@ def run_week_planner(
             except psycopg.Error as audit_error:  # keep the real error first
                 exc.add_note(f"the run could not be recorded in the audit log: {audit_error}")
         raise
-    if trigger:
-        budget = [v.message for v in result.verdict.violations if v.check == "budget"]
-        result.run_id = record_run(
-            conn,
-            **audit,
-            error=f"BudgetExceeded: {budget[0]}" if budget else None,
-            final_plan=result.plan,
-            accepted=result.accepted,
-            proposal_ids=result.proposal_ids,
-        )
     return result
 
 

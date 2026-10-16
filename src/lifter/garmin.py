@@ -1,8 +1,9 @@
 """Client for the Garmin MCP server (garmin-mcp-remote), restricted to read tools."""
 
+import asyncio
 import ipaddress
 import socket
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, suppress
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -60,6 +61,27 @@ def check_mcp_url(url: str) -> None:
     )
 
 
+class McpUnavailable(ConnectionError):
+    """The Garmin MCP server cannot be reached: nothing was sent to it."""
+
+
+async def _reachable(url: str, timeout: float = 10) -> None:
+    """Open and close a TCP connection to the server, before any request carries the token.
+
+    Direct only: a server reachable through an HTTP proxy alone would be reported unreachable
+    (the server is on the loopback or a private network)."""
+    parts = urlsplit(url)
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection(parts.hostname, port), timeout)
+    except (OSError, TimeoutError) as exc:
+        raise McpUnavailable(
+            f"cannot reach the Garmin MCP server at {parts.hostname}:{port} ({type(exc).__name__})"
+        ) from None
+    writer.close()
+    await writer.wait_closed()
+
+
 class ToolError(RuntimeError):
     """The MCP server reported a failed tool call."""
 
@@ -80,15 +102,24 @@ class McpToolCaller:
         self._session: ClientSession | None = None
 
     async def __aenter__(self) -> "McpToolCaller":
+        await _reachable(self.url)
         self._stack = AsyncExitStack()
-        http = await self._stack.enter_async_context(
-            create_mcp_http_client(headers={"Authorization": f"Bearer {self._token}"})
-        )
-        read, write = await self._stack.enter_async_context(
-            streamable_http_client(self.url, http_client=http)
-        )
-        self._session = await self._stack.enter_async_context(ClientSession(read, write))
-        await self._session.initialize()
+        try:
+            http = await self._stack.enter_async_context(
+                create_mcp_http_client(headers={"Authorization": f"Bearer {self._token}"})
+            )
+            read, write = await self._stack.enter_async_context(
+                streamable_http_client(self.url, http_client=http)
+            )
+            self._session = await self._stack.enter_async_context(ClientSession(read, write))
+            await self._session.initialize()
+        except BaseException:
+            # Close what was opened in this task, or anyio closes it later from another one
+            # and buries the real error under "exit cancel scope in a different task"; a
+            # failure while closing must not replace the real error either.
+            with suppress(Exception):
+                await self._stack.aclose()
+            raise
         return self
 
     async def __aexit__(self, *exc_info: object) -> None:

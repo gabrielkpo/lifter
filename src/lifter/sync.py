@@ -51,6 +51,15 @@ class SyncAborted(RuntimeError):
     """Too many consecutive failed calls: the sync stopped early."""
 
 
+def _page_number(value: Any) -> int | None:
+    """A page number as the server sent it (a whole number, or its digits as text)."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
 @dataclass
 class SyncReport:
     counts: dict[str, int] = field(
@@ -252,10 +261,10 @@ class Syncer:
                 await self._sync_activity(activity)
             if not listing.get("has_more"):
                 return listed_ids
-            next_page = listing.get("next_page", page + 1)
+            next_page = _page_number(listing.get("next_page", page + 1))
             # A server that does not move forward (same or earlier page, or no end) would loop
             # for ever: the listing is incomplete, so nothing is reconciled or deleted.
-            if type(next_page) is not int or next_page <= page or next_page >= MAX_PAGES:
+            if next_page is None or next_page <= page or next_page >= MAX_PAGES:
                 self.report.add("error")
                 return None
             page = next_page

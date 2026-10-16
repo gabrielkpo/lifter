@@ -381,3 +381,17 @@ def test_the_listing_stops_at_the_page_cap(conn, monkeypatch):
     pages = [a["page"] for tool, a in caller.calls if tool == "get_activities_by_date"]
     assert pages == [0, 1, 2]
     assert report.counts["error"] == 1
+
+
+def test_a_page_number_sent_as_text_is_followed(conn):
+    answers = two_days()
+    first = listing([{"id": 11, "start_time": f"{D1} 07:00:00"}], has_more=True)
+    first["next_page"] = "1"
+    answers[("get_activities_by_date", 0)] = first
+    answers[("get_activities_by_date", 1)] = listing([], page=1)
+    caller = FakeCaller(answers)
+    report = run_sync(conn, caller, today=date(2026, 6, 1))
+
+    pages = [a["page"] for tool, a in caller.calls if tool == "get_activities_by_date"]
+    assert pages == [0, 1]
+    assert report.counts["error"] == 0

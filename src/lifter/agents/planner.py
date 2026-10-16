@@ -40,7 +40,8 @@ free_barbell_legs...). Before using an exercise, read its flags in the exercise 
 carries a forbidden flag never appears, in any part (a back squat or a box jump, for instance, \
 when they carry it). Pick an unflagged exercise of the same pattern instead.
 - Loads: start from recent_loads; go up one step at most when the RIR was met. One step is \
-2.5 kg upper body and 5 kg lower body, above the heaviest set logged at as many reps or more. \
+the athlete's progression rule's (its params: upper_kg for the upper body, lower_kg for legs \
+and hinge), above the heaviest set logged at as many reps or more. \
 This holds in every phase: a power, strength or peak week means fewer reps and more sets at \
 that load, never a jump of several steps.
 - Pain: when a feedback reports pain above the stop rule's threshold after a session, every \
@@ -54,7 +55,8 @@ either keep them (do not repeat them) or list their ids in cancel_session_ids an
 metcon at all, every strength, weightlifting and gymnastics line at RIR 3 or more, nothing \
 marked as a max. Hard sessions already planned in the week are listed in cancel_session_ids \
 and replaced by easy ones (technique, mobility, easy cardio).
-- Low recovery: keep the first days light. You give no medical advice.
+- Low recovery, short sleep or an alert that is not critical: keep the first two days light (no \
+metcon, RIR 3 or more). You give no medical advice.
 
 Numbers: in the summary and the rationales, cite only numbers that appear in the context or in \
 your plan (loads, reps, scores, dates). Never compute new numbers (no differences, no \

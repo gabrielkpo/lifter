@@ -354,27 +354,6 @@ button {
   white-space: nowrap;
 }
 
-/* Planned vs done, side by side. */
-.compare {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 10px;
-}
-.compare > div {
-  background: var(--surface-2);
-  border-radius: 12px;
-  padding: 10px 12px;
-  min-width: 0;
-}
-.compare .head {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 6px;
-}
 .line {
   margin: 0 0 8px;
   font-size: 14px;
@@ -633,6 +612,16 @@ button {
 .timechart .axis {
   font-size: 10px;
   fill: var(--muted);
+}
+
+/* Stale Garmin data (components/FreshnessBanner). */
+.banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--missed);
+  font-size: 14px;
 }
 
 /* Launch screen: kettlebells fall one after the other, bounce and settle (components/Splash). */

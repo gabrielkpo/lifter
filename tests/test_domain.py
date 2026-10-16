@@ -330,6 +330,33 @@ def test_a_proposal_that_fails_is_recorded_as_failed(conn, bank):
     assert conn.execute("select count(*) from planned_session").fetchone() == (0,)
 
 
+def test_a_proposal_whose_payload_no_longer_validates_fails(conn, bank):
+    pid = domain.propose(
+        conn, "move_session", {"session_id": 1, "new_day": "2026-03-03"}, "Move it.", "coach"
+    )
+    domain.decide(conn, pid, approve=True)
+    # Stored long ago, before the model changed: the payload no longer validates.
+    conn.execute("update proposal set payload = '{\"session_id\": 1}' where id = %s", (pid,))
+    with pytest.raises(domain.DomainError):
+        domain.apply(conn, pid)
+    assert conn.execute("select status from proposal where id = %s", (pid,)).fetchone() == (
+        "failed",
+    )
+
+
+def test_a_catalogue_suggestion_is_not_applied_by_the_old_path(conn, bank):
+    conn.execute(
+        "insert into proposal (kind, payload, rationale, author, status)"
+        " values ('add_rule', '{\"text\": \"x\"}', 'r', 'coach', 'approved')"
+    )
+    pid = conn.execute("select max(id) from proposal").fetchone()[0]
+    with pytest.raises(domain.DomainError):
+        domain.apply(conn, pid)
+    assert conn.execute("select status from proposal where id = %s", (pid,)).fetchone() == (
+        "failed",
+    )
+
+
 def test_proposals_are_validated_before_being_stored(conn):
     with pytest.raises(ValidationError):
         domain.propose(conn, "create_session", {"day": "2026-03-03"}, "No title.", "coach")

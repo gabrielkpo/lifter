@@ -17,6 +17,10 @@ Desktop must start at login), and the restore test needs the local Postgres serv
 missed while the Mac sleeps runs at wake-up. Logs are in `~/Library/Logs/lifter/`, readable by
 this user only (they can hold full tracebacks).
 
+**Exit codes** of `lifter sync`, which the sync job reads (any code but 0 is a failure): `0`
+done; `1` synced with errors on some payloads; `2` a setting is invalid; `3` the Garmin MCP
+server or the database is unreachable or refused the connection.
+
 **Failures.** Every failure raises a macOS notification. macOS only shows it when notifications
 are allowed for Script Editor (`osascript`) and no Focus mode hides them, so a failing sync can
 go unseen: the app also shows a banner on every page when the Garmin data is more than 36 hours

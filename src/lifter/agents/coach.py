@@ -172,6 +172,8 @@ def respond(
     bound = model.bind_tools(tools)
     usage = Usage()
     stopped: list[str] = []
+    calls: list[dict] = []  # every tool call and its result, kept even if the run crashes
+    tool_node = ToolNode(tools)
 
     def coach(state: MessagesState) -> dict:
         answer = bound.invoke(state["messages"])
@@ -179,7 +181,13 @@ def respond(
         meta = getattr(answer, "usage_metadata", None) or {}
         usage.input_tokens += meta.get("input_tokens", 0)
         usage.output_tokens += meta.get("output_tokens", 0)
+        calls.extend({"tool": c["name"], "args": c["args"]} for c in answer.tool_calls or [])
         return {"messages": [answer]}
+
+    def run_tools(state: MessagesState) -> dict:
+        out = tool_node.invoke(state)
+        calls.extend({"result": m.content} for m in out["messages"] if isinstance(m, ToolMessage))
+        return out
 
     def next_step(state: MessagesState) -> str:
         last = state["messages"][-1]
@@ -195,7 +203,7 @@ def respond(
 
     graph = StateGraph(MessagesState)
     graph.add_node("coach", coach)
-    graph.add_node("tools", ToolNode(tools))
+    graph.add_node("tools", run_tools)
     graph.add_edge(START, "coach")
     graph.add_conditional_edges("coach", next_step, {"tools": "tools", END: END})
     graph.add_edge("tools", "coach")
@@ -205,30 +213,27 @@ def respond(
         SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind)),
         *history(conn, conversation_id, message_id),
     ]
-    error: str | None = None
-    final: list[BaseMessage] = []
+    run = _Run(conn, ctx, usage, calls, stopped, started_at, started, model_name, trigger)
+    run.context = {
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "snapshot": state_of_mind,
+    }
     try:
         final = graph.compile().invoke({"messages": messages})["messages"]
     except Exception as exc:
-        error = f"{type(exc).__name__}: {exc}"
-        if trigger:
-            try:
-                _audit(
+        try:
+            if ctx.changes:  # the data changed: the athlete must hear it, even from a crash
+                done = ", ".join(c["operation"] for c in ctx.changes)
+                _store_reply(
                     conn,
-                    ctx,
-                    usage,
-                    started_at,
-                    started,
-                    model_name,
-                    trigger,
-                    state_of_mind,
                     conversation_id,
-                    final,
-                    error,
-                    stopped,
+                    f"(I hit an error after applying: {done}. Ask me to undo if needed.)",
                 )
-            except psycopg.Error as audit_error:
-                exc.add_note(f"the run could not be recorded in the audit log: {audit_error}")
+            if trigger:
+                run.record(f"{type(exc).__name__}: {exc}")
+        except psycopg.Error as audit_error:
+            exc.add_note(f"the run could not be recorded: {audit_error}")
         raise
 
     last = final[-1] if final else None
@@ -238,89 +243,64 @@ def respond(
         text = (text + "\n\n" if text else "") + (
             f"(I stopped before finishing: {stopped[0]}. Applied so far: {done}.)"
         )
-    reply_id = conn.execute(
-        "insert into conversation_message (conversation_id, role, text)"
-        " values (%s, 'coach', %s) returning id",
-        (conversation_id, text or "(no reply)"),
-    ).fetchone()[0]
     reply = CoachReply(
         text=text,
-        message_id=reply_id,
+        message_id=_store_reply(conn, conversation_id, text or "(no reply)"),
         changes=ctx.changes,
         suggestions=ctx.suggestions,
         usage=usage,
         stopped=stopped[0] if stopped else None,
     )
     if trigger:
-        reply.run_id = _audit(
-            conn,
-            ctx,
-            usage,
-            started_at,
-            started,
-            model_name,
-            trigger,
-            state_of_mind,
-            conversation_id,
-            final,
-            None,
-            stopped,
-        )
+        reply.run_id = run.record(None)
     return reply
 
 
-def _audit(
-    conn,
-    ctx,
-    usage,
-    started_at,
-    started,
-    model_name,
-    trigger,
-    state_of_mind,
-    conversation_id,
-    final,
-    error,
-    stopped,
-) -> int:
-    """One `agent_run` row: what the coach saw, every tool call and its result."""
-    calls = []
-    for message in final:
-        if isinstance(message, AIMessage):
-            calls += [{"tool": c["name"], "args": c["args"]} for c in message.tool_calls]
-        elif isinstance(message, ToolMessage):
-            calls.append({"result": message.content})
-    status = "error" if error else ("refused" if stopped else "accepted")
-    proposals = [c["proposal_id"] for c in ctx.changes if c.get("proposal_id")] + ctx.suggestions
+def _store_reply(conn: psycopg.Connection, conversation_id: str, text: str) -> int:
     return conn.execute(
-        "insert into agent_run (agent, trigger, model, context_mode, status, attempts,"
-        " input_tokens, output_tokens, seconds, context, warnings, proposal_ids, error,"
-        " started_at) values (%s, %s, %s, 'tools', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-        " returning id",
-        (
-            AGENT,
-            trigger,
-            model_name,
-            status,
-            usage.calls,
-            usage.input_tokens,
-            usage.output_tokens,
-            round(time.monotonic() - started, 3),
-            Jsonb(
-                json.loads(
-                    _json(
-                        {
-                            "conversation_id": conversation_id,
-                            "message_id": ctx.message_id,
-                            "snapshot": state_of_mind,
-                            "calls": calls,
-                        }
-                    )
-                )
-            ),
-            Jsonb(stopped),
-            proposals,
-            error,
-            started_at,
-        ),
+        "insert into conversation_message (conversation_id, role, text)"
+        " values (%s, 'coach', %s) returning id",
+        (conversation_id, text),
     ).fetchone()[0]
+
+
+@dataclass
+class _Run:
+    """What the audit row of one coach run holds."""
+
+    conn: psycopg.Connection
+    ctx: ToolContext
+    usage: Usage
+    calls: list[dict]
+    stopped: list[str]
+    started_at: datetime
+    started: float
+    model_name: str | None
+    trigger: str | None
+    context: dict = field(default_factory=dict)
+
+    def record(self, error: str | None) -> int:
+        """One `agent_run` row: what the coach saw, every tool call and its result."""
+        status = "error" if error else ("refused" if self.stopped else "accepted")
+        proposals = [c["proposal_id"] for c in self.ctx.changes if c.get("proposal_id")]
+        return self.conn.execute(
+            "insert into agent_run (agent, trigger, model, context_mode, status, attempts,"
+            " input_tokens, output_tokens, seconds, context, warnings, proposal_ids, error,"
+            " started_at) values (%s, %s, %s, 'tools', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            " returning id",
+            (
+                AGENT,
+                self.trigger,
+                self.model_name,
+                status,
+                self.usage.calls,
+                self.usage.input_tokens,
+                self.usage.output_tokens,
+                round(time.monotonic() - self.started, 3),
+                Jsonb(self.context | {"calls": self.calls}, dumps=_json),
+                Jsonb(self.stopped),
+                proposals + self.ctx.suggestions,
+                error,
+                self.started_at,
+            ),
+        ).fetchone()[0]

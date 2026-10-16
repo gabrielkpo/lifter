@@ -205,3 +205,32 @@ def test_chat_needs_the_mistral_key(monkeypatch, capsys):
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
     assert main(["chat", "Salut"]) == 2
     assert "MISTRAL_API_KEY is not set" in capsys.readouterr().out
+
+
+def test_a_crash_after_a_change_tells_the_athlete_and_keeps_the_calls(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    message = say(conn, "Décale la séance jambes au 2026-03-06 stp")
+
+    class FailsSecond(ScriptedChat):
+        def invoke(self, messages):
+            if self.seen:
+                raise TimeoutError("Mistral timed out")
+            return super().invoke(messages)
+
+    model = FailsSecond(
+        tool_call(
+            "apply_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+            quote="Décale la séance jambes au 2026-03-06",
+        )
+    )
+    with pytest.raises(TimeoutError):
+        answer(conn, model, message, trigger="cli")
+
+    told = conn.execute(
+        "select text from conversation_message where role = 'coach' order by id desc limit 1"
+    ).fetchone()[0]
+    assert "error after applying: move_session" in told
+    calls = conn.execute("select context -> 'calls' from agent_run").fetchone()[0]
+    assert calls[0]["tool"] == "apply_change" and '"ok": true' in calls[1]["result"]

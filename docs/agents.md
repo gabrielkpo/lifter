@@ -98,6 +98,13 @@ uv run lifter run 12            # each attempt, its violations, tokens and secon
 | `LIFTER_MODEL` | `mistral-small-latest` | Mistral API model name |
 | `LIFTER_COACH_LANGUAGE` | `English` | Language of the summary and rationales |
 | `LIFTER_LLM_CONTEXT` | `indicators` | What is sent to the model, below |
+| `LIFTER_RUN_TOKEN_BUDGET` | `60000` | Tokens (input + output) a planner run may use: no new attempt starts past it; the run ends refused, audited as `BudgetExceeded` |
+| `LIFTER_BENCH_TOKEN_BUDGET` | `1000000` | Tokens a bench pass may use: no new scenario starts past it, the results so far are kept |
+| `LIFTER_MAX_OUTPUT_TOKENS` | `6000` | Output tokens of one model answer, sent to the API as `max_tokens` |
+
+A planner run sends about 10,000 input tokens per attempt (the context of a real week is about
+32 kB of JSON), so a run with three attempts stays well under the default budget. The caps
+bound the cost of a run and of a bench pass whatever the model answers.
 
 ## What is sent to Mistral
 

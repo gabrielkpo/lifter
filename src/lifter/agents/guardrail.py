@@ -17,7 +17,9 @@ from lifter.agents.context import LineInfo, PlanningContext, Rule
 from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
 
 LOWER_BODY = {"legs", "hinge"}
-MAX_TERMS = re.compile(r"\b(1 ?RM|max(imum)?|failure|AMRAP|PR)\b", re.IGNORECASE)
+# "to failure", not "failure" ("stay 2 reps from failure" is the opposite); "PR" in capitals
+# only, so the French "pr" (pour) is not a record attempt.
+MAX_TERMS = re.compile(r"\b(1 ?RM|max(imum)?|to (muscle )?failure|AMRAP|(?-i:PR))\b", re.IGNORECASE)
 COUNTED_PARTS = ("strength", "weightlifting", "gymnastics")  # every line needs a count
 RIR_PARTS = ("strength", "weightlifting")  # and, in reps, a target RIR
 NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
@@ -229,7 +231,9 @@ def rule_no_max_before_test(
     if ctx.target_week.phase in ("peak", "test"):
         return
     for s in plan.sessions:
-        for _, line in _lines(s):
+        for part, line in _lines(s):
+            if part.kind == "metcon":  # an AMRAP metcon is not a max attempt
+                continue
             single_to_failure = line.quantity == 1 and line.unit == "reps" and line.rir == 0
             if single_to_failure or (line.notes and MAX_TERMS.search(line.notes)):
                 yield Violation(

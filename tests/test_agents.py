@@ -237,6 +237,22 @@ def test_failure_words_in_a_note_are_a_max_on_the_legs(ctx, note):
     assert checks(legs_only(line), ctx) == {"no_failure_on_legs"}
 
 
+@pytest.mark.parametrize("note", ["stay 2 reps from failure", "3 séries pr le quad"])
+def test_prudent_notes_are_not_a_max(ctx, note):
+    line = PlanLine(exercise="Leg press", sets=3, quantity=12, load_kg=100, rir=3, notes=note)
+    assert checks(legs_only(line), ctx) == set()
+
+
+def test_an_amrap_metcon_is_not_a_max_attempt(ctx):
+    assert ctx.target_week.phase not in ("peak", "test")
+    rule = guardrail.Rule(code="no_max_before_test", text="No max before the test.", params={})
+    plan = good_plan()
+    metcon = plan.sessions[0].parts[-1]
+    assert metcon.kind == "metcon"
+    metcon.lines[0].notes = "AMRAP 12 min, steady"
+    assert list(guardrail.rule_no_max_before_test(rule, plan, ctx)) == []
+
+
 def test_rule_checks_know_the_fresh_first_rule():
     rule = guardrail.Rule(code="fresh_first", text="Fresh first.", params={})
     plan = good_plan()

@@ -97,14 +97,25 @@ def check_exercises(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]
                 )
 
 
+# Free text of a plan: never a source for the numbers of its summary and rationales, or a number
+# invented in a note could be cited in a rationale.
+PLAN_FREE_TEXT = {
+    "summary": True,
+    "sessions": {
+        "__all__": {
+            "title": True,
+            "rationale": True,
+            "parts": {"__all__": {"title": True, "notes": True, "lines": {"__all__": {"notes"}}}},
+        }
+    },
+}
+
+
 def check_sources(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
     """Every number of the summary and rationales exists in the context or in the plan."""
     known = numbers_in(ctx.model_dump_json())
-    # The plan's own values (loads, reps, targets), not its free text: a rationale cannot be the
-    # source of its own numbers.
-    known |= numbers_in(
-        plan.model_dump_json(exclude={"summary": True, "sessions": {"__all__": {"rationale"}}})
-    )
+    # The plan's own values (loads, reps, targets, days), not its free text.
+    known |= numbers_in(plan.model_dump_json(exclude=PLAN_FREE_TEXT))
     texts = [("summary", None, plan.summary)] + [
         ("rationale", str(s.day), s.rationale) for s in plan.sessions
     ]
@@ -261,14 +272,14 @@ def rule_progression(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterat
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)
-            if part.kind == "metcon" or top is None or line.quantity is None:
+            if part.kind == "metcon" or top is None:
                 continue
-            # Sets logged at fewer reps say nothing about this load: a heavier one is expected.
-            refs = [
-                r
-                for r in ctx.recent_loads
-                if r.exercise == line.exercise and r.reps is not None and r.reps >= line.quantity
-            ]
+            refs = [r for r in ctx.recent_loads if r.exercise == line.exercise]
+            if line.unit == "reps" and line.quantity is not None:
+                # Sets logged at fewer reps say nothing about this load: a heavier one is expected.
+                refs = [r for r in refs if r.reps is not None and r.reps >= line.quantity]
+            # Otherwise (seconds, metres, no count) the reps cannot be compared: the heaviest set
+            # logged at any reps is the reference, so a change of unit does not skip the rule.
             if not refs:
                 continue
             ref = max(refs, key=lambda r: r.load_kg)

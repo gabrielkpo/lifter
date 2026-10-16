@@ -201,6 +201,39 @@ def test_a_critical_alert_allows_easy_work_only(ctx):
     assert "critical_alert" in checks(good_plan(), alarmed)
 
 
+def test_loads_logged_in_another_unit_are_not_reps(conn, program):
+    part = conn.execute(
+        "select part_id from session_exercise e join exercise x on x.id = e.exercise_id"
+        " where e.origin = 'done' and x.name = 'Power clean'"
+    ).fetchone()[0]
+    conn.execute(
+        "insert into session_exercise (part_id, origin, position, exercise_id, sets, quantity,"
+        " unit, load_kg) select %s, 'done', 99, id, 4, 40, 'm', 24 from exercise"
+        " where name = 'Farmer carry'",
+        (part,),
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    assert "Farmer carry" not in {r.exercise for r in ctx.recent_loads}
+
+
+def test_a_change_of_unit_does_not_skip_the_progression(ctx):
+    plan = good_plan()
+    line = plan.sessions[0].parts[1].lines[0]  # bench press, logged at most 70 kg in 28 days
+    line.unit, line.quantity, line.load_kg = "s", 30, 80
+    violations = [v for v in guardrail.check(plan, ctx).violations if v.check == "progression"]
+    assert len(violations) == 1 and "at most 72.5 kg" in violations[0].message
+    line.load_kg = 70
+    assert "progression" not in checks(plan, ctx)
+
+
+def test_a_number_from_a_note_is_not_a_source(ctx):
+    plan = good_plan()
+    plan.sessions[0].parts[1].notes = "437 reps in total"
+    plan.sessions[0].rationale = "437 reps in total this session."
+    violations = [v for v in guardrail.check(plan, ctx).violations if v.check == "sources"]
+    assert [v.items for v in violations] == [("437",)]
+
+
 def test_rule_checks_know_the_fresh_first_rule():
     rule = guardrail.Rule(code="fresh_first", text="Fresh first.", params={})
     plan = good_plan()

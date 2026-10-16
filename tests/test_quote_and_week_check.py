@@ -78,6 +78,10 @@ def test_a_negated_quote_is_refused(quote, message, short_ok):
         check_quote(quote, message, short_ok=short_ok)
 
 
+def test_plus_means_more_not_a_negation():
+    assert check_quote("lourd le bench jeudi", "mets un peu plus lourd le bench jeudi") is None
+
+
 def test_a_quote_also_found_without_its_negation_passes():
     message = "Ne décale pas jeudi. Enfin si, décale jeudi à vendredi."
     assert check_quote("décale jeudi", message) is None

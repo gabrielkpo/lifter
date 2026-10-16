@@ -47,14 +47,13 @@ def words(text: str) -> list[str]:
     return _WORD.findall(normalize(text))
 
 
-def _negated_at(text: str, index: int) -> bool:
-    """The word before word `index` of `text` is a negation, joined to it by spaces or an
-    apostrophe only: "pas ok" or "n'annule", not "non : décale" (a new clause)."""
+def _negated_at(spans: list[re.Match], text: str, index: int) -> bool:
+    """The word before word `index` is a negation, joined to it by spaces or an apostrophe
+    only: "pas ok" or "n'annule", not "non : décale" (a new clause)."""
     if index == 0:
         return False
-    spans = list(_WORD.finditer(normalize(text)))
     before, word = spans[index - 1], spans[index]
-    gap = normalize(text)[before.end() : word.start()]
+    gap = text[before.end() : word.start()]
     return before.group().lower() in NEGATIONS and gap.strip(" '") == ""
 
 
@@ -69,7 +68,8 @@ FUNCTION_WORDS = frozenset(
     """.split()
 )
 # A negation just before the quote turns it around: "pas ok pour la 2" is not "ok pour la 2".
-NEGATIONS = frozenset("pas ne n non jamais plus not no never don t".split())
+# "ne ... plus" is caught by "ne"; "plus" alone means "more". "don't" ends in "t".
+NEGATIONS = frozenset("pas ne n non jamais not no never t".split())
 
 
 def _content(run: list[str]) -> list[str]:
@@ -110,7 +110,9 @@ def check_quote(quote: str, message: str, *, short_ok: bool = False) -> None:
     found = _occurrences(cited, said)
     if not found:
         raise QuoteError("the quote is not in the athlete's message")
-    if all(_negated_at(message, i) for i in found):
+    text = normalize(message)
+    spans = list(_WORD.finditer(text))
+    if all(_negated_at(spans, text, i) for i in found):
         raise QuoteError("the athlete's words are negated just before the quote")
 
 

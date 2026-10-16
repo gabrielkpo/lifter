@@ -98,6 +98,8 @@ grant usage on sequence exercise_id_seq, cycle_id_seq, block_id_seq, training_we
     goal_milestone_id_seq, athlete_rule_id_seq, feedback_id_seq, health_issue_id_seq,
     record_definition_id_seq, record_entry_id_seq, activity_annotation_id_seq to lifter_write;
 grant insert on change_log, proposal to lifter_write;
+-- Read by the trace check at commit (009), whichever of its roles the coach acts as.
+grant select on change_log, proposal to lifter_write;
 grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by)
     on proposal to lifter_write;
 grant usage on sequence change_log_id_seq, proposal_id_seq to lifter_write;

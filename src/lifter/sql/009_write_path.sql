@@ -96,18 +96,24 @@ begin
 end
 $$;
 
--- No write by the coach without a trace: checked at commit, whatever the code did. Any member
--- of lifter_write (roles.sql) must have written, in the same transaction, a change_log row
--- tied to a proposal that quotes the athlete. Direct membership only: a superuser (the local
--- test server's owner) is not taken for the coach.
+-- No write by the coach without a trace: checked at commit, whatever the code did. When the
+-- connected role or the current one is lifter_write or one of its members (roles.sql), the
+-- transaction must hold a change_log row tied to a proposal that quotes the athlete. Both
+-- roles are checked, so `set role lifter_write` from the coach's login does not escape it.
+-- Direct membership only: a superuser (the local test server's owner) is not the coach.
 create function require_trace() returns trigger
 language plpgsql as $$
 begin
     if exists (
-        select from pg_auth_members m
-        join pg_roles g on g.oid = m.roleid
-        join pg_roles u on u.oid = m.member
-        where g.rolname = 'lifter_write' and u.rolname = current_user
+        select from pg_roles u
+        where u.rolname in (current_user, session_user)
+        and (
+            u.rolname = 'lifter_write'
+            or exists (
+                select from pg_auth_members m join pg_roles g on g.oid = m.roleid
+                where g.rolname = 'lifter_write' and m.member = u.oid
+            )
+        )
     ) and not exists (
         select from change_log c join proposal p on p.id = c.proposal_id
         where c.txid = txid_current() and p.quote is not null

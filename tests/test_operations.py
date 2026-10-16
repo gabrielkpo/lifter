@@ -7,11 +7,11 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from lifter.quote import QuoteError
 
 from lifter import operations
 from lifter.operations import CATALOGUE, OperationError, RuleViolation, StaleRow, run, suggest
 from lifter.program import load_program, read_program
-from lifter.quote import QuoteError
 from test_roles import as_role
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -375,7 +375,8 @@ def test_an_undo_is_done_once_and_never_undone(conn, program):
     with pytest.raises(OperationError, match="not undone"):
         do(conn, "undo", {"change_id": undo_change}, "annule")
     undone_by = conn.execute(
-        "select undone_by from proposal where id = (select proposal_id from change_log where id = %s)",
+        "select undone_by from proposal"
+        " where id = (select proposal_id from change_log where id = %s)",
         (rule_change,),
     ).fetchone()[0]
     assert undone_by is not None
@@ -383,7 +384,8 @@ def test_an_undo_is_done_once_and_never_undone(conn, program):
 
 def test_a_session_log_is_undone_in_one_step(conn, program):
     session_id, part_id = conn.execute(
-        "select p.session_id, p.id from session_part p where p.kind = 'metcon' order by p.id limit 1"
+        "select p.session_id, p.id from session_part p where p.kind = 'metcon'"
+        " order by p.id limit 1"
     ).fetchone()
     before = snapshot(conn)
     do(
@@ -455,6 +457,25 @@ def test_the_coach_cannot_write_without_a_trace(conn, database_url, program):
     assert conn.execute("select count(*) from athlete_rule where text = 'sneaky'").fetchone() == (
         0,
     )
+
+
+def test_switching_to_the_group_role_does_not_escape_the_trace(conn, database_url, program):
+    with as_role(database_url, "lifter_coach") as coach:
+        coach.execute("set role lifter_write")
+        with pytest.raises(psycopg.errors.RaiseException, match="without a trace"):
+            with coach.transaction():
+                coach.execute("insert into athlete_rule (text) values ('sneaky')")
+
+
+def test_undo_touches_only_the_catalogues_tables(conn, program):
+    do(conn, "add_rule", {"text": "Pas de rameur"}, "pas de rameur dans les metcons")
+    conn.execute(
+        "update change_log set after = jsonb_set(after, '{0,table}', '\"schema_views\"')"
+        " where id = %s",
+        (change_id(conn),),
+    )
+    with pytest.raises(OperationError, match="catalogue's tables"):
+        do(conn, "undo", {"change_id": change_id(conn)}, "annule")
 
 
 def test_the_coach_writes_through_the_catalogue(conn, database_url, program):

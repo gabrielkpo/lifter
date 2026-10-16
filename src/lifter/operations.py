@@ -261,9 +261,19 @@ def _columns(conn, table: str) -> list[str]:
     ]
 
 
+def _writable() -> set[str]:
+    return {t for op in CATALOGUE.values() for t in op.writes}
+
+
 def revert(conn: psycopg.Connection, change: Change) -> Change:
     """The inverse of `change`: delete what it created, recreate what it deleted (same ids),
     restore what it updated. Refused when any of those rows changed since."""
+    # Table names are put in SQL: only the catalogue's own tables, whatever a stored change says.
+    unknown = {i.table for i in change.before + change.after} - _writable()
+    if unknown:
+        raise OperationError(
+            f"a change can only touch the catalogue's tables, not {sorted(unknown)}"
+        )
     before = {(i.table, i.id): i.row for i in change.before}
     after = {(i.table, i.id): i.row for i in change.after}
     for (table, row_id), row in after.items():

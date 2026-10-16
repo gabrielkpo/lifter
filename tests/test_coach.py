@@ -234,3 +234,40 @@ def test_a_crash_after_a_change_tells_the_athlete_and_keeps_the_calls(conn, prog
     assert "error after applying: move_session" in told
     calls = conn.execute("select context -> 'calls' from agent_run").fetchone()[0]
     assert calls[0]["tool"] == "apply_change" and '"ok": true' in calls[1]["result"]
+
+
+def test_the_coach_runs_with_the_lifter_coach_role_only(conn, program, database_url):
+    """End to end under the coach's own grants: reads, an applied change with its trace, the
+    reply and the audit. A missing grant fails here, not in production."""
+    from test_roles import as_role
+
+    sid, version, _ = session(conn, "Legs + Metcon")
+    message = say(conn, "Décale la séance jambes au 2026-03-06 stp")  # the endpoint's role
+    model = ScriptedChat(
+        tool_call("read_rows", 1, table="planned_session", column="id", value=sid),
+        tool_call(
+            "apply_change",
+            2,
+            operation="move_session",
+            payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+            quote="Décale la séance jambes au 2026-03-06",
+        ),
+        AIMessage("C'est fait : jeudi 6 mars."),
+    )
+    with as_role(database_url, "lifter_coach") as coach_conn:
+        reply = respond(
+            coach_conn,
+            model,
+            conversation_id="c1",
+            message_id=message,
+            today=TODAY,
+            trigger="app",
+        )
+
+    assert [c["operation"] for c in reply.changes] == ["move_session"]
+    assert '"rows": [{"id": ' in model.seen[1][-1].content  # read_rows worked under the role
+    assert session(conn, "Legs + Metcon")[2] == "2026-03-06"
+    assert conn.execute("select count(*) from change_log").fetchone() == (1,)
+    assert conn.execute(
+        "select agent, trigger, status from agent_run where id = %s", (reply.run_id,)
+    ).fetchone() == ("coach", "app", "accepted")

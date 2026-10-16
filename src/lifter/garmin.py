@@ -3,7 +3,7 @@
 import asyncio
 import ipaddress
 import socket
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, suppress
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -66,7 +66,10 @@ class McpUnavailable(ConnectionError):
 
 
 async def _reachable(url: str, timeout: float = 10) -> None:
-    """Open and close a TCP connection to the server, before any request carries the token."""
+    """Open and close a TCP connection to the server, before any request carries the token.
+
+    Direct only: a server reachable through an HTTP proxy alone would be reported unreachable
+    (the server is on the loopback or a private network)."""
     parts = urlsplit(url)
     port = parts.port or (443 if parts.scheme == "https" else 80)
     try:
@@ -112,8 +115,10 @@ class McpToolCaller:
             await self._session.initialize()
         except BaseException:
             # Close what was opened in this task, or anyio closes it later from another one
-            # and buries the real error under "exit cancel scope in a different task".
-            await self._stack.aclose()
+            # and buries the real error under "exit cancel scope in a different task"; a
+            # failure while closing must not replace the real error either.
+            with suppress(Exception):
+                await self._stack.aclose()
             raise
         return self
 

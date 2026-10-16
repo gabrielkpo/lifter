@@ -16,7 +16,7 @@ models:
       - name: sleep_seconds
       - name: sleep_score
   - name: daily_load
-    description: ""
+    description: "One row per day with activities: sessions, summed training load, duration, and activities listed without details (their load is unknown, not zero)."
     columns:
       - name: day
         data_tests:

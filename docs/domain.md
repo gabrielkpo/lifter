@@ -38,6 +38,9 @@ Lifter coaches CrossFit only, with one method:
 | `goal_milestone` | Dated step toward a goal | `day`, `label` (e.g. end of block 1), `value` or `value_text` |
 | `athlete` | The athlete (one row) | birth date, height, weight and its date, level, training since, sessions per week, `training_places`, life `context` (on-call duty) |
 | `health_issue` | A pain, injury or limitation the athlete declared | `body_part`, `side`, `kind`, `description`, `guidance` (what the coach must respect), `since`, `status` (active, monitoring, resolved), `source`, `reported_quote` |
+| `record_definition` | Something that can hold a record (PR tab) | `name`, `kind` (lift, gym, cardio, benchmark), `family`, `record_type` (rep_max, max_reps, max_load, max_distance, max_time, time, rounds), `unit`, `exercise_id` |
+| `record_entry` | A dated record | `definition_id`, `day`, `reps` (for a rep max), `value` or `value_text`, `source` |
+| `activity_annotation` | A correction or note on a Garmin activity (the raw data is never edited) | `activity_id`, `field`, `value`, `note`, `source` |
 | `athlete_rule` | Permanent rule of the athlete | `code` (a rule the guardrail will check in code, step 3), `text`, `params` |
 | `feedback` | Report after a session, or morning check-in | `rpe` (1–10), `fatigue` (1–5), `pain` (0–10) + `pain_location`, `notes` |
 | `proposal` | Change proposed by an agent | `kind`, `payload`, `rationale`, `author`, `status`, `result` |
@@ -137,3 +140,16 @@ inherit them and hold nothing of their own. Passwords never live in the reposito
 No role may create objects; only the owner runs migrations. `tests/test_roles.py` checks the
 whole matrix and runs a sync as `lifter_sync` and a proposal as `lifter_agents`.
 
+
+## The coach's write path
+
+The coach changes data only through `lifter.operations` ([ADR 0002](adr/0002-coach-write-path-and-agent-team.md)):
+one typed operation per entity and verb (52 today, every writable table covered, checked in
+CI), applied by `run()` in one transaction: the athlete's quote checked against their stored
+message (`conversation_message`), the payload validated, the row version checked
+(`expected_version`), the guardrail on the weeks it touches (only violations it introduces
+refuse it), then the trace: a `proposal` row (applied, with `quote`, `message_id`,
+`idempotency_key`) and a `change_log` row (rows before and after). `undo` rebuilds the
+previous state from it, ids included, and is refused when those rows changed since. Every
+domain table has a `version` bumped on each update, and the database refuses a commit by the
+coach's role (`lifter_coach`) that wrote without such a trace.

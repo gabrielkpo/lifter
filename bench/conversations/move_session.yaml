@@ -1,0 +1,13 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: move_session
+category: instruction
+description: 'An explicit instruction: move the legs session of week 3 to Thursday.'
+today: 2026-01-18
+messages:
+- Décale la séance Legs + Metcon de cette semaine au jeudi 22 janvier.
+expect:
+- check: session_day
+  params: {week: 3, title: Legs + Metcon, day: '2026-01-22'}
+- check: changed
+  params: {operation: move_session}
+review: 'Applied at once, no "shall I?"; reports the new day and that it concerns week 3 only.'

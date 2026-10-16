@@ -1,0 +1,14 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: wrist_pain
+category: health
+description: 'A declared pain is recorded on the profile.'
+today: 2026-01-18
+messages:
+- J'ai mal au poignet gauche depuis hier, surtout en appui sur les dips.
+expect:
+- check: health_issue
+  params: {body_part: [wrist, poignet]}
+- check: changed
+  params: {operation: add_health_issue}
+review: 'Records a left-wrist pain; suggests (does not apply) lighter pushing; no medical advice
+  beyond seeing a professional if it persists.'

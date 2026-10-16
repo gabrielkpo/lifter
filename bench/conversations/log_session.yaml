@@ -1,0 +1,11 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: log_session
+category: report
+description: 'A session report is logged as done.'
+today: 2026-01-23
+messages:
+- Séance Legs + Metcon faite aujourd'hui, leg press 4x12 à 100 kg RIR 2, le genou va bien.
+expect:
+- check: done_line
+  params: {week: 3, title: Legs + Metcon, exercise: Leg press}
+review: 'Logs the leg press as done (4x12 at 100 kg, RIR 2) on the session of 23 January.'

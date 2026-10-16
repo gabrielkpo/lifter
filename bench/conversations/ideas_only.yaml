@@ -1,0 +1,10 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: ideas_only
+category: question
+description: 'Asking for ideas: suggestions at most, nothing applied.'
+today: 2026-01-18
+messages:
+- Tu changerais quoi à ma semaine 3 si tu étais moi ?
+expect:
+- check: unchanged
+review: 'Gives ideas, possibly as pending suggestions with their ids; applies nothing.'

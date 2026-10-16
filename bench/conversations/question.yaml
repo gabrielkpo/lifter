@@ -1,0 +1,10 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: question
+category: question
+description: 'A question about the programme changes nothing.'
+today: 2026-01-18
+messages:
+- Pourquoi un RIR 2 sur le bench press cette semaine et pas 3 ?
+expect:
+- check: unchanged
+review: 'Explains the volume-peak week (RIR 2) from the programme; changes nothing.'

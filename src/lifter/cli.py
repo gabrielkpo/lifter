@@ -815,8 +815,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     from pydantic import ValidationError
 
+    from lifter.config import ConfigError
+
     try:
-        return args.func(Settings.from_env(), args)
+        settings = Settings.from_env()
+    except ConfigError as exc:
+        print(printable(f"invalid setting: {exc}"))
+        return 2
+    try:
+        return args.func(settings, args)
     except ValidationError as exc:
         problems = "; ".join(
             f"{'.'.join(str(p) for p in e['loc']) or 'input'}: {e['msg']}" for e in exc.errors()

@@ -61,7 +61,7 @@ def build_graph(
                 [],
                 [],
             )
-            return {"plan": None, "verdict": stopped, "attempts": MAX_ATTEMPTS}
+            return {"plan": None, "verdict": stopped, "attempts": attempts - 1}
         tokens_in, tokens_out = planner.usage.input_tokens, planner.usage.output_tokens
         started = time.monotonic()
 
@@ -98,7 +98,9 @@ def build_graph(
         }
 
     def route(state: State) -> str:
-        if state["verdict"].ok or state["attempts"] >= MAX_ATTEMPTS:
+        verdict = state["verdict"]
+        budget_spent = any(v.check == "budget" for v in verdict.violations)
+        if verdict.ok or budget_spent or state["attempts"] >= MAX_ATTEMPTS:
             return END
         return "plan"
 

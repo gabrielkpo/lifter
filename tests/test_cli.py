@@ -145,3 +145,10 @@ def test_a_program_file_that_is_not_utf8_is_reported(
     path.write_bytes("name: Cycle d'été\n".encode("latin-1"))
     assert run_cli(monkeypatch, database_url, "program", "load", str(path)) == 2
     assert "cannot read" in capsys.readouterr().out
+
+
+def test_a_malformed_setting_is_reported_without_a_traceback(monkeypatch, capsys):
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("LIFTER_RUN_TOKEN_BUDGET", "60k")
+    assert main(["runs"]) == 2
+    assert "LIFTER_RUN_TOKEN_BUDGET must be a whole number, got '60k'" in capsys.readouterr().out

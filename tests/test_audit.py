@@ -181,6 +181,7 @@ def test_a_token_budget_stops_new_attempts_and_is_audited(conn, program):
         "select status, error, attempts from agent_run where id = %s", (result.run_id,)
     ).fetchone()
     assert (status, attempts) == ("error", 2)
+    assert result.attempts == 2  # attempts that called the model, as in the audit
     assert error == "BudgetExceeded: token budget reached: 2400 of 2000 used"
 
 

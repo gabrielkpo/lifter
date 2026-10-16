@@ -215,3 +215,30 @@ def test_a_run_budget_applies_inside_the_bench(conn, scenarios):
     )
     assert stopped is None
     assert results[0].input_tokens == 2000 and not results[0].accepted
+
+
+def test_a_budget_stop_is_not_a_rule_violation(conn, scenarios):
+    from lifter.agents.planner import Usage
+    from lifter.bench.runner import run_bench, summary
+
+    class Costly(CopyLastWeek):
+        def __call__(self, ctx, feedback):
+            self.usage.input_tokens += 1000
+            return super().__call__(ctx, feedback)
+
+    # volume_peak_week is accepted at once; a budget of 0 stops it before any call
+    results, _ = run_bench(
+        conn,
+        [scenarios["volume_peak_week"]],
+        lambda: Costly(usage=Usage()),
+        runs=1,
+        run_token_budget=0,
+    )
+    run = results[0]
+    assert (run.budget_stopped, run.first_violations, run.final_violations, run.attempts) == (
+        True,
+        0,
+        0,
+        0,
+    )
+    assert summary(results)["budget_stops"] == 1

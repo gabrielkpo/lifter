@@ -44,6 +44,10 @@ class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
 
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
 
 class Planner(Protocol):
     usage: Usage
@@ -78,6 +82,7 @@ class MistralPlanner:
     language: str = "English"
     temperature: float = 0.2
     timeout_seconds: float = 120
+    max_output_tokens: int = 6000  # one answer can never cost more than this in output
     usage: Usage = field(default_factory=Usage)
 
     def __post_init__(self) -> None:
@@ -89,6 +94,7 @@ class MistralPlanner:
             temperature=self.temperature,
             timeout=self.timeout_seconds,
             max_retries=2,
+            max_tokens=self.max_output_tokens,
         )
         self._llm = llm.with_structured_output(WeekPlan, include_raw=True)
 

@@ -41,6 +41,12 @@ MATRIX = {
         "public.proposal": set(),
         "analytics.daily_metrics": set(),
     },
+    "lifter_backup": {
+        "public.raw_garmin_payload": {READ},
+        "public.planned_session": {READ},
+        "public.schema_migrations": {READ},
+        "analytics.daily_metrics": {READ},
+    },
     "lifter_agents": {
         "public.proposal": {READ, INSERT},
         "public.agent_run": {READ, INSERT},
@@ -71,7 +77,7 @@ def test_login_roles_hold_no_privilege_of_their_own(conn):
     direct = conn.execute(
         "select grantee, table_schema || '.' || table_name, privilege_type"
         " from information_schema.role_table_grants"
-        " where grantee in ('lifter_api', 'lifter_sync', 'lifter_agents')"
+        " where grantee in ('lifter_api', 'lifter_sync', 'lifter_agents', 'lifter_backup')"
     ).fetchall()
     assert direct == []
 
@@ -163,10 +169,21 @@ def test_login_roles_carry_their_guards(conn):
     settings = dict(
         conn.execute(
             "select rolname, rolconfig from pg_roles"
-            " where rolname in ('lifter_api', 'lifter_sync', 'lifter_agents')"
+            " where rolname in ('lifter_api', 'lifter_sync', 'lifter_agents', 'lifter_backup')"
         ).fetchall()
     )
     assert "default_transaction_read_only=on" in settings["lifter_api"]
     assert "statement_timeout=10s" in settings["lifter_api"]
     assert "statement_timeout=60s" in settings["lifter_sync"]
     assert "statement_timeout=30s" in settings["lifter_agents"]
+    assert "default_transaction_read_only=on" in settings["lifter_backup"]
+
+
+def test_lifter_backup_can_read_every_sequence(conn):
+    # pg_dump records sequence values; a dump taken as lifter_backup must be able to read them.
+    missing = conn.execute(
+        "select sequence_name from information_schema.sequences"
+        " where sequence_schema = 'public'"
+        " and not has_sequence_privilege('lifter_backup', 'public.' || sequence_name, 'SELECT')"
+    ).fetchall()
+    assert missing == []

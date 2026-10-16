@@ -14,6 +14,7 @@
 --   lifter_api      = lifter_read, read-only transactions
 --   lifter_sync     = lifter_ingest
 --   lifter_agents   = lifter_read + lifter_propose
+--   lifter_backup   = lifter_read (pg_dump of the hosted database, read-only transactions)
 
 do $$
 declare
@@ -24,7 +25,7 @@ begin
             execute format('create role %I nologin', name);
         end if;
     end loop;
-    foreach name in array array['lifter_api', 'lifter_sync', 'lifter_agents'] loop
+    foreach name in array array['lifter_api', 'lifter_sync', 'lifter_agents', 'lifter_backup'] loop
         if not exists (select from pg_roles where rolname = name) then
             execute format('create role %I login', name);
         end if;
@@ -41,15 +42,18 @@ $$;
 revoke all on schema public from public;
 
 -- Login roles inherit, they hold nothing directly (also clears grants made before this file).
-revoke all on all tables in schema public, analytics from lifter_api, lifter_sync, lifter_agents;
-revoke all on all sequences in schema public from lifter_api, lifter_sync, lifter_agents;
-alter default privileges revoke all on tables from lifter_api, lifter_sync, lifter_agents;
-alter default privileges revoke all on schemas from lifter_api, lifter_sync, lifter_agents;
+revoke all on all tables in schema public, analytics from lifter_api, lifter_sync, lifter_agents, lifter_backup;
+revoke all on all sequences in schema public from lifter_api, lifter_sync, lifter_agents, lifter_backup;
+alter default privileges revoke all on tables from lifter_api, lifter_sync, lifter_agents, lifter_backup;
+alter default privileges revoke all on schemas from lifter_api, lifter_sync, lifter_agents, lifter_backup;
 
 -- lifter_read: every table and view, now and as the owner creates them later.
 grant usage on schema public, analytics to lifter_read;
 grant select on all tables in schema public, analytics to lifter_read;
+-- Sequence values too, which a dump records (pg_dump reads them).
+grant select on all sequences in schema public to lifter_read;
 alter default privileges grant select on tables to lifter_read;
+alter default privileges grant select on sequences to lifter_read;
 alter default privileges grant usage on schemas to lifter_read;
 
 -- lifter_ingest: what lifter.sync reads and writes, nothing else. The staging views run with
@@ -72,10 +76,14 @@ grant usage on sequence proposal_id_seq, agent_run_id_seq, agent_step_id_seq to 
 grant lifter_read to lifter_api;
 grant lifter_ingest to lifter_sync;
 grant lifter_read, lifter_propose to lifter_agents;
+grant lifter_read to lifter_backup;
 alter role lifter_api set default_transaction_read_only = on;
 alter role lifter_api set statement_timeout = '10s';
 alter role lifter_sync set statement_timeout = '60s';
 alter role lifter_agents set statement_timeout = '30s';
+alter role lifter_backup set default_transaction_read_only = on;
+alter role lifter_backup set statement_timeout = '300s';
 alter role lifter_api connection limit 20;
 alter role lifter_sync connection limit 2;
 alter role lifter_agents connection limit 5;
+alter role lifter_backup connection limit 1;

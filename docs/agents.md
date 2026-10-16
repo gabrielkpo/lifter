@@ -55,9 +55,9 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `prescription` | A strength, weightlifting or gymnastics line without a count, or a strength or weightlifting line in reps without a target RIR (it would escape the checks below) |
 | `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3 or without the RIR it needs, in the plan or in a session of the week it keeps |
 | `forbid_flag` (rule) | An exercise carrying a forbidden flag (`running`, `impact`, `free_barbell_legs`…) |
-| `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max in its note (max, 1RM, failure, AMRAP, PR) |
+| `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max in its note (max, 1RM, to failure, AMRAP, PR in capitals; keywords, so a negated "never to failure" is refused too) |
 | `weekly_pattern` (rule) | A week without strength work on the given pattern (legs every week), counting the sessions the plan keeps |
-| `no_max_before_test` (rule) | A single to failure, or a line marked as a max, outside the peak and test weeks |
+| `no_max_before_test` (rule) | A single to failure, or a line marked as a max, outside the peak and test weeks (metcons excepted: an AMRAP is not a max attempt) |
 | `fresh_first` (rule) | Weightlifting or gymnastics placed after the metcon |
 | `metcon_no_row` (rule) | A listed exercise (the rower) inside a metcon |
 | `metcon_light_barbell` (rule) | A weightlifting line above the given load inside a metcon |

@@ -495,6 +495,58 @@ def _plan_lines(plan) -> list[str]:
     return out
 
 
+def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
+    """One message to the coach: stored as the conversation endpoint would, then answered."""
+    import httpx
+    import psycopg
+
+    from lifter.agents.coach import mistral_model, respond
+
+    if not settings.mistral_api_key:
+        print("MISTRAL_API_KEY is not set (see .env.example)")
+        return 2
+    model = mistral_model(settings.mistral_api_key, settings.model, settings.max_output_tokens)
+    try:
+        with connect(settings.database_url) as conn:
+            message_id = conn.execute(
+                "insert into conversation_message (conversation_id, role, text)"
+                " values (%s, 'athlete', %s) returning id",
+                (args.conversation, args.message),
+            ).fetchone()[0]
+            reply = respond(
+                conn,
+                model,
+                conversation_id=args.conversation,
+                message_id=message_id,
+                model_name=settings.model,
+                language=settings.coach_language,
+                today=args.today,
+                trigger="cli",
+                token_budget=settings.run_token_budget,
+            )
+    except httpx.HTTPError as exc:  # the message names the URL, never the key
+        print(printable(f"Mistral API error: {exc}"))
+        return 1
+    except psycopg.Error as exc:
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
+    out = [reply.text, ""]
+    for change in reply.changes:
+        out.append(
+            f"applied {change['operation']} on {change['entity']} {change['entity_id']}"
+            f" (change {change['change_id']}, undo with it)"
+        )
+    if reply.suggestions:
+        out.append(f"suggestions: {', '.join(map(str, reply.suggestions))}")
+    usage = reply.usage
+    out.append(
+        f"model {settings.model}: {usage.calls} call(s), {usage.input_tokens} input"
+        f" + {usage.output_tokens} output tokens; audit: lifter run {reply.run_id}"
+    )
+    print("\n".join(printable(line) for line in out))
+    return 0
+
+
 def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
     import httpx
     import psycopg
@@ -618,22 +670,119 @@ def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
 BENCH_DIR = Path(__file__).resolve().parents[2] / "bench"
 
 
-def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
-    import psycopg
+def _bench_database_refused(settings: Settings) -> str | None:
+    """Why the bench may not run on BENCH_DATABASE_URL (it empties every table), or None."""
     from psycopg.conninfo import conninfo_to_dict
 
-    from lifter.bench.baseline import CopyLastWeek
-    from lifter.bench.runner import is_resettable, run_bench, summary, write_results
-    from lifter.bench.scenario import read_scenarios
+    from lifter.bench.runner import is_resettable
 
-    # The bench empties its database before every scenario: never the athlete's one.
     bench_db = conninfo_to_dict(settings.bench_database_url).get("dbname", "")
     real_db = conninfo_to_dict(settings.database_url).get("dbname", "")
     if not is_resettable(bench_db) or bench_db == real_db:
-        print(
+        return (
             "BENCH_DATABASE_URL must name the database lifter_bench or lifter_bench_<suffix>,"
             " other than DATABASE_URL's"
         )
+    return None
+
+
+def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
+    """The coach on the conversation scenarios: messages in, the database checked after."""
+    import json
+
+    import psycopg
+
+    from lifter.bench.conversation import (
+        SilentCoach,
+        as_dict,
+        read_conversations,
+        run_conversation,
+        summary,
+    )
+
+    refused = _bench_database_refused(settings)
+    if refused:
+        print(refused)
+        return 2
+    if args.coach == "mistral":
+        from lifter.agents.coach import mistral_model
+
+        if not settings.mistral_api_key:
+            print("MISTRAL_API_KEY is not set (see .env.example)")
+            return 2
+
+        def make_model():
+            return mistral_model(
+                settings.mistral_api_key, settings.model, settings.max_output_tokens
+            )
+
+        model_name = settings.model
+    else:
+        make_model, model_name = SilentCoach, None
+
+    conversations = read_conversations(args.scenarios)
+    if args.only:
+        unknown = sorted(set(args.only) - {c.name for c in conversations})
+        if unknown:
+            print(printable(f"unknown scenarios: {', '.join(unknown)}"))
+            return 2
+        conversations = [c for c in conversations if c.name in args.only]
+    try:
+        conn = connect(settings.bench_database_url)
+    except psycopg.OperationalError as exc:
+        print(
+            printable(f"cannot reach the bench database ({exc}); create it: createdb lifter_bench")
+        )
+        return 2
+    results = []
+    with conn:
+        for conversation in conversations:
+            for r in run_conversation(
+                conn,
+                conversation,
+                make_model,
+                args.runs,
+                model_name=model_name,
+                language=settings.coach_language,
+                run_token_budget=settings.run_token_budget,
+            ):
+                results.append(r)
+                failed = [o.check for o in r.outcomes if not o.passed]
+                print(
+                    printable(
+                        f"{r.scenario} #{r.run}: expectations {r.expectations_met}"
+                        f"/{r.expectations}, {r.model_calls} call(s),"
+                        f" {r.input_tokens + r.output_tokens} tokens"
+                        + (f", refused quotes {r.refused_quotes}" if r.refused_quotes else "")
+                        + (f", failed: {', '.join(failed)}" if failed else "")
+                    )
+                )
+    totals = summary(results)
+    print(printable(", ".join(f"{k}={v}" for k, v in totals.items())))
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "coach": args.coach,
+            "model": model_name,
+            "summary": totals,
+            "runs": [as_dict(r) for r in results],
+        }
+        args.out.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
+        print(f"results written to {args.out}")
+    return 0
+
+
+def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
+    import psycopg
+
+    from lifter.bench.baseline import CopyLastWeek
+    from lifter.bench.runner import run_bench, summary, write_results
+    from lifter.bench.scenario import read_scenarios
+
+    # The bench empties its database before every scenario: never the athlete's one.
+    refused = _bench_database_refused(settings)
+    if refused:
+        print(refused)
         return 2
     if args.planner == "mistral":
         from lifter.agents.planner import MistralPlanner
@@ -823,6 +972,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     plan.set_defaults(func=cmd_plan_week)
 
+    chat = sub.add_parser("chat", help="send one message to the coach and print its reply")
+    chat.add_argument("message")
+    chat.add_argument("--conversation", default="cli", help="conversation id (default: cli)")
+    chat.add_argument("--today", type=date.fromisoformat, help="as if today were this day")
+    chat.set_defaults(func=cmd_chat)
+
     runs = sub.add_parser("runs", help="print the last agent runs (audit log)")
     runs.add_argument("--limit", type=int, default=20)
     runs.set_defaults(func=cmd_runs)
@@ -837,6 +992,16 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("--scenarios", type=Path, default=BENCH_DIR / "scenarios")
     bench.add_argument("--out", type=Path, help="write the results as JSON")
     bench.set_defaults(func=cmd_bench)
+
+    chat_bench = sub.add_parser(
+        "bench-chat", help="run the coach on the bench's conversation scenarios"
+    )
+    chat_bench.add_argument("--coach", choices=["silent", "mistral"], default="silent")
+    chat_bench.add_argument("--runs", type=int, default=1, help="runs per scenario (default 1)")
+    chat_bench.add_argument("--only", nargs="*", help="scenario names (default: all)")
+    chat_bench.add_argument("--scenarios", type=Path, default=BENCH_DIR / "conversations")
+    chat_bench.add_argument("--out", type=Path, help="write the results as JSON")
+    chat_bench.set_defaults(func=cmd_bench_chat)
 
     props = sub.add_parser("proposals", help="print the agents' pending proposals")
     props.add_argument("--all", action="store_true", help="include decided proposals")

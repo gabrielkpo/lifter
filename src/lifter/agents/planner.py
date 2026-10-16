@@ -28,11 +28,35 @@ time cap.
 volume and keeps the frequency.
 - Use the review: sessions done or missed, real loads and RIR, patterns not trained. Missed \
 priority work (legs every week) comes back.
-- Respect every athlete rule. Only use exercises from the exercise bank, with their exact names.
-- Loads: start from recent_loads; go up one step at most when the RIR was met.
+- Keep the athlete's weekly frame: as many sessions as in the review of the past week (or as \
+the phase's frame when there is no review), on the same kind of days. Do not add sessions of \
+your own, extra mobility or rest days included: a missed session comes back in place of \
+another, not on top.
+- Respect every athlete rule. Use only exercises from the exercise bank, with their exact \
+names, in every part (warmup and mobility included). A movement that is not in the bank is \
+left out; a rest is no session at all, never an exercise.
+- Forbidden exercises: a rule with code forbid_flag lists flags (running, impact, \
+free_barbell_legs...). Before using an exercise, read its flags in the exercise bank: one that \
+carries a forbidden flag never appears, in any part (a back squat or a box jump, for instance, \
+when they carry it). Pick an unflagged exercise of the same pattern instead.
+- Loads: start from recent_loads; go up one step at most when the RIR was met. One step is \
+the athlete's progression rule's (its params: upper_kg for the upper body, lower_kg for legs \
+and hinge), above the heaviest set logged at as many reps or more. \
+This holds in every phase: a power, strength or peak week means fewer reps and more sets at \
+that load, never a jump of several steps.
+- Pain: when a feedback reports pain above the stop rule's threshold after a session, every \
+exercise of the patterns that session loaded goes two load steps back from its load that day \
+(the legs after a leg press, and the hinge too if that session loaded a deadlift), never up, \
+until a later session \
+loading them is reported without such pain. Keep training the pattern, lighter.
 - Schedule sessions inside the target week only. If sessions are already planned for that week, \
 either keep them (do not repeat them) or list their ids in cancel_session_ids and replace them.
-- Low recovery or alerts: keep the first days light. You give no medical advice.
+- Critical health alert (an alert with severity critical): the whole week stays easy. No \
+metcon at all, every strength, weightlifting and gymnastics line at RIR 3 or more, nothing \
+marked as a max. Hard sessions already planned in the week are listed in cancel_session_ids \
+and replaced by easy ones (technique, mobility, easy cardio).
+- Low recovery, short sleep or an alert that is not critical: keep the first two days light (no \
+metcon, RIR 3 or more). You give no medical advice.
 
 Numbers: in the summary and the rationales, cite only numbers that appear in the context or in \
 your plan (loads, reps, scores, dates). Never compute new numbers (no differences, no \

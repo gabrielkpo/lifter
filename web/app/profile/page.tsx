@@ -23,21 +23,15 @@ export default function ProfilePage() {
   const { athlete, health_issues: issues, rules } = profile.data;
   const open = issues.filter((i) => i.status !== "resolved");
   const resolved = issues.filter((i) => i.status === "resolved");
-  const active =
-    goals.status === "ok"
-      ? goals.data.filter((g) => g.status === "active")
-      : [];
+  const active = goals.status === "ok" ? goals.data.filter((g) => g.status === "active") : [];
 
   return (
     <>
       <TopBar eyebrow={athlete?.first_name ?? undefined} title="Profile" />
 
-      {athlete ? (
-        <AthleteCard athlete={athlete} />
-      ) : (
-        <p className="empty">No profile yet.</p>
-      )}
+      {athlete ? <AthleteCard athlete={athlete} /> : <p className="empty">No profile yet.</p>}
 
+      {goals.status === "error" && <ApiStatus state={goals} />}
       {active.length > 0 && (
         <>
           <h2 className="section-title">Goals</h2>
@@ -57,9 +51,7 @@ export default function ProfilePage() {
 
       <h2 className="section-title">Health</h2>
       {open.length === 0 && (
-        <p className="empty">
-          Nothing declared. Tell the coach about a pain and it lands here.
-        </p>
+        <p className="empty">Nothing declared. Tell the coach about a pain and it lands here.</p>
       )}
       {open.map((issue) => (
         <IssueCard key={issue.id} issue={issue} />
@@ -70,8 +62,7 @@ export default function ProfilePage() {
           {resolved.map((issue) => (
             <p key={issue.id} className="small" style={{ marginTop: 8 }}>
               {where(issue)} · {issue.description}
-              {issue.resolved_on &&
-                ` · resolved ${shortDate(issue.resolved_on)}`}
+              {issue.resolved_on && ` · resolved ${shortDate(issue.resolved_on)}`}
             </p>
           ))}
         </details>
@@ -97,10 +88,7 @@ function AthleteCard({ athlete }: { athlete: Athlete }) {
   const facts: [string, string | null][] = [
     ["Sex", athlete.sex && label(athlete.sex)],
     ["Handedness", athlete.handedness && label(athlete.handedness)],
-    [
-      "Training since",
-      athlete.practice_since && monthYear(athlete.practice_since),
-    ],
+    ["Training since", athlete.practice_since && monthYear(athlete.practice_since)],
     ["Sessions per week", athlete.sessions_per_week?.toString() ?? null],
     ["Trains at", athlete.training_places.join(", ") || null],
     ["Weighed", athlete.weight_date && shortDate(athlete.weight_date)],

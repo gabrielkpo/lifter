@@ -227,7 +227,13 @@ def test_the_profile_is_empty_until_the_athlete_is_described(api):
 
 def test_the_profile_shows_the_athlete_their_issues_active_first_and_their_rules(api, conn):
     # A synthetic athlete: real values only ever live in the database.
-    born = date.today().replace(year=date.today().year - 30) - timedelta(days=1)
+    # Thirty years and a few days ago, whatever today is (29 February included).
+    today = date.today()
+    born = (
+        date(today.year - 30, 1, 1)
+        if today >= date(today.year, 1, 2)
+        else date(today.year - 31, 12, 1)
+    )
     conn.execute(
         "insert into athlete (first_name, birth_date, sex, height_cm, weight_kg, level,"
         " training_places) values ('Sam', %s, 'female', 168, 64.5, 'intermediate',"

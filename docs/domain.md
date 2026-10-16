@@ -36,6 +36,8 @@ Lifter coaches CrossFit only, with one method:
 | `session_exercise` | Exercise line of a part | `origin` (`planned` or `done`), `exercise_id`, `sets`, `quantity` + `unit` (reps, cal, m, s, min), `load_kg` (+ `load_kg_max` for a range), `rir`, `rest_seconds`, `notes` |
 | `goal` | Goal | `kind` (strength, skill, benchmark), `exercise_id`, `unit`, baseline and target (a value or a text, e.g. "first rep without a band"), `target_date`, `source` |
 | `goal_milestone` | Dated step toward a goal | `day`, `label` (e.g. end of block 1), `value` or `value_text` |
+| `athlete` | The athlete (one row) | birth date, height, weight and its date, level, training since, sessions per week, `training_places`, life `context` (on-call duty) |
+| `health_issue` | A pain, injury or limitation the athlete declared | `body_part`, `side`, `kind`, `description`, `guidance` (what the coach must respect), `since`, `status` (active, monitoring, resolved), `source`, `reported_quote` |
 | `athlete_rule` | Permanent rule of the athlete | `code` (a rule the guardrail will check in code, step 3), `text`, `params` |
 | `feedback` | Report after a session, or morning check-in | `rpe` (1–10), `fatigue` (1–5), `pain` (0–10) + `pain_location`, `notes` |
 | `proposal` | Change proposed by an agent | `kind`, `payload`, `rationale`, `author`, `status`, `result` |

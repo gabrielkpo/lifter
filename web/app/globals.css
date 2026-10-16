@@ -611,3 +611,79 @@ button {
   font-size: 10px;
   fill: var(--muted);
 }
+
+/* Launch screen: kettlebells fall one after the other, bounce and settle (components/Splash). */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  overflow: hidden;
+  transition: opacity 350ms ease;
+}
+.splash[data-leaving="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.splash-row {
+  display: flex;
+  gap: 12px;
+}
+.splash-bell {
+  width: 44px;
+  height: 41px;
+  color: var(--text);
+  transform-origin: 50% 100%;
+  animation: bell-drop 4.5s infinite both;
+}
+.splash-floor {
+  width: 284px;
+  height: 1px;
+  margin-top: 2px;
+  background: var(--border);
+}
+/* One cycle of 4.5 s: fall, two bounces, hold, fade; the next bell starts 0.6 s later. */
+@keyframes bell-drop {
+  0% {
+    transform: translateY(-70vh);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  11% {
+    transform: translateY(0) scale(1.14, 0.86);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  15% {
+    transform: translateY(-28%) scale(0.96, 1.04);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  19% {
+    transform: translateY(0) scale(1.06, 0.94);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  21.5% {
+    transform: translateY(-7%);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  24% {
+    transform: translateY(0);
+  }
+  88% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  96%,
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-bell {
+    animation: none;
+  }
+}

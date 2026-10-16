@@ -4,7 +4,7 @@ import ApiStatus from "@/components/ApiStatus";
 import Stat from "@/components/Stat";
 import TopBar from "@/components/TopBar";
 import { useApi } from "@/lib/api";
-import { label, shortDate } from "@/lib/format";
+import { label, monthYear, shortDate } from "@/lib/format";
 import type { Athlete, Goal, HealthIssue, Profile } from "@/lib/types";
 
 /** Everything the coach knows about the athlete: who they are, what hurts, the rules. */
@@ -41,7 +41,7 @@ export default function ProfilePage() {
                 <Fact
                   key={goal.id}
                   name={goal.title}
-                  value={goal.target_date ? monthYear(goal.target_date) : ""}
+                  value={goal.target_date ? monthYear(goal.target_date) : "No date"}
                 />
               ))}
             </dl>
@@ -106,9 +106,9 @@ function AthleteCard({ athlete }: { athlete: Athlete }) {
       </div>
       <dl className="facts">
         {facts
-          .filter(([, value]) => value)
+          .filter((fact): fact is [string, string] => Boolean(fact[1]))
           .map(([name, value]) => (
-            <Fact key={name} name={name} value={value as string} />
+            <Fact key={name} name={name} value={value} />
           ))}
       </dl>
       {athlete.context && (
@@ -160,12 +160,4 @@ function IssueCard({ issue }: { issue: HealthIssue }) {
 function where(issue: HealthIssue): string {
   const side = issue.side === "both" ? "both sides" : issue.side;
   return label(issue.body_part) + (side ? ` (${side})` : "");
-}
-
-function monthYear(day: string): string {
-  const [y, m] = day.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en", {
-    month: "short",
-    year: "numeric",
-  });
 }

@@ -5,7 +5,7 @@
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
 LIFTER_LOG="$LIFTER_LOG_DIR/restore-check.log"
-BACKUP_DIR="${LIFTER_BACKUP_DIR:-$HOME/Library/Application Support/Lifter/backups}"
+BACKUP_DIR="$LIFTER_BACKUP_DIR"
 TARGET="lifter_restore_check"
 
 latest=$(ls -t "$BACKUP_DIR"/lifter-*.dump 2>/dev/null | head -1)
@@ -35,6 +35,6 @@ if [[ "$ok" -eq 1 ]]; then
   log "restore-check: passed"
 else
   log "restore-check: FAILED"
-  notify_failure "Restore test failed, see ~/Library/Logs/lifter/restore-check.log"
+  notify_failure "Restore test failed, see $LIFTER_LOG"
   exit 1
 fi

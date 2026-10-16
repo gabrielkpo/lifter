@@ -33,7 +33,7 @@ export default function HealthPage() {
     return (
       <>
         <TopBar title="Health" />
-        <p className="empty">No Garmin data yet: run `uv run lifter sync`.</p>
+        <p className="empty">No Garmin data yet: it arrives with the next sync from the Mac.</p>
       </>
     );
   }

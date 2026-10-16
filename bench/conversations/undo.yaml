@@ -1,0 +1,14 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: undo
+category: instruction
+description: 'A move, then "annule": the session is back on its day.'
+today: 2026-01-18
+messages:
+- Décale la séance Legs + Metcon de cette semaine au jeudi 22 janvier.
+- annule
+expect:
+- check: session_day
+  params: {week: 3, title: Legs + Metcon, day: '2026-01-23'}
+- check: changed
+  params: {operation: undo}
+review: 'Undoes the move it just made, says the session is back on Friday 23 January.'

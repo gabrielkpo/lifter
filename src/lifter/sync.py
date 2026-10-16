@@ -55,7 +55,7 @@ def _page_number(value: Any) -> int | None:
     """A page number as the server sent it (a whole number, or its digits as text)."""
     if isinstance(value, int) and not isinstance(value, bool):
         return value
-    if isinstance(value, str) and value.isdigit():
+    if isinstance(value, str) and value.isdecimal():  # exactly what int() reads
         return int(value)
     return None
 

@@ -5,7 +5,7 @@ import pytest
 from lifter.config import ConfigError, Settings
 
 
-@pytest.mark.parametrize("value", ["abc", "nan", "inf", "1,5"])
+@pytest.mark.parametrize("value", ["abc", "nan", "inf", "1,5", "-1"])
 def test_a_sync_delay_that_is_not_a_number_is_a_setting_error(value):
     with pytest.raises(ConfigError, match="SYNC_DELAY_SECONDS must be a number"):
         Settings.from_env({"SYNC_DELAY_SECONDS": value})

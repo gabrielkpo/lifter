@@ -31,8 +31,8 @@ def _float(env: Mapping[str, str], key: str, default: float) -> float:
         number = float(value)
     except ValueError:
         number = math.nan
-    if not math.isfinite(number):
-        raise ConfigError(f"{key} must be a number, got {value!r}")
+    if not math.isfinite(number) or number < 0:
+        raise ConfigError(f"{key} must be a number of 0 or more, got {value!r}")
     return number
 
 

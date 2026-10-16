@@ -57,7 +57,7 @@ models:
       - name: activity_id
         data_type: bigint
   - name: daily_alerts
-    description: ""
+    description: "The alerts raised on a day (HRV drop, high resting HR, load spike, short sleep...) with their severity; critical ones block intense plans."
     config:
       contract:
         enforced: true
@@ -77,7 +77,7 @@ models:
       - name: threshold
         data_type: numeric
   - name: daily_metrics
-    description: ""
+    description: "One row per calendar day: training load (acute 7 days, chronic 28 days, ratio), HRV and resting HR against their 14-night baselines, sleep, recovery score and status, trend. Definitions: docs/metrics.md."
     config:
       contract:
         enforced: true

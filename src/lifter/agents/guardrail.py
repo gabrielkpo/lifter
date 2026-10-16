@@ -277,14 +277,20 @@ def rule_metcon_no_row(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iter
 def rule_metcon_light_barbell(
     rule: Rule, plan: WeekPlan, ctx: PlanningContext
 ) -> Iterator[Violation]:
+    """A barbell above `max_kg` inside a metcon: any exercise on a barbell (a bench press as
+    well as a clean), or a weightlifting one whose equipment is not recorded."""
     max_kg = rule.params.get("max_kg")
-    categories = {e.name: e.category for e in ctx.exercises}
+    barbell = {
+        e.name
+        for e in ctx.exercises
+        if e.equipment == "barbell" or (e.equipment is None and e.category == "weightlifting")
+    }
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)
             if (
                 part.kind == "metcon"
-                and categories.get(line.exercise) == "weightlifting"
+                and line.exercise in barbell
                 and max_kg is not None
                 and top is not None
                 and top > max_kg

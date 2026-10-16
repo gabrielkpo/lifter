@@ -295,6 +295,21 @@ def test_an_amrap_metcon_is_not_a_max_attempt(ctx):
     assert list(guardrail.rule_no_max_before_test(rule, plan, ctx)) == []
 
 
+def test_the_light_barbell_rule_covers_every_barbell_in_a_metcon(ctx):
+    rule = guardrail.Rule(
+        code="metcon_light_barbell", text="Light barbell in metcons.", params={"max_kg": 40}
+    )
+    plan = good_plan()
+    metcon = plan.sessions[0].parts[-1]
+    metcon.lines = [
+        PlanLine(exercise="Bench press", quantity=10, load_kg=60),  # strength, on a barbell
+        PlanLine(exercise="Power clean", quantity=5, load_kg=50),  # weightlifting, a barbell
+        PlanLine(exercise="Kettlebell swing", quantity=15, load_kg=48),  # not a barbell
+    ]
+    found = [v.message for v in guardrail.rule_metcon_light_barbell(rule, plan, ctx)]
+    assert [m.split("'")[1] for m in found] == ["Bench press", "Power clean"]
+
+
 def test_rule_checks_know_the_fresh_first_rule():
     rule = guardrail.Rule(code="fresh_first", text="Fresh first.", params={})
     plan = good_plan()

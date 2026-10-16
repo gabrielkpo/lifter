@@ -15,6 +15,7 @@ const ENDPOINTS = new Set([
   "sessions",
   "health",
   "goals",
+  "profile",
   "bests",
   "history",
   "proposals",

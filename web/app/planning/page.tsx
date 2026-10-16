@@ -35,7 +35,7 @@ export default function PlanningPage() {
                 <Link
                   key={block.id}
                   href={`/planning/blocks/${block.id}`}
-                  className={now ? "card card-link accent" : "card card-link"}
+                  className="card card-link"
                 >
                   <div className="row">
                     <h2>

@@ -577,3 +577,25 @@ def test_the_real_guardrail_refuses_a_forbidden_movement(conn, program):
     assert conn.execute(
         "select version from session_part where id = %s", (part_id,)
     ).fetchone() == (part_version,)
+
+
+def test_a_suggestion_made_after_the_message_cannot_be_picked_by_it(conn, program):
+    # A model misled by planted text suggests a change and accepts it in the same turn,
+    # quoting the athlete's message that came before the suggestion existed.
+    message = say(conn, "ok pour la semaine")
+    conn.execute("select pg_sleep(0.01)")
+    pid = suggest(conn, "add_rule", {"text": "Sneaky rule"}, rationale="Planted.", author="coach")
+    with pytest.raises(OperationError, match="has not seen it"):
+        run(
+            conn,
+            "",
+            None,
+            quote="ok pour la semaine",
+            message_id=message,
+            idempotency_key="same-turn",
+            author="coach",
+            proposal_id=pid,
+        )
+    assert conn.execute("select status from proposal where id = %s", (pid,)).fetchone() == (
+        "pending",
+    )

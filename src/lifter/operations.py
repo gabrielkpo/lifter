@@ -1567,13 +1567,23 @@ def run(
 
         if proposal_id is not None:
             found = conn.execute(
-                "select kind, payload, status from proposal where id = %s for update",
+                "select kind, payload, status, created_at from proposal where id = %s for update",
                 (proposal_id,),
             ).fetchone()
             if found is None:
                 raise OperationError(f"suggestion {proposal_id} does not exist")
             if found[2] != "pending":
                 raise OperationError(f"suggestion {proposal_id} is {found[2]}, not pending")
+            # The athlete can only pick a suggestion they saw: one made after the message being
+            # answered (a model misled into suggesting and accepting in the same turn) is refused.
+            said = conn.execute(
+                "select created_at from conversation_message where id = %s", (message_id,)
+            ).fetchone()
+            if said is not None and found[3] >= said[0]:
+                raise OperationError(
+                    f"suggestion {proposal_id} was made after message {message_id}:"
+                    " the athlete has not seen it"
+                )
             name, payload = found[0], found[1]
         op = CATALOGUE.get(name)
         if op is None:

@@ -63,6 +63,7 @@ def do(conn, name: str, payload: dict, said: str, quote: str | None = None, **kw
         conn,
         name,
         payload,
+        conversation_id="c1",
         quote=quote or said,
         message_id=message,
         idempotency_key=f"k{next(_keys)}",
@@ -149,11 +150,12 @@ def test_the_coachs_own_message_is_never_a_quote(conn, program):
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'coach', 'je supprime le bloc 2') returning id"
     ).fetchone()[0]
-    with pytest.raises(QuoteError):
+    with pytest.raises(OperationError, match="latest message"):
         run(
             conn,
             "add_rule",
             {"text": "x"},
+            conversation_id="c1",
             quote="je supprime le bloc 2",
             message_id=coach,
             idempotency_key="coach-quote",
@@ -161,10 +163,38 @@ def test_the_coachs_own_message_is_never_a_quote(conn, program):
         )
 
 
+def test_only_the_message_being_answered_authorises_a_change(conn, program):
+    # Audit N1: a true quote from an older message, or from another conversation, is refused.
+    old = say(conn, "supprime la règle sur le rameur")
+    say(conn, "comment va mon squat ?")
+    other = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c2', 'athlete', 'ajoute une règle pas de saut') returning id"
+    ).fetchone()[0]
+    for message, quote in ((old, "supprime la règle sur le rameur"), (other, "pas de saut")):
+        with pytest.raises(OperationError, match="latest message"):
+            run(
+                conn,
+                "add_rule",
+                {"text": "Pas de saut"},
+                conversation_id="c1",
+                quote=quote,
+                message_id=message,
+                idempotency_key=f"stale-{message}",
+                author="coach",
+            )
+    assert conn.execute("select count(*) from proposal").fetchone() == (0,)
+
+
 def test_a_retry_with_the_same_key_changes_nothing_more(conn, program):
     message = say(conn, "note que j'ai mal au poignet droit")
     payload = {"body_part": "wrist", "side": "right", "kind": "pain", "description": "Pain"}
-    args = {"quote": "j'ai mal au poignet droit", "message_id": message, "author": "coach"}
+    args = {
+        "conversation_id": "c1",
+        "quote": "j'ai mal au poignet droit",
+        "message_id": message,
+        "author": "coach",
+    }
     first = run(conn, "add_health_issue", payload, idempotency_key="m1-0", **args)
     again = run(conn, "add_health_issue", payload, idempotency_key="m1-0", **args)
     assert again == first
@@ -187,6 +217,7 @@ def test_a_key_reused_for_another_operation_is_refused(conn, program):
         conn,
         "add_rule",
         {"text": "Pas de saut"},
+        conversation_id="c1",
         quote="pas de saut",
         message_id=message,
         idempotency_key="same",
@@ -197,6 +228,7 @@ def test_a_key_reused_for_another_operation_is_refused(conn, program):
             conn,
             "add_health_issue",
             {"body_part": "knee", "kind": "pain", "description": "x"},
+            conversation_id="c1",
             quote="note mon genou",
             message_id=message,
             idempotency_key="same",
@@ -378,6 +410,30 @@ def test_undo_brings_back_exactly_what_a_delete_removed(conn, program, name):
     assert snapshot(conn) == before  # same rows, same ids, children included
 
 
+def test_a_week_an_agent_planned_can_be_deleted_then_brought_back(conn, program):
+    # Audit N2: the agent's run keeps its own history (its link to the week is cleared); it is
+    # neither copied into the change log nor in the way of the undo.
+    week_id, week_version = conn.execute(
+        "select id, version from training_week order by id desc limit 1"
+    ).fetchone()
+    conn.execute(
+        "insert into agent_run (agent, trigger, status, target_week_id, context, started_at)"
+        " values ('week_planner', 'cli', 'refused', %s, '{\"health\": \"knee\"}', now())",
+        (week_id,),
+    )
+    before = snapshot(conn)
+    do(
+        conn,
+        "delete_week",
+        {"id": week_id, "expected_version": week_version},
+        "supprime la semaine",
+    )
+    logged = conn.execute("select before::text from change_log order by id desc limit 1").fetchone()
+    assert "agent_run" not in logged[0]
+    do(conn, "undo", {"change_id": change_id(conn)}, "annule")
+    assert snapshot(conn) == before
+
+
 def test_a_bank_exercise_still_used_cannot_be_deleted(conn, program):
     used = conn.execute(
         "select e.id, e.version from exercise e join session_exercise l on l.exercise_id = e.id"
@@ -469,6 +525,7 @@ def test_a_suggestion_applies_only_when_the_athlete_picks_it(conn, program):
         conn,
         "",
         None,
+        conversation_id="c1",
         quote="ok",
         message_id=say(conn, "ok !"),
         idempotency_key="pick",
@@ -484,6 +541,7 @@ def test_a_suggestion_applies_only_when_the_athlete_picks_it(conn, program):
             conn,
             "",
             None,
+            conversation_id="c1",
             quote="ok",
             message_id=say(conn, "ok"),
             idempotency_key="pick-again",
@@ -503,6 +561,36 @@ def test_the_coach_cannot_write_without_a_trace(conn, database_url, program):
     assert conn.execute("select count(*) from athlete_rule where text = 'sneaky'").fetchone() == (
         0,
     )
+
+
+def test_an_applied_change_keeps_the_words_that_authorised_it(conn, database_url, program):
+    # Audit N6: the coach's role may not rewrite the quote of a change already applied.
+    do(conn, "add_rule", {"text": "Pas de saut"}, "pas de saut cette semaine")
+    applied = conn.execute("select max(id) from proposal").fetchone()[0]
+    with as_role(database_url, "lifter_coach") as coach:
+        with pytest.raises(psycopg.errors.RaiseException, match="cannot change"):
+            coach.execute("update proposal set quote = 'oui' where id = %s", (applied,))
+    assert conn.execute("select quote from proposal where id = %s", (applied,)).fetchone() == (
+        "pas de saut cette semaine",
+    )
+
+
+def test_a_pending_suggestion_given_a_quote_by_hand_is_no_trace(conn, database_url, program):
+    pid = suggest(conn, "add_rule", {"text": "x"}, rationale="Why not.", author="coach")
+    message = say(conn, "pas de saut")
+    with as_role(database_url, "lifter_coach") as coach:
+        with pytest.raises(psycopg.errors.RaiseException, match="without a trace"):
+            with coach.transaction():
+                coach.execute(
+                    "update proposal set quote = 'pas de saut', message_id = %s where id = %s",
+                    (message, pid),
+                )
+                coach.execute(
+                    "insert into change_log (proposal_id, operation, entity, before,"
+                    " after) values (%s, 'add_rule', 'athlete_rule', '[]', '[]')",
+                    (pid,),
+                )
+                coach.execute("insert into athlete_rule (text) values ('sneaky')")
 
 
 def test_switching_to_the_group_role_does_not_escape_the_trace(conn, database_url, program):
@@ -531,6 +619,7 @@ def test_the_coach_writes_through_the_catalogue(conn, database_url, program):
             coach,
             "add_rule",
             {"text": "Pas de saut"},
+            conversation_id="c1",
             quote="pas de saut cette semaine",
             message_id=message,
             idempotency_key="as-coach",
@@ -605,6 +694,7 @@ def test_a_suggestion_made_after_the_message_cannot_be_picked_by_it(conn, progra
             conn,
             "",
             None,
+            conversation_id="c1",
             quote="ok pour la semaine",
             message_id=message,
             idempotency_key="same-turn",

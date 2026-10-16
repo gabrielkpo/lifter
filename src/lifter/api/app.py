@@ -5,6 +5,7 @@ endpoint can write even by mistake; writes (approving proposals) come in slice 2
 lifter.domain only.
 """
 
+import hmac
 from collections.abc import Iterator
 from datetime import date, timedelta
 from typing import Annotated, Any
@@ -13,6 +14,7 @@ import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from psycopg.rows import dict_row
 
@@ -86,17 +88,38 @@ def week_detail(conn: psycopg.Connection, week: dict[str, Any]) -> models.WeekDe
     )
 
 
-def create_app(database_url: str, app_origins: list[str] | None = None) -> FastAPI:
-    """The API on `database_url`, opened read-only; `app_origins` may call it from a browser."""
+def create_app(
+    database_url: str,
+    app_origins: list[str] | None = None,
+    *,
+    hosts: list[str] | None = None,
+    token: str | None = None,
+) -> FastAPI:
+    """The API on `database_url`, opened read-only.
+
+    `app_origins` may call it from a browser; `hosts` are the host names it answers besides this
+    machine; with a `token`, every request must carry `Authorization: Bearer <token>`.
+    """
     app = FastAPI(title="Lifter API", version=__version__)
     app.state.database_url = read_only_url(database_url)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOCAL_HOSTS)
+    if token:
+        expected = f"Bearer {token}".encode()
+
+        @app.middleware("http")
+        async def require_token(request: Request, call_next):
+            given = request.headers.get("authorization", "").encode()
+            if not hmac.compare_digest(given, expected):
+                return JSONResponse({"detail": "unauthorized"}, status_code=401)
+            return await call_next(request)
+
+    # Added last, so they run first: the host check, then CORS (a preflight has no token).
     app.add_middleware(
         CORSMiddleware,
         allow_origins=app_origins or [],
         allow_methods=["GET"],
         allow_headers=[],
     )
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOCAL_HOSTS + (hosts or []))
 
     @app.get("/program")
     def program(conn: Conn) -> models.Program:

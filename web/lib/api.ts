@@ -40,7 +40,11 @@ export function useApi<T>(path: string | null): ApiState<T> {
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         const message =
-          error instanceof ApiError ? error.message : unreachableMessage(window.location.hostname);
+          error instanceof ApiError && error.status === 502
+            ? "Cannot reach the Lifter API right now."
+            : error instanceof ApiError
+              ? error.message
+              : "No connection.";
         const notFound = error instanceof ApiError && error.status === 404;
         setState({ path, value: { status: "error", message, notFound } });
       });
@@ -49,13 +53,4 @@ export function useApi<T>(path: string | null): ApiState<T> {
 
   // A stale answer for a previous path is never shown for the new one.
   return state.path === path ? state.value : { status: "loading" };
-}
-
-/** Why the API cannot be reached: it runs on the athlete's machine only, for now. */
-function unreachableMessage(hostname: string): string {
-  const local = hostname === "localhost" || hostname === "127.0.0.1";
-  return local
-    ? "Cannot reach the Lifter API. Is `uv run lifter-api` running?"
-    : "Your data lives on the computer running the Lifter API: open this page there, with " +
-        "`uv run lifter-api` running. Access from other devices comes later.";
 }

@@ -35,6 +35,6 @@ if [[ "$ok" -eq 1 ]]; then
   log "restore-check: passed"
 else
   log "restore-check: FAILED"
-  notify_failure "Restore test failed, see ~/Library/Logs/lifter/restore-check.log"
+  notify_failure "Restore test failed, see $LIFTER_LOG"
   exit 1
 fi

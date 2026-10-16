@@ -24,7 +24,7 @@ if "$PG_BIN/pg_dump" --format=custom --no-owner --no-privileges --file="$file.pa
 else
   rm -f "$file.partial"
   log "backup: failed"
-  notify_failure "Database backup failed, see ~/Library/Logs/lifter/backup.log"
+  notify_failure "Database backup failed, see $LIFTER_LOG"
   exit 1
 fi
 find "$BACKUP_DIR" -name 'lifter-*.dump' -mtime +"$LIFTER_BACKUP_KEEP_DAYS" -delete

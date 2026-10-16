@@ -11,6 +11,12 @@ load_env sync.env
 log "sync: start"
 if "$LIFTER_BIN" sync --days "${LIFTER_SYNC_DAYS:-3}" --no-migrate >>"$LIFTER_LOG" 2>&1; then
   log "sync: done"
+  # The agents' audit keeps its full context 90 days (ADR 0002): purge what is older.
+  if ! "$LIFTER_BIN" audit-purge >>"$LIFTER_LOG" 2>&1; then
+    log "audit-purge: failed"
+    notify_failure "Audit purge failed, see $LIFTER_LOG"
+    exit 1
+  fi
 else
   code=$?
   log "sync: failed (exit $code)"

@@ -55,16 +55,11 @@ def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     from lifter.config import ConfigError
     from lifter.db import SchemaOutOfDate, ensure_schema
-    from lifter.garmin import McpToolCaller, check_mcp_url
+    from lifter.garmin import McpToolCaller
     from lifter.sync import SyncAborted, sync_range
 
     if not settings.garmin_mcp_token:
         print("GARMIN_MCP_TOKEN is not set (see .env.example)")
-        return 2
-    try:
-        check_mcp_url(settings.garmin_mcp_url)
-    except ConfigError as exc:
-        print(printable(f"invalid setting: {exc}"))
         return 2
     end = args.end or date.today()
     start = args.start or end - timedelta(days=args.days - 1)
@@ -91,6 +86,9 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
         return 1
     except SchemaOutOfDate as exc:
         print(f"schema out of date: {exc}")
+        return 2
+    except ConfigError as exc:  # the MCP URL, refused before the token is sent
+        print(printable(f"invalid setting: {exc}"))
         return 2
     print(f"sync {start} -> {end}: " + ", ".join(f"{k}={v}" for k, v in report.counts.items()))
     return 1 if report.counts["error"] else 0

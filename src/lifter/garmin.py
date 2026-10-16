@@ -29,7 +29,8 @@ READ_TOOLS = frozenset(
 
 
 # Tailscale and other overlay networks hand out addresses in the shared range, which Python does
-# not count as private; traffic there is encrypted by the overlay.
+# not count as private; traffic there is encrypted by the overlay. The same range is used for
+# carrier-grade NAT, where it is not: point http only at a tailnet address in it.
 SHARED_RANGE = ipaddress.ip_network("100.64.0.0/10")
 
 

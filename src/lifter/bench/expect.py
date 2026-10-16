@@ -209,6 +209,28 @@ def strength_reps_at_most(plan, ctx, p, result) -> Outcome:
     return Outcome(f"strength_reps_at_most {p['value']}", not high, ", ".join(high) or "ok")
 
 
+def prescribed_rir(plan, ctx, p, result) -> Outcome:
+    """Every strength or weightlifting line in reps carries a target RIR."""
+    from lifter.agents.guardrail import needs_rir
+
+    missing = [
+        f"{s.day} {line.exercise}"
+        for s in plan.sessions
+        for part in s.parts
+        for line in part.lines
+        if needs_rir(part.kind, line) and line.rir is None
+    ]
+    return Outcome("prescribed_rir", not missing, ", ".join(missing) or "ok")
+
+
+def no_violation(plan, ctx, p, result) -> Outcome:
+    """The final plan breaks no rule of that check (the guardrail run again, on the plan only)."""
+    from lifter.agents.guardrail import check
+
+    found = [v.message for v in check(plan, ctx).violations if v.check == p["check"]]
+    return Outcome(f"no_violation {p['check']}", not found, "; ".join(found) or "ok")
+
+
 CHECKS: dict[str, Callable[[WeekPlan, PlanningContext, dict[str, Any], Any], Outcome]] = {
     "accepted": accepted,
     "sessions": sessions,
@@ -226,6 +248,8 @@ CHECKS: dict[str, Callable[[WeekPlan, PlanningContext, dict[str, Any], Any], Out
     "includes_single": includes_single,
     "includes_metcon": includes_metcon,
     "strength_reps_at_most": strength_reps_at_most,
+    "prescribed_rir": prescribed_rir,
+    "no_violation": no_violation,
 }
 
 

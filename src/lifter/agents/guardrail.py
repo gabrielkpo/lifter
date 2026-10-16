@@ -72,7 +72,12 @@ def needs_rir(part_kind: str, line: PlanLine | LineInfo) -> bool:
 
 
 def is_hard(part_kind: str, line: PlanLine | LineInfo) -> bool:
-    """Close to failure: under RIR 3, or no RIR where one is required (unknown counts as hard)."""
+    """Close to failure: under RIR 3, a note asking for a max or for failure ("RIR 3, then to
+    failure"), or no RIR where one is required (unknown counts as hard). A gymnastics line
+    without RIR is not counted as hard: no RIR is required there (docs/agents.md)."""
+    notes = getattr(line, "notes", None)
+    if notes and MAX_TERMS.search(notes):
+        return True
     if line.rir is not None:
         return line.rir < 3
     return needs_rir(part_kind, line)

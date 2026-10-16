@@ -53,7 +53,7 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `cancellations` | Cancelling a session that is not an open session of the target week |
 | `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values: loads, counts, targets, days, never its titles or notes (agents read numbers, they never compute them) |
 | `prescription` | A strength, weightlifting or gymnastics line without a count, or a strength or weightlifting line in reps without a target RIR (it would escape the checks below) |
-| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3 or without the RIR it needs, in the plan or in a session of the week it keeps |
+| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3, without the RIR it needs, or with a note asking for a max or for failure (keywords, so 'max 2 min rest' counts too: a refusal in the safe direction), in the plan or in a session of the week it keeps. A gymnastics line without RIR is not counted as hard, since no RIR is required there: a known limit |
 | `forbid_flag` (rule) | An exercise carrying a forbidden flag (`running`, `impact`, `free_barbell_legs`…) |
 | `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max in its note (max, 1RM, to failure, AMRAP, PR in capitals; keywords, so a negated "never to failure" is refused too) |
 | `weekly_pattern` (rule) | A week without strength work on the given pattern (legs every week), counting the sessions the plan keeps |
@@ -79,9 +79,12 @@ Two checks the operations catalogue runs before applying a change made by the co
   `verify_quote(conn, message_id, quote, short_ok=...)` reads the athlete's message from
   `conversation_message` and refuses the change unless the quote's words appear in it as a
   contiguous run of whole words. Only formatting is normalised (Unicode NFC, typographic quotes
-  and apostrophes, whitespace); case and words are kept. At least two words; a one-word quote
-  ("ok", "annule") only where the operation allows it and only as the whole message, so "ok"
-  inside "pas ok" or "book" never counts. A message from the coach never counts.
+  and apostrophes, whitespace); case and words are kept. At least two words that are not
+  function words ("la semaine" or "ok pour" justify nothing), and never a quote joined to a
+  negation before it ("pas ok pour la 2"). Where the operation allows a short quote (accepting
+  a suggestion, undo), fewer content words do; a one-word quote ("ok", "annule") only as the
+  whole message, so "ok" inside "pas ok" or "book" never counts. A message from the coach never
+  counts, and the message is read from `public.conversation_message`, never a temporary table.
 - **Rules on the stored week** (`agents/week_check.py`): `violations_for_week(conn, week_id)`
   runs the guardrail on the week as it is in the database; the catalogue calls it before and
   after an operation that changes the programme and refuses only what the change introduces

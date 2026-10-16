@@ -280,11 +280,11 @@ def rule_metcon_light_barbell(
     """A barbell above `max_kg` inside a metcon: any exercise on a barbell (a bench press as
     well as a clean), or a weightlifting one whose equipment is not recorded."""
     max_kg = rule.params.get("max_kg")
-    barbell = {
-        e.name
-        for e in ctx.exercises
-        if e.equipment == "barbell" or (e.equipment is None and e.category == "weightlifting")
-    }
+    barbell = set()
+    for e in ctx.exercises:
+        equipment = (e.equipment or "").strip().lower()  # free text in the bank
+        if equipment == "barbell" or (not equipment and e.category == "weightlifting"):
+            barbell.add(e.name)
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)

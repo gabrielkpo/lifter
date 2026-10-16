@@ -309,6 +309,16 @@ def test_the_light_barbell_rule_covers_every_barbell_in_a_metcon(ctx):
     found = [v.message for v in guardrail.rule_metcon_light_barbell(rule, plan, ctx)]
     assert [m.split("'")[1] for m in found] == ["Bench press", "Power clean"]
 
+    # equipment is free text: "Barbell" is a barbell too
+    bank = [
+        e.model_copy(update={"equipment": "Barbell "}) if e.name == "Bench press" else e
+        for e in ctx.exercises
+    ]
+    found = guardrail.rule_metcon_light_barbell(
+        rule, plan, ctx.model_copy(update={"exercises": bank})
+    )
+    assert "Bench press" in [v.message.split("'")[1] for v in found]
+
 
 def test_rule_checks_know_the_fresh_first_rule():
     rule = guardrail.Rule(code="fresh_first", text="Fresh first.", params={})

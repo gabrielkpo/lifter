@@ -90,7 +90,8 @@ def test_an_instruction_is_applied_with_the_athletes_quote(conn, program):
     assert result["ok"] and result["change_id"] is not None
     assert session(conn, "Legs + Metcon")[2] == "2026-03-06"
     trace = conn.execute(
-        "select status, message_id, idempotency_key, author from proposal where kind = 'move_session'"
+        "select status, message_id, idempotency_key, author from proposal"
+        " where kind = 'move_session'"
     ).fetchone()
     assert trace == ("applied", ctx.message_id, f"message:{ctx.message_id}:write:1", "coach")
 

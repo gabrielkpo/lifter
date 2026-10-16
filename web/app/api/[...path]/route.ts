@@ -25,7 +25,10 @@ const SEGMENT = /^[A-Za-z0-9_-]+$/;
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> },
+) {
   const { path } = await params;
   if (!ENDPOINTS.has(path[0]) || path.length > 2 || !path.every((s) => SEGMENT.test(s))) {
     return NextResponse.json({ detail: "not found" }, { status: 404 });
@@ -39,13 +42,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     upstream = await fetch(`${API_URL}/${path.join("/")}${request.nextUrl.search}`, {
       headers,
       cache: "no-store",
+      // A wrong protection bypass answers with a redirect to Vercel's login: never follow it.
+      redirect: "manual",
     });
   } catch {
     return NextResponse.json({ detail: "Lifter API unreachable" }, { status: 504 });
   }
   // Errors other than "not found" and "invalid input" are not passed through in detail, but
   // a refusal (wrong token or protection bypass) stays distinct from a failure.
-  if (upstream.status === 401 || upstream.status === 403) {
+  if (
+    upstream.status === 401 ||
+    upstream.status === 403 ||
+    (upstream.status >= 300 && upstream.status < 400)
+  ) {
     return NextResponse.json({ detail: "Lifter API refused the request" }, { status: 503 });
   }
   if (!upstream.ok && upstream.status !== 404 && upstream.status !== 422) {

@@ -193,6 +193,7 @@ def run_conversation(
     runs: int,
     *,
     model_name: str | None = None,
+    language: str = "English",
     run_token_budget: int | None = None,
 ) -> list[ConversationResult]:
     results = []
@@ -213,6 +214,7 @@ def run_conversation(
                 conversation_id=CONVERSATION,
                 message_id=message_id,
                 model_name=model_name,
+                language=language,
                 today=conversation.today,
                 trigger="bench",
                 token_budget=run_token_budget,

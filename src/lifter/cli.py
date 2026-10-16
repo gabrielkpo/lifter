@@ -723,6 +723,7 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
                 make_model,
                 args.runs,
                 model_name=model_name,
+                language=settings.coach_language,
                 run_token_budget=settings.run_token_budget,
             ):
                 results.append(r)

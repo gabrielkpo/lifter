@@ -1,4 +1,4 @@
-"""The quote check (agents/quote.py) and the guardrail on a stored week (agents/week_check.py),
+"""The quote check (lifter/quote.py) and the guardrail on a stored week (agents/week_check.py),
 the two checks the coach's write path runs before applying a change (ADR 0002)."""
 
 from pathlib import Path
@@ -7,9 +7,9 @@ import pytest
 
 from lifter import domain
 from lifter.agents.context import PlanningError
-from lifter.agents.quote import QuoteError, check_quote, normalize, verify_quote
 from lifter.agents.week_check import introduced, violations_for_week
 from lifter.program import load_program, read_program
+from lifter.quote import QuoteError, check_quote, normalize, verify_quote
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
 
@@ -43,8 +43,28 @@ def test_anything_but_the_athletes_words_is_refused(quote, message, short_ok, re
 
 
 def test_a_short_quote_passes_where_the_operation_allows_it():
-    check_quote("annule", "annule", short_ok=True)
-    check_quote("ok pour la 2", "ok pour la 2", short_ok=False)
+    check_quote("annule", "annule !", short_ok=True)
+    check_quote("ok", "ok.", short_ok=True)
+    check_quote("ok pour la 2", "Super, ok pour la 2", short_ok=False)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "non, c'est pas ok, ne change rien",  # a negation around the short word
+        "je regarde le book des séances",  # the letters inside another word
+        "ok mais attends demain",  # the short word inside a longer message
+    ],
+)
+def test_a_short_quote_never_matches_inside_a_longer_message(message):
+    with pytest.raises(QuoteError, match="whole message"):
+        check_quote("ok", message, short_ok=True)
+
+
+def test_quotes_match_whole_words_only():
+    with pytest.raises(QuoteError, match="not in"):
+        check_quote("cale jeudi", "décale jeudi à vendredi")  # a piece of a word
+    check_quote("jeudi à vendredi", "décale jeudi à vendredi !")
 
 
 @pytest.fixture

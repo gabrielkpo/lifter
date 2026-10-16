@@ -18,7 +18,8 @@ missed while the Mac sleeps runs at wake-up. Logs are in `~/Library/Logs/lifter/
 this user only (they can hold full tracebacks).
 
 **Exit codes** of `lifter sync`, which the sync job reads (any code but 0 is a failure): `0`
-done; `1` synced with errors on some payloads; `2` a setting is invalid; `3` the Garmin MCP
+done; `1` synced with errors on some payloads, or stopped part way; `2` a setting is invalid,
+or the schema is out of date (run `lifter migrate`, see Schema changes); `3` the Garmin MCP
 server or the database is unreachable or refused the connection.
 
 **Failures.** Every failure raises a macOS notification. macOS only shows it when notifications

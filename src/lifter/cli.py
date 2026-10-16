@@ -630,7 +630,10 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
     bench_db = conninfo_to_dict(settings.bench_database_url).get("dbname", "")
     real_db = conninfo_to_dict(settings.database_url).get("dbname", "")
     if not is_resettable(bench_db) or bench_db == real_db:
-        print("BENCH_DATABASE_URL must name a database starting with 'lifter_bench'")
+        print(
+            "BENCH_DATABASE_URL must name the database lifter_bench or lifter_bench_<suffix>,"
+            " other than DATABASE_URL's"
+        )
         return 2
     if args.planner == "mistral":
         from lifter.agents.planner import MistralPlanner

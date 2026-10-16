@@ -47,6 +47,7 @@ def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter.db import SchemaOutOfDate, ensure_schema
     from lifter.garmin import McpToolCaller
     from lifter.sync import SyncAborted, sync_range
 
@@ -59,7 +60,9 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     async def run():
         async with McpToolCaller(settings.garmin_mcp_url, settings.garmin_mcp_token) as caller:
             with connect(settings.database_url) as conn:
-                migrate(conn)
+                # The owner migrates on the way; a least-privilege role (lifter_sync) only
+                # checks, so it never attempts DDL.
+                ensure_schema(conn, allow_migrate=not args.no_migrate)
                 return await sync_range(
                     caller,
                     conn,
@@ -74,6 +77,9 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     except SyncAborted as exc:
         print(f"sync stopped: {exc}")
         return 1
+    except SchemaOutOfDate as exc:
+        print(f"schema out of date: {exc}")
+        return 2
     print(f"sync {start} -> {end}: " + ", ".join(f"{k}={v}" for k, v in report.counts.items()))
     return 1 if report.counts["error"] else 0
 
@@ -639,6 +645,11 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--end", type=date.fromisoformat, help="last day, YYYY-MM-DD (default today)")
     sync.add_argument(
         "--refresh", action="store_true", help="refetch days and activities already stored"
+    )
+    sync.add_argument(
+        "--no-migrate",
+        action="store_true",
+        help="only check that the schema is up to date, never change it (scheduled syncs)",
     )
     sync.set_defaults(func=cmd_sync)
 

@@ -131,13 +131,14 @@ loopback or a private network; its bearer token goes in `.env`.
 cp .env.example .env               # then set GARMIN_MCP_TOKEN
 createdb lifter
 uv sync
-uv run lifter sync --days 90       # creates or updates the schema, then syncs (read-only)
+uv run lifter sync --days 90       # creates or updates the schema, then syncs (read-only on Garmin)
 uv run lifter program load examples/program.yaml   # or your own program, kept in data/
 uv run lifter weeks                # also: program, week N, session ID, calendar, goals, bests
 uv run lifter plan-week            # the week planner agent, dry run (needs MISTRAL_API_KEY)
 ```
 
-Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `session-cancel`,
+`lifter sync --no-migrate` only checks the schema (scheduled syncs run as `lifter_sync`, which may
+not change it). Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `session-cancel`,
 `goal-add`, `feedback --rpe 7`, `proposals`, `proposal approve|reject ID`.
 
 ## App

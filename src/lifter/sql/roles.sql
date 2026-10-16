@@ -60,6 +60,8 @@ grant select, insert, delete on activity_tombstone to lifter_ingest;
 grant usage on sequence raw_garmin_payload_id_seq, sync_log_id_seq to lifter_ingest;
 grant select on analytics.latest_garmin_payload, analytics.stg_activity,
     analytics.stg_activity_listed to lifter_ingest;
+-- To check, read-only, that the schema is up to date before syncing (lifter.db.ensure_schema).
+grant select on schema_migrations, schema_views to lifter_ingest;
 
 -- lifter_propose: append proposals and the audit of the runs that made them.
 grant usage on schema public to lifter_propose;

@@ -34,6 +34,8 @@ MATRIX = {
         "analytics.stg_activity": {READ},
         "analytics.stg_activity_listed": {READ},
         "analytics.latest_garmin_payload": {READ},
+        "public.schema_migrations": {READ},
+        "public.schema_views": {READ},
         "public.planned_session": set(),
         "public.feedback": set(),
         "public.proposal": set(),

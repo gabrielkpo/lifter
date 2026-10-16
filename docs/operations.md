@@ -8,7 +8,7 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 
 | Job (launchd) | When | What | Database role |
 |---|---|---|---|
-| `com.lifter.sync` | 07:30 and 21:00 | `lifter sync --days 3 --no-migrate`: last three days from Garmin into the raw layer; the schema is only checked | `lifter_sync` (writes the raw layer only) |
+| `com.lifter.sync` | 07:30 and 21:00 | `lifter sync --days 3 --no-migrate`: last three days from Garmin into the raw layer; the schema is only checked. Then `lifter audit-purge`: the agents' runs older than 90 days lose their context, plans and messages, and keep their metrics (ADR 0002) | `lifter_sync` (writes the raw layer only; may run the purge function, not read the audit) |
 | `com.lifter.backup` | 13:00 | `pg_dump` of the whole database (custom format), kept 30 days, verified with `pg_restore --list` | `lifter_backup` (read-only) |
 | `com.lifter.restore-check` | Sunday 13:30 | restores the latest backup into a throwaway local database and checks the core tables | none on the hosted side |
 
@@ -67,7 +67,9 @@ folder only this user can read; a dump left half-written by an interrupted run i
 next run. **The dumps are not encrypted themselves**: they hold the whole database, health data
 included, and rely on FileVault. A copy that leaves the disk is a plain copy: exclude the folder
 from Time Machine (`tmutil addexclusion` on it) unless the Time Machine disk is encrypted, and
-never sync it to a cloud drive.
+never sync it to a cloud drive. A dump keeps the database as it was that day, so the agents'
+audit context purged at 90 days (see the sync job) lives on in the dumps for up to
+`LIFTER_BACKUP_KEEP_DAYS` more days.
 
 ## Schema changes
 

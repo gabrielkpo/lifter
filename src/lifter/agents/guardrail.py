@@ -320,49 +320,86 @@ def _painful(rule: Rule, ctx: PlanningContext):
 
 
 def rule_stop_rule(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
-    """Pain above the threshold after a session: two load steps back on what it loaded.
+    """Pain above the threshold after a session: two load steps back on the patterns it loaded.
 
-    Every loaded exercise of the painful session is capped at its load that day minus `steps`
-    steps (2.5 kg upper body, 5 kg lower body by default), until a later session loading it is
-    reported without such pain. Pain reported without a session, or on a session without
-    loads, cannot be checked by code: it is a warning (see `check`).
+    Every pattern the painful session loaded is capped, until a later session loading that
+    pattern is reported without such pain; an exercise loaded on the painful day stays capped
+    until a later session loading that exercise itself is. On the pattern, an exercise loaded
+    that day is capped
+    at its load that day minus `steps` steps (2.5 kg upper body, 5 kg lower body by default);
+    another exercise of the pattern at its heaviest load logged in 28 days minus `steps` steps,
+    and refused when loaded without any logged load to step back from. Pain reported without a
+    session, or on a session without loads, cannot be checked by code: it is a warning (see
+    `check`).
     """
     steps = rule.params.get("steps", 2)
     upper = rule.params.get("upper_kg", 2.5)
     lower = rule.params.get("lower_kg", 5)
     patterns = {e.name: e.pattern for e in ctx.exercises}
     pain_max = rule.params.get("pain_max", 3)
-    # The latest reported session that loaded each exercise decides: a later session reported
+
+    def pattern_of(exercise: str) -> str:
+        return patterns.get(exercise) or f"exercise:{exercise}"
+
+    # The latest reported session that loaded each pattern decides: a later session reported
     # without pain lifts the cap (feedback is ordered by day).
-    latest: dict[str, tuple] = {}  # exercise -> (feedback, heaviest load that day)
+    latest: dict[str, tuple] = {}  # pattern -> (feedback, {exercise: heaviest load that day})
+    latest_by_exercise: dict[str, tuple] = {}
     for fb in ctx.feedback:
         if fb.pain is None:
             continue
-        heaviest: dict[str, float] = {}
+        loaded: dict[str, dict[str, float]] = {}
         for line in fb.lines:
             load = line.load_kg_max if line.load_kg_max is not None else line.load_kg
-            heaviest[line.exercise] = max(load, heaviest.get(line.exercise, load))
-        for exercise, load in heaviest.items():
-            latest[exercise] = (fb, load)
-    caps: dict[str, tuple[float, str]] = {}
-    for exercise, (fb, top) in latest.items():
-        if fb.pain <= pain_max:
-            continue
-        step = lower if patterns.get(exercise) in LOWER_BODY else upper
-        where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
-        reason = f"{where} after '{fb.session_title}' on {fb.day}, {top:g} kg that day"
-        caps[exercise] = (top - steps * step, reason)
+            day = loaded.setdefault(pattern_of(line.exercise), {})
+            day[line.exercise] = max(load, day.get(line.exercise, load))
+        for pattern, heaviest in loaded.items():
+            latest[pattern] = (fb, heaviest)
+            for exercise in heaviest:
+                latest_by_exercise[exercise] = (fb, heaviest)
+    painful = {pattern: v for pattern, v in latest.items() if v[0].pain > pain_max}
+    # The exercise that hurt is lifted only by a pain-free session loading it, not by a light
+    # session on another exercise of the pattern.
+    for exercise, (fb, heaviest) in latest_by_exercise.items():
+        if fb.pain > pain_max:
+            painful.setdefault(f"exercise:{exercise}", (fb, heaviest))
+    if not painful:
+        return
+    logged: dict[str, float] = {}  # exercise -> heaviest load logged in the recent window
+    for r in ctx.recent_loads:
+        logged[r.exercise] = max(r.load_kg, logged.get(r.exercise, r.load_kg))
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)
-            if part.kind == "metcon" or top is None or line.exercise not in caps:
+            if part.kind == "metcon" or top is None:
                 continue
-            cap, reason = caps[line.exercise]
+            pattern = pattern_of(line.exercise)
+            capped = painful.get(f"exercise:{line.exercise}") or painful.get(pattern)
+            if capped is None:
+                continue
+            fb, heaviest = capped
+            step = lower if patterns.get(line.exercise) in LOWER_BODY else upper
+            where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
+            loads = ", ".join(f"{e} {kg:g} kg" for e, kg in sorted(heaviest.items()))
+            reason = f"{where} after '{fb.session_title}' on {fb.day} ({loads})"
+            if line.exercise in heaviest:
+                ref, source = heaviest[line.exercise], "that day"
+            elif line.exercise in logged:
+                ref, source = logged[line.exercise], "its heaviest logged load"
+            else:
+                yield Violation(
+                    "stop_rule",
+                    f"'{line.exercise}' at {top:g} kg on a painful pattern without a logged load"
+                    f" to step back from: {reason} ({rule.text})",
+                    str(s.day),
+                )
+                continue
+            cap = ref - steps * step
             if top > cap:
                 yield Violation(
                     "stop_rule",
-                    f"'{line.exercise}' at {top:g} kg: {reason}, so at most {max(cap, 0):g} kg"
-                    f" ({rule.text})",
+                    f"'{line.exercise}' at {top:g} kg: {reason}; {ref:g} kg {source},"
+                    f" so at most {max(cap, 0):g} kg ({rule.text})",
                     str(s.day),
                 )
 

@@ -11,7 +11,7 @@ import pytest
 
 from lifter import domain
 from lifter.agents import guardrail
-from lifter.agents.context import Alert, PlanningError, build_context
+from lifter.agents.context import Alert, PlanningError, RecentLoad, build_context
 from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
 from lifter.agents.planner import MistralPlanner, PlannerOutputError, Usage, user_message
 from lifter.agents.week import run_week_planner
@@ -485,6 +485,74 @@ def test_pain_above_the_threshold_caps_the_session_loads_two_steps_down(conn, pr
 
     plan.sessions[1].parts[0].lines[0].load_kg = 95
     assert "stop_rule" not in checks(plan, ctx)
+
+
+def stop_rule_messages(plan, ctx):
+    return [v.message for v in guardrail.check(plan, ctx).violations if v.check == "stop_rule"]
+
+
+def test_the_cap_covers_the_whole_pattern_of_the_painful_session(conn, program):
+    ctx = report_pain(conn, pain=5)  # knee, after leg press 105 kg
+    plan = good_plan()
+    plan.sessions[1].parts[0].lines = [
+        PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=95, rir=3),
+        PlanLine(exercise="Leg curl", sets=4, quantity=12, load_kg=80, rir=3),
+    ]
+    # Leg curl is on the same pattern (legs) and has no logged load to step back from
+    (message,) = stop_rule_messages(plan, ctx)
+    assert "'Leg curl' at 80 kg on a painful pattern without a logged load" in message
+
+    logged = RecentLoad(
+        exercise="Leg curl", pattern="legs", reps=12, load_kg=40, rir=3, day=date(2026, 3, 4)
+    )
+    ctx = ctx.model_copy(update={"recent_loads": [*ctx.recent_loads, logged]})
+    (message,) = stop_rule_messages(plan, ctx)
+    assert "40 kg its heaviest logged load, so at most 30 kg" in message
+    plan.sessions[1].parts[0].lines[1].load_kg = 30
+    assert stop_rule_messages(plan, ctx) == []
+
+
+def test_a_light_pain_free_session_on_the_pattern_keeps_the_painful_exercise_capped(ctx):
+    from lifter.agents.context import Feedback, LineInfo
+
+    def fb(day, pain, exercise, load):
+        line = LineInfo(
+            exercise=exercise,
+            sets=3,
+            quantity=12,
+            unit="reps",
+            load_kg=load,
+            load_kg_max=None,
+            rir=3,
+        )
+        return Feedback(
+            day=day,
+            kind="session",
+            session_id=None,
+            session_title="Legs",
+            lines=[line],
+            rpe=None,
+            fatigue=None,
+            pain=pain,
+            pain_location="knee",
+        )
+
+    feedback = [fb(date(2026, 3, 6), 5, "Leg press", 105), fb(date(2026, 3, 7), 0, "Leg curl", 20)]
+    ctx = ctx.model_copy(update={"feedback": feedback, "rules": [*ctx.rules, STOP]})
+    plan = good_plan()
+    plan.sessions[1].parts[0].lines[0].load_kg = 110
+    (message,) = stop_rule_messages(plan, ctx)
+    assert "'Leg press' at 110 kg" in message and "at most 95 kg" in message
+
+
+def test_another_pattern_is_not_capped(conn, program):
+    ctx = report_pain(conn, pain=5)
+    plan = good_plan()
+    plan.sessions[1].parts[0].lines.append(
+        PlanLine(exercise="Romanian deadlift", sets=3, quantity=8, load_kg=90, rir=3)
+    )
+    plan.sessions[1].parts[0].lines[0].load_kg = 95
+    assert stop_rule_messages(plan, ctx) == []  # hinge, the painful session loaded legs only
 
 
 def test_pain_at_or_under_the_threshold_changes_nothing(conn, program):

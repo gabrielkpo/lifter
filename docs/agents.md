@@ -106,8 +106,11 @@ session was proposed. A crashed run keeps only the error's type and message, nev
 The log holds the context sent to the model, so it lives with the rest of the athlete's data,
 in the database the run reads: for the athlete's runs, the hosted one (Neon, Frankfurt),
 written by `lifter_agents`, which may insert runs but never change or delete them; the
-bench's runs stay in `lifter_bench`. ADR 0002 keeps that context 90 days, then only the metrics
-(tokens, seconds, verdicts); that retention is not in place yet, so the log keeps every run.
+bench's runs stay in `lifter_bench`. ADR 0002 keeps that context 90 days, then only the metrics:
+`lifter audit-purge` (migration 010, `purge_agent_audit()`), run after every scheduled sync,
+clears the context, the plans and the guardrail's messages of runs older than 90 days and sets
+`purged_at`; tokens, seconds, status, attempts, errors and proposals stay. The daily backups
+keep a purged context until they expire (30 days, docs/operations.md).
 
 ```bash
 uv run lifter runs              # the last runs

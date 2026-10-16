@@ -267,6 +267,24 @@ def test_reset_refuses_a_database_that_is_not_a_bench_or_test_one(database_url):
         admin.close()
 
 
+@pytest.mark.parametrize(
+    ("name", "resettable"),
+    [
+        ("lifter_bench", True),
+        ("lifter_bench_2", True),
+        ("lifter_test_ab12cd34", True),
+        ("lifter_benchmarks_prod", False),
+        ("lifter_bench2", False),
+        ("lifter", False),
+        ("neondb", False),
+    ],
+)
+def test_only_bench_and_test_databases_can_be_emptied(name, resettable):
+    from lifter.bench.runner import is_resettable
+
+    assert is_resettable(name) is resettable
+
+
 def test_a_week_logged_without_rir_still_needs_one_in_the_plan(conn, scenarios):
     apply_setup(conn, scenarios["rir_not_logged"])
     ctx = build_context(conn, week_number=3, today=scenarios["rir_not_logged"].today)

@@ -47,8 +47,15 @@ class RunResult:
     seconds: float
 
 
-# Only these databases may be emptied: the bench's and the tests' throwaway ones.
-RESETTABLE = ("lifter_bench", "lifter_test_")
+# Only these databases may be emptied: the bench's (`lifter_bench`, `lifter_bench_<suffix>`) and
+# the tests' throwaway ones (`lifter_test_<suffix>`). A bare prefix would also match
+# `lifter_benchmarks_prod`.
+RESETTABLE_NAMES = ("lifter_bench",)
+RESETTABLE_PREFIXES = ("lifter_bench_", "lifter_test_")
+
+
+def is_resettable(name: str) -> bool:
+    return name in RESETTABLE_NAMES or name.startswith(RESETTABLE_PREFIXES)
 
 
 class NotABenchDatabase(RuntimeError):
@@ -58,10 +65,10 @@ class NotABenchDatabase(RuntimeError):
 def reset(conn: psycopg.Connection) -> None:
     """Empty every table of the bench database, whatever migrations added.
 
-    Refuses any database whose name does not start with RESETTABLE, whoever the caller: the
+    Refuses any database that is not a bench or test one (`is_resettable`), whoever the caller: the
     check lives here, not only in the CLI, so no other path can empty the athlete's data."""
     (name,) = conn.execute("select current_database()").fetchone()
-    if not name.startswith(RESETTABLE):
+    if not is_resettable(name):
         raise NotABenchDatabase(f"refusing to empty database {name!r}: not a bench or test one")
     tables = [
         row[0]

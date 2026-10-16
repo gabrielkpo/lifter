@@ -60,8 +60,8 @@ Every write tool runs the same path in code, in one transaction:
    current conversation (the message being answered, or the one before it for "ok for 2").
    Normalisation only: Unicode NFC, typographic quotes and apostrophes, runs of whitespace. A
    quote found only in a coach message, in the data, or nowhere is refused. For
-   `accept_suggestion` the quote may be short ("ok", "go for 2") but must be in the message being
-   answered; for other tools it must contain at least two words.
+   `accept_suggestion` and `undo` the quote may be short ("ok", "go for 2", "undo", "annule") but
+   must be in the message being answered; for other tools it must contain at least two words.
 2. **Payload validation** against the operation's model (unknown fields refused).
 3. **Rule check** for operations that change the programme: the guardrail
    (`agents/guardrail.py`) runs on the week as it would be after the change; a violation means
@@ -73,8 +73,8 @@ Every write tool runs the same path in code, in one transaction:
 Garmin data is never edited: a wrong Garmin value is corrected by an annotation, read alongside.
 
 Suggestions stay `pending` until the athlete picks one; the code refuses to apply a suggestion
-without a quote from the athlete. A suggestion older than the conversation's current week
-expires.
+without a quote from the athlete. By default a suggestion expires when the week it concerns has
+started (open question 2 tunes it).
 
 ## Decision 3: the write path — a catalogue of typed operations covering everything
 
@@ -197,8 +197,8 @@ tokens. Otherwise the README reports the negative result and the single coach st
 
 1. Chat language: the athlete writes in French; summaries and rationales follow
    `LIFTER_COACH_LANGUAGE`.
-2. How long a pending suggestion stays valid, and how far back "undo" can reach (it is refused
-   anyway when the row changed since).
+2. Whether suggestions should expire sooner than the start of their week, and how far back
+   "undo" can reach (it is refused anyway when the row changed since).
 3. Streaming of the coach's reply to the app.
 
 ## Who builds what (after validation)

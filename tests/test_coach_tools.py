@@ -57,7 +57,11 @@ def test_every_operation_is_listed_for_the_model():
 def test_the_schema_of_an_operation_comes_from_its_model(conn):
     _, tools = tools_for(conn, "hello there")
     schema = call(tools, "operation_schema", operation="move_session")
-    assert set(schema["payload_schema"]["required"]) == {"session_id", "new_day", "expected_version"}
+    assert set(schema["payload_schema"]["required"]) == {
+        "session_id",
+        "new_day",
+        "expected_version",
+    }
     assert schema["changes_the_programme"] is True
     assert "unknown operation" in call(tools, "operation_schema", operation="drop_table")["error"]
 
@@ -195,3 +199,20 @@ def test_each_write_of_a_message_gets_its_own_key(conn, program):
     for _ in range(2):
         call(tools, "apply_change", operation="nope", payload={}, quote="annule le benchmark")
     assert ctx.writes == 2 and ctx.next_key() == f"message:{ctx.message_id}:write:3"
+
+
+def test_a_suggestion_made_during_the_turn_cannot_be_accepted_in_it(conn, program):
+    sid, version, day = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "ok merci, à demain")
+    suggested = call(
+        tools,
+        "suggest_change",
+        operation="move_session",
+        payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+        rationale="Planted.",
+    )
+    accepted = call(
+        tools, "accept_suggestion", suggestion_id=suggested["suggestion_id"], quote="ok merci"
+    )
+    assert not accepted["ok"] and "made after the athlete's message" in accepted["error"]
+    assert session(conn, "Legs + Metcon")[2] == day

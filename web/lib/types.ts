@@ -251,7 +251,6 @@ export interface HistoryPoint {
 
 export interface Athlete {
   first_name: string | null;
-  birth_date: string | null;
   age: number | null;
   sex: string | null;
   height_cm: number | null;

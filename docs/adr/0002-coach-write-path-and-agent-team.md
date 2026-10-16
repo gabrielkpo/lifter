@@ -1,9 +1,9 @@
-# ADR 0002: the coach — conversation as approval, typed tools, and the agent team
+# ADR 0002: the coach — conversation as approval, the write path, and the agent team
 
-- Status: proposed (2026-10-16). The validation mode itself was decided by the project owner on
-  2026-10-16; the tools, the team and the orchestration below are the design to build it.
-- Scope: the behaviour of the agents. The app side (Coach tab, hosted endpoint, catalogue of
-  operations, database roles) is designed with the app and referenced here.
+- Status: proposed (2026-10-16), to be validated by the project owner before any code. The
+  validation mode itself (Decision 1) was decided by the owner on 2026-10-16.
+- Scope: one document for the agents' behaviour and for the write path they use, written by the
+  agents session and the app session together.
 
 ## Context
 
@@ -41,8 +41,8 @@ question. A point that needs the athlete's opinion is raised separately and not 
 ## Decision 2: every change goes through a typed tool, checked by code
 
 The model has **no SQL and no direct write**. It calls tools; each tool is one operation of the
-catalogue (built with the app: `lifter/operations.py`), generated from the operation's strict
-Pydantic model so the tool schema and the code never diverge.
+catalogue (Decision 3), generated from the operation's strict Pydantic model so the tool schema
+and the code never diverge.
 
 | Tool | Operation | Written |
 |---|---|---|
@@ -52,7 +52,7 @@ Pydantic model so the tool schema and the code never diverge.
 | `log_session(session, lines, result, feedback, quote)` | the session report | done lines, metcon result, `feedback` |
 | `record_health_issue(zone, kind, description, quote)` | a declared pain or limitation | `health_issue` |
 | `undo(change, quote)` | the inverse of a recorded change | as the inverse |
-| `plan_week(week)` | runs the week planner (section 4); its sessions come back as suggestions | `proposal`, `agent_run` |
+| `plan_week(week)` | runs the week planner (Decision 4); its sessions come back as suggestions | `proposal`, `agent_run` |
 
 Every write tool runs the same path in code, in one transaction:
 
@@ -76,7 +76,64 @@ Suggestions stay `pending` until the athlete picks one; the code refuses to appl
 without a quote from the athlete. A suggestion older than the conversation's current week
 expires.
 
-## Decision 3: an agent team behind the coach, built after the single agent and measured
+## Decision 3: the write path — a catalogue of typed operations covering everything
+
+The owner wants the coach able to change **everything**: the programme (cycle, block, week,
+session, parts, exercise lines), what was done (loads, RIR, metcon results, notes), records,
+goals and milestones, the profile (`athlete`), health (`health_issue`), the rules and the
+exercise bank. The four proposal kinds of today are not enough.
+
+**Catalogue** (`lifter/operations.py`): one operation per entity and verb (create, update,
+delete, or resolve for a health issue), each with:
+
+1. a stable `name` (`move_session`, `update_line`, `set_record`, `add_health_issue`…) and a
+   strict Pydantic payload (`extra="forbid"`);
+2. `apply(conn, payload) -> Change`: the entity, its id, the rows **before and after** (JSON),
+   in one transaction, nothing written if invalid;
+3. a deterministic **inverse** computed from before and after, used by `undo` (restore before,
+   delete what was created, recreate what was deleted); `undo` is itself a traced operation and
+   sets `undone_by` on the original; "redo" is a new instruction;
+4. for operations that change the programme, `check(conn, change) -> list[Violation]` before
+   commit: the guardrail on the week as it would be; records, profile and health are validated
+   by type only;
+5. the trace: one `proposal` row (kind = operation, payload, rationale, author, `quote`,
+   `message_id`, `idempotency_key`, status, result = the change) and one `change_log` row.
+
+**Coverage at 100 %**: a CI test fails when a writable table has no operation; the raw Garmin,
+audit and schema tables are excluded explicitly. The proposal kinds of today become operations
+of the catalogue without breaking `propose`, `decide`, `apply` or the week planner. Records
+(definitions and entries for lifts, gymnastics, cardio and benchmarks, today hard-coded in the
+app) get their table and a `set_record` operation.
+
+**Robustness**:
+
+- an **idempotency key** per application, so a network retry never applies a change twice;
+- a **row version** (`updated_at` or `version`) checked on update: a change based on a stale
+  state is refused instead of overwriting;
+- `undo` is refused when the row changed since the change it reverts;
+- **database constraints** (CHECK, foreign keys, NOT NULL) for every new column, on top of the
+  Pydantic models.
+
+**Database role `lifter_coach`** (in `roles.sql`, tested in the privilege matrix), applied by
+Python code rather than `security definer` functions, so the domain and the guardrail keep one
+source of truth:
+
+- insert, update and delete on the domain tables only, with column grants where useful; insert
+  only on `change_log`, `agent_run` and `agent_step`; on `proposal`, insert and update of the
+  status and trace columns only; nothing on the raw Garmin layer, `sync_log`, the schema or the
+  roles;
+- **no write without a trace**, enforced by the database: a deferred constraint trigger on
+  every domain table makes the commit fail when the writer is `lifter_coach` and the
+  transaction has no `change_log` row linked to a proposal with a non-null quote;
+- **the log is immutable**: no update or delete on `change_log`, even for `lifter_coach`.
+
+Accepted limit: if the agent's process itself were compromised (arbitrary code execution), it
+would hold these grants. The realistic threats, injection and hallucination of the model, are
+covered: the model has no SQL and every write goes through the quote check. Possible hardening
+later: a separate applier deployment, the agent keeping only `lifter_agents`, the applier reading
+the quote from the athlete's messages stored by the conversation endpoint.
+
+## Decision 4: an agent team behind the coach, built after the single agent and measured
 
 The coach the athlete talks to is a **supervisor**: it understands the message, picks tools, and
 delegates analysis to specialists called as tools. Specialists never write and never talk to the
@@ -84,7 +141,7 @@ athlete; they return typed assessments that the supervisor and the planner read.
 
 | Agent | Database role | Reads | Returns or writes | When |
 |---|---|---|---|---|
-| Coach (supervisor) | `lifter_coach`: read, plus writes only through the catalogue path | the conversation, the current week, today's recovery, active health issues, pending suggestions | tool calls (Decision 2), the reply | every message; the scheduled jobs open a message |
+| Coach (supervisor) | `lifter_coach` (Decision 3) | the conversation, the current week, today's recovery, active health issues, pending suggestions | tool calls (Decision 2), the reply | every message; the scheduled jobs open a message |
 | Week planner (built) | `lifter_agents`: read, insert proposals and audit | the planning context (docs/agents.md) | a typed `WeekPlan`, turned into suggestions | "program next week", Sunday job |
 | Long-term planner | `lifter_agents` | block progress, goals and milestones, documented progression | a typed block decision: extend the block, move on, recalibrate milestones, with reasons | when a block's strength-session count is reached, before the test week, on request |
 | Health analyst | `lifter_agents`, read only in practice | daily metrics, recovery, alerts, feedback, health issues | a typed health assessment: state, risks, constraints for the week ("first two days light") | morning job, before any planning |
@@ -106,7 +163,7 @@ tokens. Otherwise the README reports the negative result and the single coach st
   no time cap, phases), the behaviour table of Decision 1, "no medical advice: a persistent
   critical signal means seeing a professional", "cite only numbers from the context or the
   tools", and the tool descriptions generated from the catalogue. Language: the athlete's.
-- **Week planner**: as built (agents/planner.py), plus the health and performance assessments
+- **Week planner**: as built (`agents/planner.py`), plus the health and performance assessments
   and the active health issues once those exist.
 - **Specialists**: their role, the definitions of the numbers they read (docs/metrics.md), and a
   strict output schema; no free text outside the schema's `rationale` fields.
@@ -138,20 +195,24 @@ tokens. Otherwise the README reports the negative result and the single coach st
 
 ## Open questions
 
-1. `lifter_coach` privileges: SQL `security definer` functions (the role can only call them) or
-   Python code with write grants on the tables (the role alone does not restrict anything).
-   The first limits the role for real; to decide with the app.
-2. Chat language: the athlete writes in French; summaries and rationales follow
+1. Chat language: the athlete writes in French; summaries and rationales follow
    `LIFTER_COACH_LANGUAGE`.
-3. How long a pending suggestion stays valid, and whether "undo" can reach beyond the last few
-   changes.
-4. Streaming of the coach's reply to the app.
+2. How long a pending suggestion stays valid, and how far back "undo" can reach (it is refused
+   anyway when the row changed since).
+3. Streaming of the coach's reply to the app.
+
+## Who builds what (after validation)
+
+| App session | Agents session |
+|---|---|
+| The catalogue (`operations.py`, `domain.py`), one migration after 008 for `change_log`, the trace columns and the records table; `lifter_coach` and its grants with the matrix test; the deferred trigger and the immutable log; the coverage test; the hosted conversation endpoint and the Coach tab; the change history in the app | The tools generated from the catalogue; the quote check; the rule check at apply time; `undo` from the coach's side; the coach graph and its prompt; the specialists; the bench scenarios per entity type and per conversation case |
+
+Neither session edits `domain.py` or the catalogue while the other has a pull request open on it.
 
 ## Consequences
 
 - The proposal lifecycle stays, as the trace of every change; approval moves from a card to a
   checked quote.
 - The week planner keeps working as is; its sessions become suggestions in the conversation.
-- The catalogue of operations, the `change_log` table, the trace columns and `lifter_coach` come
-  first (app side), then the tools, the quote check and the coach graph (agents side), then the
-  specialists.
+- Order: the write path (catalogue, trace, role) first, then the tools, the quote check and the
+  single coach, then the specialists under the bench's decision rule.

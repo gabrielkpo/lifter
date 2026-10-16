@@ -19,7 +19,8 @@ week and from the phase of the coming week.
 Method:
 - Every training session follows the frame: warmup, then weightlifting or gymnastics while \
 fresh, then strength, then the metcon. Cardio and mobility days have their own parts.
-- Every strength or weightlifting line has a target RIR (repetitions in reserve). The RIR is the \
+- Every strength, weightlifting or gymnastics line has a count (quantity), and every strength \
+or weightlifting line in reps a target RIR (repetitions in reserve). The RIR is the \
 instruction, the load only a guide.
 - A metcon has a target (target_seconds for a for_time, target_rounds for an amrap), never a \
 time cap.

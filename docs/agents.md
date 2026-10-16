@@ -52,9 +52,10 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `exercise_bank` | An exercise that is not in the bank |
 | `cancellations` | Cancelling a session that is not an open session of the target week |
 | `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values (agents read numbers, they never compute them) |
-| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3, in the plan or in a session of the week it keeps |
+| `prescription` | A strength, weightlifting or gymnastics line without a count, or a strength or weightlifting line in reps without a target RIR (it would escape the checks below) |
+| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3 or without the RIR it needs, in the plan or in a session of the week it keeps |
 | `forbid_flag` (rule) | An exercise carrying a forbidden flag (`running`, `impact`, `free_barbell_legs`…) |
-| `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max |
+| `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max in its note (max, 1RM, failure, AMRAP, PR) |
 | `weekly_pattern` (rule) | A week without strength work on the given pattern (legs every week), counting the sessions the plan keeps |
 | `no_max_before_test` (rule) | A single to failure, or a line marked as a max, outside the peak and test weeks |
 | `fresh_first` (rule) | Weightlifting or gymnastics placed after the metcon |

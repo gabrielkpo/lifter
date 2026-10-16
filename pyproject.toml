@@ -19,6 +19,10 @@ dependencies = [
 lifter = "lifter.cli:main"
 lifter-api = "lifter.api.server:main"
 
+# Entry point of the API when hosted on Vercel (project lifter-api).
+[tool.vercel]
+entrypoint = "lifter.api.vercel:app"
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",

@@ -15,6 +15,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import psycopg
+from psycopg import sql
 
 from lifter.agents.planner import Planner
 from lifter.agents.week import run_week_planner
@@ -46,8 +47,22 @@ class RunResult:
     seconds: float
 
 
+# Only these databases may be emptied: the bench's and the tests' throwaway ones.
+RESETTABLE = ("lifter_bench", "lifter_test_")
+
+
+class NotABenchDatabase(RuntimeError):
+    """reset() was handed a connection to a database it must never empty."""
+
+
 def reset(conn: psycopg.Connection) -> None:
-    """Empty every table of the bench database, whatever migrations added."""
+    """Empty every table of the bench database, whatever migrations added.
+
+    Refuses any database whose name does not start with RESETTABLE, whoever the caller: the
+    check lives here, not only in the CLI, so no other path can empty the athlete's data."""
+    (name,) = conn.execute("select current_database()").fetchone()
+    if not name.startswith(RESETTABLE):
+        raise NotABenchDatabase(f"refusing to empty database {name!r}: not a bench or test one")
     tables = [
         row[0]
         for row in conn.execute(
@@ -56,8 +71,8 @@ def reset(conn: psycopg.Connection) -> None:
         ).fetchall()
     ]
     if tables:
-        names = ", ".join(f'public."{t}"' for t in tables)  # names read from the catalog
-        conn.execute(f"truncate {names} restart identity cascade")
+        names = sql.SQL(", ").join(sql.Identifier("public", t) for t in tables)
+        conn.execute(sql.SQL("truncate {} restart identity cascade").format(names))
 
 
 def run_bench(

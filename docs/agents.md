@@ -1,5 +1,8 @@
 # Agents
 
+> Next: the coach in conversation, its write path and the agent team are designed in
+> [ADR 0002](adr/0002-coach-write-path-and-agent-team.md).
+
 Lifter's coach is a set of agents built with LangGraph on Mistral models. They read the
 analytics views and **propose**; they never write the domain. The athlete approves or rejects
 each proposal, and code applies it ([domain.md](domain.md)).

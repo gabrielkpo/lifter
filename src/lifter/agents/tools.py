@@ -76,10 +76,12 @@ def operation_list() -> str:
 @dataclass
 class ToolContext:
     """What the code knows and the model does not choose: the connection, the athlete's
-    message being answered, and the order of the write calls (for idempotency keys)."""
+    message being answered and its conversation, and the order of the write calls (for
+    idempotency keys)."""
 
     conn: psycopg.Connection
     message_id: int
+    conversation_id: str
     writes: int = 0
     changes: list[dict] = field(default_factory=list)  # what was applied, for the reply
     suggestions: list[int] = field(default_factory=list)  # suggestions recorded this turn
@@ -231,6 +233,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                     operation,
                     payload,
                     quote=quote,
+                    conversation_id=ctx.conversation_id,
                     message_id=ctx.message_id,
                     idempotency_key=key,
                     author=AUTHOR,
@@ -275,6 +278,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                     "",
                     None,
                     quote=quote,
+                    conversation_id=ctx.conversation_id,
                     message_id=ctx.message_id,
                     idempotency_key=key,
                     author=AUTHOR,

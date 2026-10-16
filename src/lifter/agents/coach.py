@@ -185,7 +185,7 @@ def respond(
     started_at = datetime.now(UTC)
     started = time.monotonic()
     state_of_mind = snapshot(conn, today)
-    ctx = ToolContext(conn=conn, message_id=message_id)
+    ctx = ToolContext(conn=conn, message_id=message_id, conversation_id=conversation_id)
     tools = coach_tools(ctx)
     bound = model.bind_tools(tools)
     usage = Usage()

@@ -35,7 +35,7 @@ def say(conn, text: str) -> int:
 
 
 def tools_for(conn, text: str) -> tuple[ToolContext, dict]:
-    ctx = ToolContext(conn=conn, message_id=say(conn, text))
+    ctx = ToolContext(conn=conn, message_id=say(conn, text), conversation_id="c1")
     return ctx, {t.name: t for t in coach_tools(ctx)}
 
 

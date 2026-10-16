@@ -3,11 +3,15 @@ import uuid
 
 import psycopg
 import pytest
+from dotenv import load_dotenv
 
 from lifter.bench.runner import reset
 from lifter.db import connect, migrate
 
-# A server where the tests may create and drop a throwaway database.
+# A server where the tests may create and drop a throwaway database: a local Postgres of the
+# hosted database's major version (18), set in .env (TEST_DATABASE_URL) or by the CI. The
+# environment wins over .env.
+load_dotenv()
 ADMIN_URL = os.environ.get("TEST_DATABASE_URL", "postgresql:///postgres")
 
 

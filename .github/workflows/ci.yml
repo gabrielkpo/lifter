@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18  # the hosted database's major version (Neon)
         env:
           POSTGRES_PASSWORD: postgres
         ports: ["5432:5432"]

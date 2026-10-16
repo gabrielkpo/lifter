@@ -82,6 +82,8 @@ checked when the layer is built.
 
 ## Restore
 
-`pg_restore --no-owner --no-privileges --dbname=<target> <dump>` into an empty database, then
-`lifter migrate` with the target's owner to recreate roles and grants. Neon also keeps 6 hours
+`pg_restore --no-owner --no-privileges --no-policies --dbname=<target> <dump>` into an empty
+database, then `lifter migrate` with the target's owner to recreate roles, grants and row-level
+policies. Dumps are taken with `--enable-row-security`: the conversation's messages have
+row-level policies, and `pg_dump` refuses such a table without it. Neon also keeps 6 hours
 of history on the free plan (instant restore from its console).

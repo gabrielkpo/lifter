@@ -6,6 +6,7 @@ as lifter_api, and every write outside a role's scope is refused.
 """
 
 from contextlib import contextmanager
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -220,3 +221,15 @@ def test_lifter_backup_can_read_every_sequence(conn):
         " and not has_sequence_privilege('lifter_backup', 'public.' || sequence_name, 'SELECT')"
     ).fetchall()
     assert missing == []
+
+
+def test_the_backup_dumps_tables_under_row_level_security(conn):
+    # pg_dump turns row security off by default and then refuses, for a role that does not own
+    # them, the tables that have policies: the daily backup must dump with them on.
+    secured = conn.execute(
+        "select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace"
+        " where n.nspname = 'public' and c.relrowsecurity"
+    ).fetchall()
+    script = (Path(__file__).parent.parent / "ops" / "lifter-backup.sh").read_text()
+    assert secured, "no table has row-level security: drop this test or the flag"
+    assert "--enable-row-security" in script

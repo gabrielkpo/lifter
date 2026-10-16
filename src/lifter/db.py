@@ -87,3 +87,45 @@ def _apply_repeatable(conn: psycopg.Connection, name: str, force: bool = False) 
             (name, digest),
         )
     return True
+
+
+class SchemaOutOfDate(Exception):
+    """The database lags behind the code and the connected role may not update it."""
+
+
+def schema_problems(conn: psycopg.Connection) -> list[str]:
+    """What `migrate` would change, read-only: pending migrations, changed repeatable files."""
+    if conn.execute("select to_regclass('public.schema_migrations')").fetchone()[0] is None:
+        return ["the schema was never created"]
+    applied = {row[0] for row in conn.execute("select name from public.schema_migrations")}
+    problems = [
+        f"migration {name} not applied" for name, _ in migration_files() if name not in applied
+    ]
+    if conn.execute("select to_regnamespace('analytics')").fetchone()[0] is None:
+        problems.append("the analytics views are missing")
+    hashes = dict(conn.execute("select name, sha256 from public.schema_views").fetchall())
+    for name in (VIEWS_FILE, ROLES_FILE):
+        sql = resources.files("lifter.sql").joinpath(name).read_text()
+        if hashes.get(name) != hashlib.sha256(sql.encode()).hexdigest():
+            problems.append(f"{name} changed")
+    return problems
+
+
+def ensure_schema(conn: psycopg.Connection, *, allow_migrate: bool = True) -> list[str]:
+    """Bring the schema up to date when the connected role may (it can create in `public`, like
+    the owner); otherwise only check it, never attempting DDL. Returns the migrations applied.
+
+    Raises SchemaOutOfDate when the schema lags and may not be updated here: the owner runs
+    `lifter migrate`. A least-privilege role (lifter_sync) thus fails clearly, not halfway.
+    """
+    can_migrate = conn.execute(
+        "select has_schema_privilege(current_user, 'public', 'CREATE')"
+    ).fetchone()[0]
+    if allow_migrate and can_migrate:
+        return migrate(conn)
+    problems = schema_problems(conn)
+    if problems:
+        raise SchemaOutOfDate(
+            "; ".join(problems) + " (run `lifter migrate` with the owner's connection)"
+        )
+    return []

@@ -119,6 +119,21 @@ def cmd_data_test(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit_purge(settings: Settings, args: argparse.Namespace) -> int:
+    """The agents' audit keeps the full context 90 days (ADR 0002); the rule lives in the
+    database (purge_agent_audit), this only triggers it."""
+    import psycopg
+
+    try:
+        with connect(settings.database_url) as conn:
+            purged = conn.execute("select purge_agent_audit()").fetchone()[0]
+    except psycopg.Error as exc:
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
+    print(f"audit: {purged} run(s) older than 90 days purged")
+    return 0
+
+
 def printable(value: object) -> str:
     """Text safe to print: control characters (terminal escapes, newlines) are shown escaped.
 
@@ -712,6 +727,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--freshness", action="store_true", help="also check that Garmin data arrived recently"
     )
     data_test.set_defaults(func=cmd_data_test)
+
+    audit_purge = sub.add_parser(
+        "audit-purge",
+        help="purge the context, plans and messages of agent runs older than 90 days",
+    )
+    audit_purge.set_defaults(func=cmd_audit_purge)
 
     metrics = sub.add_parser("metrics", help="print the daily metrics of the last days")
     metrics.add_argument("--days", type=int, default=14)

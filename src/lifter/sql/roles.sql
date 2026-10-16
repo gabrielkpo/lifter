@@ -75,6 +75,8 @@ alter default privileges grant usage on schemas to lifter_read;
 grant usage on schema public, analytics to lifter_ingest;
 grant select, insert, update on raw_garmin_payload, sync_log to lifter_ingest;
 grant select, insert, delete on activity_tombstone to lifter_ingest;
+-- The audit's retention (010), run with the owner's rights: the sync triggers it, nothing more.
+grant execute on function purge_agent_audit() to lifter_ingest;
 grant usage on sequence raw_garmin_payload_id_seq, sync_log_id_seq to lifter_ingest;
 grant select on analytics.latest_garmin_payload, analytics.stg_activity,
     analytics.stg_activity_listed to lifter_ingest;

@@ -12,7 +12,9 @@ repos:
         entry: uv run ruff format
         language: system
         types: [python]
+  # Dependabot does not update this pin: `uv run pre-commit autoupdate --repo
+  # https://github.com/gitleaks/gitleaks` from time to time, in its own pull request.
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.18.4
+    rev: v8.30.1
     hooks:
       - id: gitleaks

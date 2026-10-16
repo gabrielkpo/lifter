@@ -6,7 +6,7 @@ import { useState } from "react";
 import ApiStatus from "@/components/ApiStatus";
 import { BackIcon } from "@/components/icons";
 import WeekChart from "@/components/WeekChart";
-import { useApi } from "@/lib/api";
+import { NOT_FOUND, useApi } from "@/lib/api";
 import { label, shortDate } from "@/lib/format";
 import type { BlockDetail, WeekExercise } from "@/lib/types";
 
@@ -15,7 +15,9 @@ const LIFTS = ["strength", "weightlifting"];
 /** A block: how each lift moved week by week (load, reps, RIR), then the weeks themselves. */
 export default function BlockPage() {
   const { id } = useParams<{ id: string }>();
-  const state = useApi<BlockDetail>(/^\d+$/.test(id) ? `/blocks/${id}` : null);
+  const valid = /^\d+$/.test(id);
+  const fetched = useApi<BlockDetail>(valid ? `/blocks/${id}` : null);
+  const state = valid ? fetched : NOT_FOUND;
   return (
     <>
       <header className="topbar">

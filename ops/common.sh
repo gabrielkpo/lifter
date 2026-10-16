@@ -1,16 +1,40 @@
 # Shared by the scheduled jobs: settings, log file, failure notification. Sourced, not run.
-# Each job reads its own environment file, outside the repository (chmod 600):
-#   ~/.config/lifter/sync.env    DATABASE_URL (lifter_sync role), GARMIN_MCP_URL, GARMIN_MCP_TOKEN
-#   ~/.config/lifter/backup.env  DATABASE_URL (lifter_backup role)
+# Files outside the repository (chmod 600), in ~/.config/lifter:
+#   ops.env     optional, settings shared by every job (paths, retention), never a secret
+#   sync.env    DATABASE_URL (lifter_sync role), GARMIN_MCP_URL, GARMIN_MCP_TOKEN
+#   backup.env  DATABASE_URL (lifter_backup role)
+# Settings are documented in docs/operations.md.
+
+# Logs hold full tracebacks and dumps hold the whole database: nothing the jobs create is
+# readable by another user.
+umask 077
 
 LIFTER_CONFIG_DIR="${LIFTER_CONFIG_DIR:-$HOME/.config/lifter}"
+if [[ -r "$LIFTER_CONFIG_DIR/ops.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$LIFTER_CONFIG_DIR/ops.env"
+  set +a
+fi
 LIFTER_LOG_DIR="${LIFTER_LOG_DIR:-$HOME/Library/Logs/lifter}"
 # The `lifter` command installed apart from any working copy (uv tool install, see
 # docs/operations.md), so a checkout on another branch never changes what runs at night.
 LIFTER_BIN="${LIFTER_BIN:-$HOME/.local/bin/lifter}"
-PG_BIN="${PG_BIN:-/opt/homebrew/opt/postgresql@18/bin}"
+# Postgres 18 client tools from Homebrew, Apple silicon or Intel prefix.
+if [[ -z "${PG_BIN:-}" ]]; then
+  for prefix in /opt/homebrew /usr/local; do
+    if [[ -x "$prefix/opt/postgresql@18/bin/pg_dump" ]]; then
+      PG_BIN="$prefix/opt/postgresql@18/bin"
+      break
+    fi
+  done
+  PG_BIN="${PG_BIN:-/opt/homebrew/opt/postgresql@18/bin}"
+fi
+LIFTER_BACKUP_DIR="${LIFTER_BACKUP_DIR:-$HOME/Library/Application Support/Lifter/backups}"
+LIFTER_BACKUP_KEEP_DAYS="${LIFTER_BACKUP_KEEP_DAYS:-30}"
 
 mkdir -p "$LIFTER_LOG_DIR"
+chmod 700 "$LIFTER_LOG_DIR"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LIFTER_LOG"; }
 

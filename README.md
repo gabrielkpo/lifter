@@ -199,6 +199,7 @@ names (`VERCEL_URL`, `VERCEL_BRANCH_URL`, `VERCEL_PROJECT_PRODUCTION_URL`, plus
 | `src/lifter/agents/` | Week planner: context, typed plan, Mistral call, guardrail, LangGraph graph |
 | `src/lifter/bench/`, `bench/` | Evaluation bench: synthetic athlete, scenarios, expectations, runner, results |
 | `docs/metrics.md`, `docs/domain.md`, `docs/agents.md`, `docs/bench.md` | Every metric, threshold, table and status; the agents and their guardrail |
+| `ops/`, `docs/operations.md` | Scheduled jobs on the athlete's Mac: Garmin sync, backups, restore test |
 | `tests/` | pytest on synthetic data, against a throwaway Postgres database |
 
 ## Data and privacy

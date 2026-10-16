@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/gabrielkpo/lifter/compare/v0.1.0...v0.1.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **agents:** the coach finds the right session, its tables and its last change ([#73](https://github.com/gabrielkpo/lifter/issues/73)) ([27065d1](https://github.com/gabrielkpo/lifter/commit/27065d1d690e48ad8412e76d7c0cc9e2ba3078ae))
+
 ## 0.1.0 (2026-10-16)
 
 

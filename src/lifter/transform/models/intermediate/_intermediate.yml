@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: daily_base
+    description: "One row per calendar day between the first and last day with any data, so rolling windows count days, not rows."
+    columns:
+      - name: day
+        data_tests:
+          - unique
+          - not_null
+      - name: sessions
+      - name: load
+      - name: sessions_missing_details
+      - name: hrv_ms
+      - name: resting_hr_bpm
+      - name: sleep_seconds
+      - name: sleep_score
+  - name: daily_load
+    description: ""
+    columns:
+      - name: day
+        data_tests:
+          - unique
+          - not_null
+      - name: sessions
+      - name: load
+      - name: sessions_without_load
+      - name: sessions_missing_details
+      - name: duration_minutes
+  - name: session_activity
+    description: "Which Garmin activities belong to which session. An activity matched explicitly (planned_session.matched_activity_id) belongs to that session. Otherwise, on each day, the n-th session activity (by start time) goes to the n-th open session (by id); extra activities go to the day's last session, since one session is often recorded in two parts (strength, then the metcon). Mobility sessions, rarely recorded, take activities only on a day without another open session. An activity never belongs to two sessions; cancelled and rest sessions take none."
+    columns:
+      - name: planned_session_id
+        data_tests:
+          - not_null
+      - name: activity_id
+        data_tests:
+          - unique
+          - not_null

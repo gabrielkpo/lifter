@@ -21,6 +21,8 @@ lifter-api = "lifter.api.server:main"
 
 [dependency-groups]
 dev = [
+    "dbt-core>=1.12.6",
+    "dbt-postgres>=1.11.0",
     "httpx>=0.28.1",
     "pre-commit>=4.7.0",
     "pytest>=8",

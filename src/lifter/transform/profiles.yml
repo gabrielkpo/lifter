@@ -1,0 +1,15 @@
+# Filled from the URL given to `lifter migrate` (lifter.transform sets these variables for the
+# run only). There is deliberately no default database here.
+lifter:
+  target: lifter
+  outputs:
+    lifter:
+      type: postgres
+      host: "{{ env_var('LIFTER_DBT_HOST') }}"
+      port: "{{ env_var('LIFTER_DBT_PORT') | as_number }}"
+      user: "{{ env_var('LIFTER_DBT_USER') }}"
+      password: "{{ env_var('LIFTER_DBT_PASSWORD', '') }}"
+      dbname: "{{ env_var('LIFTER_DBT_DBNAME') }}"
+      schema: "{{ env_var('LIFTER_DBT_SCHEMA') }}"
+      sslmode: "{{ env_var('LIFTER_DBT_SSLMODE', 'prefer') }}"
+      threads: 4

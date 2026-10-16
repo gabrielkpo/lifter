@@ -1,8 +1,10 @@
 # Metric definitions
 
 These are the only numbers the agents are allowed to cite: an agent reads them, it never
-recomputes them. They live in SQL views of the `analytics` schema (`src/lifter/sql/views.sql`, recreated by
-`lifter migrate` whenever the file changes); this page and the SQL change together, and `tests/test_metrics.py` pins each definition with hand-computed cases.
+recomputes them. They live in SQL views of the `analytics` schema, built with dbt from the
+models in `src/lifter/transform/models/` by `lifter migrate` whenever the project changes; this
+page and the SQL change together. `tests/test_metrics.py` pins each definition with
+hand-computed cases, and the dbt data tests and contracts guard them on the real data.
 
 Thresholds are **version 1**: reasonable starting points for one athlete, to be tuned with the
 evaluation bench. They are training heuristics, **not medical criteria**.

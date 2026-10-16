@@ -15,3 +15,6 @@ __pycache__/
 # Vercel project link and pulled variables (local)
 .vercel/
 .env.local
+# dbt run by hand in the project folder (lifter migrate uses a temporary directory)
+src/lifter/transform/target/
+src/lifter/transform/logs/

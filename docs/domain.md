@@ -2,7 +2,8 @@
 
 What the athlete plans, does and aims for. Garmin data (see [metrics.md](metrics.md)) says how
 the body responded; this layer says what was prescribed, what was done and how it felt.
-Tables live in `public` (migration `006_domain.sql`), views in `analytics` (`views.sql`),
+Tables live in `public` (migration `006_domain.sql`), views in `analytics` (dbt models in
+`src/lifter/transform/models/`),
 code in `src/lifter/domain.py` and `src/lifter/program.py`.
 
 Lifter coaches CrossFit only, with one method:

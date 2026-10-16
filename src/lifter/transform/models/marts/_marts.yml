@@ -1,0 +1,410 @@
+version: 2
+
+models:
+  - name: block_progress
+    description: "Progress of each block: it ends when its strength-session count is reached."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: block_id
+        data_type: bigint
+        data_tests:
+          - unique
+          - not_null
+      - name: cycle_id
+        data_type: bigint
+      - name: position
+        data_type: integer
+      - name: kind
+        data_type: text
+      - name: start_date
+        data_type: date
+      - name: end_date
+        data_type: date
+      - name: target_strength_sessions
+        data_type: integer
+      - name: strength_sessions_done
+        data_type: numeric
+  - name: calendar
+    description: "Everything on the athlete's calendar, one row per item: Lifter sessions, workouts that only exist in Garmin's calendar, and activities that belong to no session."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: day
+        data_type: date
+      - name: kind
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["session", "activity"]
+      - name: source
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["lifter", "garmin"]
+      - name: title
+        data_type: text
+      - name: detail
+        data_type: text
+      - name: status
+        data_type: text
+      - name: planned_session_id
+        data_type: bigint
+      - name: activity_id
+        data_type: bigint
+  - name: daily_alerts
+    description: ""
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: day
+        data_type: date
+      - name: alert
+        data_type: text
+      - name: severity
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["info", "warning", "critical"]
+      - name: value
+        data_type: numeric
+      - name: threshold
+        data_type: numeric
+  - name: daily_metrics
+    description: ""
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: day
+        data_type: date
+        data_tests:
+          - unique
+          - not_null
+      - name: history_days
+        data_type: bigint
+      - name: sessions
+        data_type: bigint
+      - name: sessions_missing_details
+        data_type: bigint
+      - name: load
+        data_type: numeric
+      - name: acute_load_7d
+        data_type: numeric
+      - name: chronic_load_28d
+        data_type: numeric
+      - name: acwr
+        data_type: numeric
+      - name: hrv_ms
+        data_type: numeric
+      - name: hrv_baseline_28d
+        data_type: numeric
+      - name: hrv_delta_pct
+        data_type: numeric
+      - name: hrv_7d_delta_pct
+        data_type: numeric
+      - name: resting_hr_bpm
+        data_type: numeric
+      - name: rhr_baseline_28d
+        data_type: numeric
+      - name: rhr_delta_bpm
+        data_type: numeric
+      - name: sleep_hours
+        data_type: numeric
+      - name: sleep_score
+        data_type: numeric
+      - name: recovery_score
+        data_type: numeric
+      - name: recovery_status
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["unknown", "low", "normal", "good"]
+      - name: recovery_7d_avg
+        data_type: numeric
+      - name: trend
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["unknown", "fatigue", "improving", "stable"]
+  - name: daily_recovery
+    description: "Recovery and form, one row per calendar day: Garmin's own values next to the sleep details. These are Garmin's figures, stored as received and rounded only for display; Lifter's own definitions stay in daily_metrics."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: day
+        data_type: date
+        data_tests:
+          - unique
+          - not_null
+      - name: sleep_hours
+        data_type: numeric
+      - name: sleep_score
+        data_type: numeric
+      - name: deep_sleep_minutes
+        data_type: numeric
+      - name: rem_sleep_minutes
+        data_type: numeric
+      - name: awake_minutes
+        data_type: numeric
+      - name: awake_count
+        data_type: numeric
+      - name: avg_sleep_stress
+        data_type: numeric
+      - name: body_battery_highest
+        data_type: numeric
+      - name: body_battery_lowest
+        data_type: numeric
+      - name: body_battery_charged
+        data_type: numeric
+      - name: body_battery_drained
+        data_type: numeric
+      - name: avg_stress
+        data_type: numeric
+      - name: stress_qualifier
+        data_type: text
+      - name: garmin_resting_hr_bpm
+        data_type: numeric
+      - name: avg_spo2_percent
+        data_type: numeric
+      - name: avg_waking_respiration
+        data_type: numeric
+      - name: intensity_minutes
+        data_type: numeric
+      - name: readiness_score
+        data_type: numeric
+      - name: readiness_level
+        data_type: text
+      - name: recovery_time_hours
+        data_type: numeric
+      - name: garmin_training_status
+        data_type: text
+      - name: garmin_acute_load
+        data_type: numeric
+      - name: garmin_chronic_load
+        data_type: numeric
+      - name: garmin_load_ratio
+        data_type: numeric
+      - name: vo2_max
+        data_type: numeric
+  - name: exercise_best
+    description: "Best logged load per exercise and repetition count (sets done in reps with a load)."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: exercise
+        data_type: text
+      - name: reps
+        data_type: numeric
+      - name: best_load_kg
+        data_type: numeric
+      - name: day
+        data_type: date
+  - name: exercise_history
+    description: "The heaviest logged set of each exercise on each day (sets done in reps with a load), with its reps: the progression curve of a movement in the app's PR tab."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: exercise
+        data_type: text
+      - name: day
+        data_type: date
+      - name: session_id
+        data_type: bigint
+      - name: top_load_kg
+        data_type: numeric
+      - name: reps
+        data_type: numeric
+      - name: sets
+        data_type: integer
+  - name: planned_session_status
+    description: "Planned sessions with their outcome: 'done' when a Garmin activity belongs to the session or when it was logged (exercises done, a metcon result, or a session feedback), since the watch is not always worn; 'missed' once the day is past without either; 'cancelled' when the athlete or an approved proposal cancelled it."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: planned_session_id
+        data_type: bigint
+        data_tests:
+          - unique
+          - not_null
+      - name: day
+        data_type: date
+      - name: title
+        data_type: text
+      - name: kind
+        data_type: text
+      - name: week_id
+        data_type: bigint
+      - name: moved_from
+        data_type: date
+      - name: activities
+        data_type: bigint
+      - name: logged
+        data_type: boolean
+      - name: status
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["done", "missed", "planned", "cancelled", "rest"]
+  - name: session_garmin
+    description: "The Garmin line of a session, summed over its activities: duration, heart rate, calories, load and minutes in zones 4-5. Average heart rate is weighted by duration."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: planned_session_id
+        data_type: bigint
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: "source('lifter', 'planned_session')"
+                field: id
+      - name: activities
+        data_type: bigint
+      - name: duration_minutes
+        data_type: numeric
+      - name: avg_hr_bpm
+        data_type: numeric
+      - name: max_hr_bpm
+        data_type: numeric
+      - name: calories
+        data_type: numeric
+      - name: training_load
+        data_type: numeric
+      - name: z4_z5_minutes
+        data_type: numeric
+  - name: session_line
+    description: "Exercise lines with their exercise, for reading a session or a week."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: session_id
+        data_type: bigint
+        data_tests:
+          - not_null
+      - name: part_position
+        data_type: integer
+      - name: part_kind
+        data_type: text
+      - name: origin
+        data_type: text
+      - name: position
+        data_type: integer
+      - name: exercise
+        data_type: text
+      - name: category
+        data_type: text
+      - name: pattern
+        data_type: text
+      - name: sets
+        data_type: integer
+      - name: quantity
+        data_type: numeric
+      - name: unit
+        data_type: text
+      - name: load_kg
+        data_type: numeric
+      - name: load_kg_max
+        data_type: numeric
+      - name: rir
+        data_type: integer
+      - name: rest_seconds
+        data_type: integer
+      - name: notes
+        data_type: text
+  - name: week_exercise_progress
+    description: "Week-by-week progression of each exercise in the program (the block page of the app): planned and done side by side, warm-ups left out. Repetitions are counted in sets done in reps (sets x reps per set; a line without sets counts as one set); the load is the heaviest of the week; the RIR is averaged over the lines that state one."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: week_id
+        data_type: bigint
+      - name: block_id
+        data_type: bigint
+      - name: week_number
+        data_type: integer
+      - name: week_start
+        data_type: date
+      - name: phase
+        data_type: text
+      - name: exercise
+        data_type: text
+      - name: category
+        data_type: text
+      - name: pattern
+        data_type: text
+      - name: origin
+        data_type: text
+      - name: lines
+        data_type: bigint
+      - name: sets
+        data_type: bigint
+      - name: reps
+        data_type: numeric
+      - name: top_load_kg
+        data_type: numeric
+      - name: avg_rir
+        data_type: numeric
+  - name: week_summary
+    description: "The review of each week, what the weekly programming starts from: sessions planned, done, missed and cancelled, strength sessions done (done sessions with a strength part: they count toward the block), and the movement patterns actually trained."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: week_id
+        data_type: bigint
+        data_tests:
+          - unique
+          - not_null
+      - name: block_id
+        data_type: bigint
+      - name: number
+        data_type: integer
+      - name: start_date
+        data_type: date
+      - name: phase
+        data_type: text
+      - name: block
+        data_type: text
+      - name: sessions
+        data_type: bigint
+      - name: done
+        data_type: bigint
+      - name: missed
+        data_type: bigint
+      - name: cancelled
+        data_type: bigint
+      - name: strength_sessions_done
+        data_type: bigint
+      - name: patterns_done
+        data_type: text[]
+  - name: weekly_training
+    description: "Sessions per ISO week (Monday start) and activity type, with minutes per heart rate zone."
+    columns:
+      - name: week_start
+      - name: activity_type
+      - name: sessions
+      - name: duration_minutes
+      - name: load
+      - name: zone1_minutes
+      - name: zone2_minutes
+      - name: zone3_minutes
+      - name: zone4_minutes
+      - name: zone5_minutes

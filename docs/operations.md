@@ -39,10 +39,17 @@ Run a job by hand: `launchctl kickstart gui/$(id -u)/com.lifter.sync`.
 
 ## Schema changes
 
-The jobs never change the schema. After a merge that adds a migration or changes `views.sql` or
-`roles.sql`, the owner runs `lifter migrate` against the hosted database (owner URL in the
+The jobs never change the schema. After a merge that adds a migration, changes the dbt models
+(`src/lifter/transform/`) or `roles.sql`, the owner runs `lifter migrate` against the hosted database (owner URL in the
 Mac's `.env`, never on Vercel); until then the sync stops with "schema out of date" and a
 notification, and nothing is half-applied.
+
+## Data tests
+
+`lifter data-test` runs the dbt data tests of the analytics layer (uniqueness, accepted values,
+relationships, Lifter's own rules) against a database, read-only; `--freshness` also checks
+that Garmin data arrived in the last 36 hours (warning) or 72 hours (error). Contracts are
+checked when the layer is built.
 
 ## Restore
 

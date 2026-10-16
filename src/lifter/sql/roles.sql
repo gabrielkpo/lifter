@@ -1,6 +1,6 @@
 -- Who may do what in the Lifter database (RBAC), as code. Repeatable: `lifter migrate` applies it
--- when this file changes and every time views.sql is applied again, because recreating the
--- analytics views drops the grants on them. Run by the owner, who needs CREATEROLE.
+-- when this file changes and every time the analytics layer (dbt) is rebuilt, because recreating
+-- the analytics views drops the grants on them. Run by the owner, who needs CREATEROLE.
 --
 -- Group roles (NOLOGIN) carry the privileges; login roles carry none of their own and only
 -- inherit them. No password here: login roles are created without one and their password is

@@ -1,0 +1,26 @@
+version: 2
+
+# The tables the models read, created by the numbered migrations in `public`
+# (src/lifter/sql/NNN_*.sql). The raw Garmin layer is written by `lifter sync`; the others by
+# the domain (program file, the athlete, approved proposals).
+sources:
+  - name: lifter
+    schema: public
+    tables:
+      - name: raw_garmin_payload
+        description: Every Garmin MCP answer as received (JSON), one row per tool, key and payload.
+        loaded_at_field: last_seen_at
+        freshness:
+          # Synced at 07:30 and 21:00: over a day and a half without news, something is wrong.
+          warn_after: {count: 36, period: hour}
+          error_after: {count: 72, period: hour}
+      - name: activity_tombstone
+        description: Activities Garmin confirms deleted; the staging views ignore them.
+      - name: exercise
+      - name: cycle
+      - name: block
+      - name: training_week
+      - name: planned_session
+      - name: session_part
+      - name: session_exercise
+      - name: feedback

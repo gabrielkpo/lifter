@@ -52,15 +52,16 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `exercise_bank` | An exercise that is not in the bank |
 | `cancellations` | Cancelling a session that is not an open session of the target week |
 | `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values: loads, counts, targets, days, never its titles or notes (agents read numbers, they never compute them) |
-| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3, in the plan or in a session of the week it keeps |
+| `prescription` | A strength, weightlifting or gymnastics line without a count, or a strength or weightlifting line in reps without a target RIR (it would escape the checks below) |
+| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3 or without the RIR it needs, in the plan or in a session of the week it keeps |
 | `forbid_flag` (rule) | An exercise carrying a forbidden flag (`running`, `impact`, `free_barbell_legs`…) |
-| `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max |
+| `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max in its note (max, 1RM, to failure, AMRAP, PR in capitals; keywords, so a negated "never to failure" is refused too) |
 | `weekly_pattern` (rule) | A week without strength work on the given pattern (legs every week), counting the sessions the plan keeps |
-| `no_max_before_test` (rule) | A single to failure, or a line marked as a max, outside the peak and test weeks |
+| `no_max_before_test` (rule) | A single to failure, or a line marked as a max, outside the peak and test weeks (metcons excepted: an AMRAP is not a max attempt) |
 | `fresh_first` (rule) | Weightlifting or gymnastics placed after the metcon |
 | `metcon_no_row` (rule) | A listed exercise (the rower) inside a metcon |
 | `metcon_light_barbell` (rule) | A weightlifting line above the given load inside a metcon |
-| `stop_rule` (rule) | After a feedback with pain above the threshold (3/10), any load above the painful session's load minus two steps (−5 kg upper body, −10 kg lower body) on the exercises it loaded, until a later session loading them is reported without such pain; pain without a loaded session is a warning |
+| `stop_rule` (rule) | After a feedback with pain above the threshold (3/10), two steps back (−5 kg upper body, −10 kg lower body) on every **pattern** the painful session loaded: an exercise loaded that day from its load that day, another exercise of the pattern from its heaviest load logged in 28 days, refused if loaded without any logged load; until a later session loading the pattern is reported without such pain (and, for an exercise loaded that day, a later session loading that exercise). Pain without a loaded session is a warning |
 | `progression` (rule) | A load more than one step (2.5 kg upper body, 5 kg lower body) above the heaviest set logged in 28 days at as many reps or more; a line in another unit (seconds, metres) or without a count is compared with the heaviest set logged at any reps |
 
 Rules without a code, or with a code the guardrail does not know, are context for the planner
@@ -69,6 +70,23 @@ warning, not a refusal.
 
 Known limit: `sources` accepts any number found in the context, which holds many numbers (ids,
 dates, loads); it stops invented figures and computed differences, not a misattributed one.
+
+## Checks for the coach's write path (ADR 0002)
+
+Two checks the operations catalogue runs before applying a change made by the coach:
+
+- **Quote** (`lifter/quote.py`, outside the agents package: the catalogue imports it):
+  `verify_quote(conn, message_id, quote, short_ok=...)` reads the athlete's message from
+  `conversation_message` and refuses the change unless the quote's words appear in it as a
+  contiguous run of whole words. Only formatting is normalised (Unicode NFC, typographic quotes
+  and apostrophes, whitespace); case and words are kept. At least two words; a one-word quote
+  ("ok", "annule") only where the operation allows it and only as the whole message, so "ok"
+  inside "pas ok" or "book" never counts. A message from the coach never counts.
+- **Rules on the stored week** (`agents/week_check.py`): `violations_for_week(conn, week_id)`
+  runs the guardrail on the week as it is in the database; the catalogue calls it before and
+  after an operation that changes the programme and refuses only what the change introduces
+  (`introduced(before, after)`), so a week that already broke a rule does not block unrelated
+  changes.
 
 ## Audit log
 

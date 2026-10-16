@@ -14,6 +14,6 @@ if "$LIFTER_BIN" sync --days "${LIFTER_SYNC_DAYS:-3}" --no-migrate >>"$LIFTER_LO
 else
   code=$?
   log "sync: failed (exit $code)"
-  notify_failure "Garmin sync failed (exit $code), see ~/Library/Logs/lifter/sync.log"
+  notify_failure "Garmin sync failed (exit $code), see $LIFTER_LOG"
   exit "$code"
 fi

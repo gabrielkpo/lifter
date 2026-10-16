@@ -255,6 +255,7 @@ def test_the_profile_shows_the_athlete_their_issues_active_first_and_their_rules
     body = api.get("/profile").json()
 
     assert body["athlete"]["age"] == 30
+    assert "birth_date" not in body["athlete"]  # the age is enough for the app
     assert body["athlete"]["weight_kg"] == 64.5
     assert body["athlete"]["training_places"] == ["Gym A", "Club B"]
     assert [(i["body_part"], i["status"]) for i in body["health_issues"]] == [
@@ -263,6 +264,15 @@ def test_the_profile_shows_the_athlete_their_issues_active_first_and_their_rules
         ("ankle", "resolved"),
     ]
     assert [r["text"] for r in body["rules"]] == ["Stop above 3/10", "Machines only for the legs"]
+
+
+def test_status_says_when_garmin_data_last_arrived(api, conn):
+    assert api.get("/status").json() == {"garmin_last_seen_at": None}
+    store_payload(conn, "get_stats", "2026-03-02", {}, {"restingHeartRate": 50})
+
+    seen = api.get("/status").json()["garmin_last_seen_at"]
+
+    assert seen is not None and seen.startswith(str(date.today().year))
 
 
 def test_a_resolved_issue_needs_its_date(conn):

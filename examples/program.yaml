@@ -65,7 +65,7 @@ weeks:
           - kind: warmup
             planned: [{exercise: Row, quantity: 1000, unit: m}]
           - kind: weightlifting
-            planned: [{exercise: Power clean, sets: 5, quantity: 3, load_kg: 40, load_kg_max: 45}]
+            planned: [{exercise: Power clean, sets: 5, quantity: 3, load_kg: 40, load_kg_max: 45, rir: 3}]
             done: [{exercise: Power clean, sets: 5, quantity: 3, load_kg: 45}]
           - kind: strength
             planned:
@@ -87,7 +87,7 @@ weeks:
         title: Weightlifting + Pull + Metcon
         parts:
           - kind: weightlifting
-            planned: [{exercise: Power snatch, sets: 5, quantity: 3, load_kg: 30}]
+            planned: [{exercise: Power snatch, sets: 5, quantity: 3, load_kg: 30, rir: 3}]
           - kind: strength
             planned:
               - {exercise: Strict pull-up, sets: 4, quantity: 5, rir: 3}

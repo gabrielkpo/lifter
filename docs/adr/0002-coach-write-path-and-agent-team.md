@@ -1,7 +1,7 @@
 # ADR 0002: the coach — conversation as approval, the write path, and the agent team
 
-- Status: proposed (2026-10-16), to be validated by the project owner before any code. The
-  validation mode itself (Decision 1) was decided by the owner on 2026-10-16.
+- Status: accepted (2026-10-16), validated by the project owner. The validation mode itself
+  (Decision 1) was decided by the owner the same day.
 - Scope: one document for the agents' behaviour and for the write path they use, written by the
   agents session and the app session together.
 

@@ -1,18 +1,19 @@
 #!/bin/bash
 # Daily backup of the hosted database, run by launchd: a full logical dump (schema and data,
 # pg_dump custom format, compressed) taken with the read-only lifter_backup role, kept 30 days
-# in a folder only this user can read, on a FileVault-encrypted disk. Neon's own history only
-# goes back 6 hours on the free plan; this is the copy we control.
+# in a folder only this user can read, on a FileVault-encrypted disk. The dumps themselves are
+# not encrypted (see docs/operations.md, Backups). Neon's own history only goes back 6 hours on
+# the free plan; this is the copy we control.
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
 LIFTER_LOG="$LIFTER_LOG_DIR/backup.log"
-BACKUP_DIR="${LIFTER_BACKUP_DIR:-$HOME/Library/Application Support/Lifter/backups}"
-KEEP_DAYS="${LIFTER_BACKUP_KEEP_DAYS:-30}"
+BACKUP_DIR="$LIFTER_BACKUP_DIR"
 
 load_env backup.env
-umask 077
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
+# A run killed in the middle of pg_dump (sleep, shutdown) leaves a partial file: never kept.
+find "$BACKUP_DIR" -name 'lifter-*.dump.partial' -mmin +60 -delete
 file="$BACKUP_DIR/lifter-$(date '+%Y%m%d-%H%M%S').dump"
 
 log "backup: start"
@@ -23,7 +24,7 @@ if "$PG_BIN/pg_dump" --format=custom --no-owner --no-privileges --file="$file.pa
 else
   rm -f "$file.partial"
   log "backup: failed"
-  notify_failure "Database backup failed, see ~/Library/Logs/lifter/backup.log"
+  notify_failure "Database backup failed, see $LIFTER_LOG"
   exit 1
 fi
-find "$BACKUP_DIR" -name 'lifter-*.dump' -mtime +"$KEEP_DAYS" -delete
+find "$BACKUP_DIR" -name 'lifter-*.dump' -mtime +"$LIFTER_BACKUP_KEEP_DAYS" -delete

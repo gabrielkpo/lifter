@@ -14,10 +14,13 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 
 The sync needs the Garmin MCP server up on `127.0.0.1:8080` (a Docker container: Docker
 Desktop must start at login), and the restore test needs the local Postgres server. A job
-missed while the Mac sleeps runs at wake-up. Every failure raises a macOS notification;
-logs are in `~/Library/Logs/lifter/`. Backups are in
-`~/Library/Application Support/Lifter/backups/` (folder readable by this user only, disk
-encrypted by FileVault).
+missed while the Mac sleeps runs at wake-up. Logs are in `~/Library/Logs/lifter/`, readable by
+this user only (they can hold full tracebacks).
+
+**Failures.** Every failure raises a macOS notification. macOS only shows it when notifications
+are allowed for Script Editor (`osascript`) and no Focus mode hides them, so a failing sync can
+go unseen: the app also shows a banner on every page when the Garmin data is more than 36 hours
+old, and `lifter data-test --freshness` fails past 72 hours.
 
 ## Set up
 
@@ -36,6 +39,30 @@ encrypted by FileVault).
    launchd agents); `ops/install.sh --uninstall` removes them.
 
 Run a job by hand: `launchctl kickstart gui/$(id -u)/com.lifter.sync`.
+
+### Settings
+
+Environment variables of the jobs; any of them can go in the optional
+`~/.config/lifter/ops.env` (`chmod 600`, never a secret), read by every job before its own file.
+
+| Variable | Default | What |
+|---|---|---|
+| `LIFTER_CONFIG_DIR` | `~/.config/lifter` | Folder of the job files (`ops.env`, `sync.env`, `backup.env`); set in the environment only |
+| `LIFTER_LOG_DIR` | `~/Library/Logs/lifter` | Logs, folder readable by this user only |
+| `LIFTER_BIN` | `~/.local/bin/lifter` | The `lifter` command installed by `uv tool install` |
+| `PG_BIN` | Homebrew's `postgresql@18/bin` (Apple silicon, else Intel prefix) | `pg_dump`, `pg_restore`, `createdb`, `psql` |
+| `LIFTER_BACKUP_DIR` | `~/Library/Application Support/Lifter/backups` | Dumps, read by the backup and the restore test |
+| `LIFTER_BACKUP_KEEP_DAYS` | `30` | Dumps older than this are deleted |
+| `LIFTER_SYNC_DAYS` | `3` | Days fetched again by each sync |
+
+## Backups
+
+One dump per day, verified with `pg_restore --list`, kept `LIFTER_BACKUP_KEEP_DAYS` days, in a
+folder only this user can read; a dump left half-written by an interrupted run is deleted at the
+next run. **The dumps are not encrypted themselves**: they hold the whole database, health data
+included, and rely on FileVault. A copy that leaves the disk is a plain copy: exclude the folder
+from Time Machine (`tmutil addexclusion` on it) unless the Time Machine disk is encrypted, and
+never sync it to a cloud drive.
 
 ## Schema changes
 

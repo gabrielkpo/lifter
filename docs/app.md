@@ -4,7 +4,8 @@ A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private, 
 API (FastAPI, `src/lifter/api/`). The API reads the same analytics views as the CLI and
 computes nothing of its own. Five tabs: **WOD** (the week, day by day, and each session planned
 against done), **PRs** (best loads by kind and family), **Coach** (chat, with the agents),
-**Planning** (cycle, blocks counted in strength sessions, weeks, goals) and **Health** (recovery
+**Planning** (three views: Cycles, the blocks counted in strength sessions; Weeks; Goals, a
+table of targets, dates and next milestones) and **Health** (recovery
 read against the sessions of each day); the profile opens from the avatar.
 
 ```bash

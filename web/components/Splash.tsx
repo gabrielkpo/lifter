@@ -14,6 +14,8 @@ const GRAVITY = 2200; // px/s²
 const FLOOR_AT = 0.62; // the floor's height, as a share of the screen
 const BOUNCE = 0.55; // vertical speed kept at each bounce on the floor
 const WALL = 0.7; // horizontal speed kept off a side
+/** The floor's widest, centred: on a computer the bell bounces off sides it can reach. */
+const FLOOR_MAX_W = 420;
 /** The data must have been idle this long: a page often chains a second call to the first. */
 const IDLE_MS = 250;
 /** A page with no call at all is ready once this has passed. */
@@ -45,8 +47,9 @@ export default function Splash() {
     if (!box || !svg) return;
     const width = box.clientWidth;
     const floor = Math.round(box.clientHeight * FLOOR_AT);
-    const left = 24;
-    const right = width - 24;
+    // The sides are the floor's ends (globals.css, .splash-floor): 24 px off a phone's edges.
+    const left = Math.max(24, (width - FLOOR_MAX_W) / 2);
+    const right = width - left;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       svg.style.transform = `translate(${width / 2 - BELL_W / 2}px, ${floor - BELL_H}px)`;
       const still = requestAnimationFrame(() => setSettled(true));

@@ -38,7 +38,8 @@ left out; a rest is no session at all, never an exercise.
 - Loads: start from recent_loads; go up one step at most when the RIR was met.
 - Pain: when a feedback reports pain above the stop rule's threshold after a session, every \
 exercise of the patterns that session loaded goes two load steps back from its load that day \
-(the legs and the hinge after a legs session, for instance), never up, until a later session \
+(the legs after a leg press, and the hinge too if that session loaded a deadlift), never up, \
+until a later session \
 loading them is reported without such pain. Keep training the pattern, lighter.
 - Schedule sessions inside the target week only. If sessions are already planned for that week, \
 either keep them (do not repeat them) or list their ids in cancel_session_ids and replace them.

@@ -145,11 +145,16 @@ whole matrix and runs a sync as `lifter_sync` and a proposal as `lifter_agents`.
 
 The coach changes data only through `lifter.operations` ([ADR 0002](adr/0002-coach-write-path-and-agent-team.md)):
 one typed operation per entity and verb (52 today, every writable table covered, checked in
-CI), applied by `run()` in one transaction: the athlete's quote checked against their stored
-message (`conversation_message`), the payload validated, the row version checked
+CI), applied by `run()` in one transaction: the message must be the athlete's latest in its
+conversation (the one being answered: an older message, another conversation's or the coach's
+cannot authorise a change), the quote checked against it as stored (`conversation_message`),
+the payload validated, the row version checked
 (`expected_version`), the guardrail on the weeks it touches (only violations it introduces
 refuse it), then the trace: a `proposal` row (applied, with `quote`, `message_id`,
 `idempotency_key`) and a `change_log` row (rows before and after). `undo` rebuilds the
 previous state from it, ids included, and is refused when those rows changed since. Every
 domain table has a `version` bumped on each update, and the database refuses a commit by the
-coach's role (`lifter_coach`) that wrote without such a trace.
+coach's role (`lifter_coach`) that wrote without such a trace, and any later change to an
+applied proposal's trace (`undone_by` aside). A row outside the catalogue that points at a
+deleted one with `on delete set null` (an agent run's target week) keeps its own history and
+loses the link; it is not copied into the change log.

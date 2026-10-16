@@ -7,13 +7,15 @@ previous state exactly (ids included).
 
 `run` is the single entry point and does everything in one transaction, in this order:
 1. a retry with the same idempotency key returns the change already made, writing nothing;
-2. the athlete's quote is checked against their stored message (lifter.quote);
+2. the message must be the athlete's latest in the conversation (the one being answered), and
+   the quote is checked against it as stored (lifter.quote);
 3. the payload is validated (unknown fields refused);
 4. the operation is applied; a row whose version changed since the coach read it is refused;
 5. for an operation on the programme, the guardrail's violations on the weeks it touches are
    computed before and after, and the change is refused if it introduces one;
 6. the trace: one `proposal` row (applied, with the quote and the message) and one `change_log`
-   row. The database refuses the coach's commit without them (009_write_path.sql).
+   row. The database refuses the coach's commit without them (009_write_path.sql), and an
+   applied proposal's trace cannot be rewritten afterwards (011_trace_integrity.sql).
 
 Updates are partial: only the fields given change, and an explicit null sets the column to
 null. The rule check is registered at start-up (`set_programme_check`), so the domain does not
@@ -203,10 +205,23 @@ def _references(conn, table: str) -> list[tuple[str, str, str]]:
 
 def _dependents(conn, table: str, ids: list[int], out: list[RowImage], nulled: list[RowImage]):
     """Every row a delete of `ids` removes by cascade (parents first) or sets to null, each
-    once: a week is reached both from its cycle and from its block."""
+    once: a week is reached both from its cycle and from its block.
+
+    Only the catalogue's tables are imaged: `undo` restores those alone. A row elsewhere that
+    points here with `on delete set null` (an agent run's target week) keeps its own history and
+    just loses the link; one that would go by cascade makes the delete refused, since no undo
+    could bring it back."""
     seen = {(i.table, i.id) for i in out + nulled}
+    writable = _writable()
     for child, column, action in _references(conn, table):
-        if child in ("proposal", "change_log"):
+        if child not in writable:
+            if (
+                action == "c"
+                and conn.execute(
+                    f"select exists (select from {child} where {column} = any(%s))", (ids,)
+                ).fetchone()[0]
+            ):
+                raise OperationError(f"{child} rows depend on this {table}: it cannot be deleted")
             continue
         child_ids = [
             r[0]
@@ -1540,6 +1555,7 @@ def run(
     name: str,
     payload: dict[str, Any] | None,
     *,
+    conversation_id: str,
     quote: str,
     message_id: int,
     idempotency_key: str,
@@ -1549,9 +1565,11 @@ def run(
 ) -> Change:
     """Apply one operation for the athlete, all or nothing (see the module docstring).
 
-    With `proposal_id`, the pending suggestion of that id is applied (its operation and
-    payload), on the same proposal row. `idempotency_key` is derived by the caller (the
-    conversation endpoint: message id and tool-call index), never by a model.
+    `message_id` must be the athlete's latest message in `conversation_id`, the one being
+    answered: an older message, another conversation's or the coach's own cannot authorise a
+    change, even if the quote is in it. With `proposal_id`, the pending suggestion of that id is
+    applied (its operation and payload), on the same proposal row. `idempotency_key` is derived
+    by the caller (the conversation endpoint: message id and tool-call index), never by a model.
     """
     with conn.transaction():
         done = conn.execute(
@@ -1564,6 +1582,17 @@ def run(
             if done[0] != "applied":
                 raise OperationError(f"this request was already made and ended {done[0]}")
             return Change.model_validate(done[1])
+
+        latest = conn.execute(
+            "select max(id) from conversation_message"
+            " where conversation_id = %s and role = 'athlete'",
+            (conversation_id,),
+        ).fetchone()[0]
+        if latest is None or latest != message_id:
+            raise OperationError(
+                f"message {message_id} is not the athlete's latest message in conversation"
+                f" {conversation_id!r}: only the message being answered can authorise a change"
+            )
 
         if proposal_id is not None:
             found = conn.execute(
@@ -1579,7 +1608,7 @@ def run(
             said = conn.execute(
                 "select created_at from conversation_message where id = %s", (message_id,)
             ).fetchone()
-            if said is not None and found[3] >= said[0]:
+            if found[3] >= said[0]:
                 raise OperationError(
                     f"suggestion {proposal_id} was made after message {message_id}:"
                     " the athlete has not seen it"

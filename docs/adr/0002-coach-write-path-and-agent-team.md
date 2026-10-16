@@ -57,7 +57,9 @@ and the code never diverge.
 Every write tool runs the same path in code, in one transaction:
 
 1. **Quote check.** `quote` must appear, word for word, in a message **from the athlete** in the
-   current conversation (the message being answered, or the one before it for "ok for 2").
+   current conversation: the message being answered, i.e. the athlete's latest in it
+   (amended 17/10 after the audit, N1: "or the one before it" let an older message authorise a
+   change; "ok for 2" is itself the message being answered).
    The check reads that message **from the database**, by its `message_id`, server side: the
    conversation endpoint stores every athlete message in `conversation_message` (id, role, text,
    time) **before** the model runs. It never reads a copy supplied by the model or held in the

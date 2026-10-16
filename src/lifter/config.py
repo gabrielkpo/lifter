@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 
@@ -23,15 +23,17 @@ def _int(env: Mapping[str, str], key: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Settings:
-    database_url: str
+    # Secrets (and URLs that may carry a password) stay out of the repr, so a traceback with
+    # its locals, `pytest --showlocals` or a log line with %r never prints them.
+    database_url: str = field(repr=False)
     garmin_mcp_url: str
-    garmin_mcp_token: str | None
+    garmin_mcp_token: str | None = field(repr=False)
     sync_delay_seconds: float
-    mistral_api_key: str | None = None
+    mistral_api_key: str | None = field(default=None, repr=False)
     model: str = "mistral-small-latest"
     coach_language: str = "English"
     llm_context: str = "indicators"
-    bench_database_url: str = "postgresql:///lifter_bench"
+    bench_database_url: str = field(default="postgresql:///lifter_bench", repr=False)
     run_token_budget: int = 60_000
     bench_token_budget: int = 1_000_000
     max_output_tokens: int = 6_000

@@ -114,13 +114,22 @@ def test_the_context_holds_the_week_the_review_and_the_last_loads(ctx):
     assert [g.title for g in ctx.goals][0] == "Bench press 80 kg"
 
 
-def test_free_text_stays_out_of_the_context_unless_full(conn, program):
-    lean = build_context(conn, week_number=2, today=TODAY)
-    full = build_context(conn, week_number=2, today=TODAY, mode="full")
+def test_indicators_mode_sends_the_programme_text_and_nothing_written_after(conn, program):
+    # Free text written about the training (notes, deviations, reviews) stays out by default;
+    # the programme the athlete wrote for the coach to follow (titles, intents, rules, goals)
+    # is the planner's input and is sent in every mode (docs/agents.md).
+    conn.execute("update planned_session set notes = 'CANARY-note', deviation = 'CANARY-dev'")
+    conn.execute("update training_week set review = 'CANARY-review'")
+    conn.execute("update goal set notes = 'CANARY-goal'")
+    conn.execute("update athlete_rule set text = text || ' RULE-text'")
+    domain.add_feedback(conn, domain.FeedbackIn(day=TODAY, kind="morning", notes="CANARY-fb"))
 
-    assert "Bench felt easy" not in lean.model_dump_json()
-    assert "Bench felt easy" in full.model_dump_json()
-    assert "Moved from Thursday" in full.model_dump_json()
+    lean = build_context(conn, week_number=2, today=TODAY).model_dump_json()
+    full = build_context(conn, week_number=2, today=TODAY, mode="full").model_dump_json()
+
+    for canary in ("CANARY-note", "CANARY-dev", "CANARY-review", "CANARY-goal", "CANARY-fb"):
+        assert canary not in lean and canary in full
+    assert "RULE-text" in lean
 
 
 def test_no_cycle_means_nothing_to_plan(conn):

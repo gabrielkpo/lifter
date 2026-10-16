@@ -31,6 +31,9 @@ LIBPQ_ENV = {
 }
 
 
+SECRET_PASSWORD = "DBT_ENV_SECRET_LIFTER_PASSWORD"
+
+
 class TransformError(Exception):
     """dbt could not build or test the analytics layer."""
 
@@ -62,7 +65,9 @@ def _profile_env(conn: psycopg.Connection, schema: str):
         "LIFTER_DBT_HOST": info.host,
         "LIFTER_DBT_PORT": str(info.port),
         "LIFTER_DBT_USER": info.user,
-        "LIFTER_DBT_PASSWORD": info.password or "",
+        # dbt scrubs DBT_ENV_SECRET_* from its logs and error messages, and allows them in
+        # profiles.yml only; a plain variable would be printed if a log line renders it.
+        SECRET_PASSWORD: info.password or "",
         "LIFTER_DBT_DBNAME": info.dbname,
         "LIFTER_DBT_SCHEMA": schema,
         "LIFTER_DBT_SSLMODE": params.get("sslmode", "prefer"),

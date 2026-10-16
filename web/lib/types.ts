@@ -261,6 +261,7 @@ export interface Athlete {
   level: string | null;
   practice_since: string | null;
   sessions_per_week: number | null;
+  training_places: string[];
   context: string | null;
 }
 

@@ -15,6 +15,8 @@ create table athlete (
     level text check (level in ('beginner', 'intermediate', 'advanced', 'competitor')),
     practice_since date,
     sessions_per_week int check (sessions_per_week between 0 and 14),
+    -- Where they train (gyms, a fire station's room): the equipment differs from one to the other.
+    training_places text[] not null default '{}',
     -- Life context the coach must plan around (night shifts, on-call duty, travel).
     context text,
     updated_at timestamptz not null default now()

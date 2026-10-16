@@ -270,6 +270,7 @@ class Athlete(BaseModel):
     level: str | None
     practice_since: date | None
     sessions_per_week: int | None
+    training_places: list[str]
     context: str | None
 
 

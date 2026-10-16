@@ -229,8 +229,9 @@ def test_the_profile_shows_the_athlete_their_issues_active_first_and_their_rules
     # A synthetic athlete: real values only ever live in the database.
     born = date.today().replace(year=date.today().year - 30) - timedelta(days=1)
     conn.execute(
-        "insert into athlete (first_name, birth_date, sex, height_cm, weight_kg, level)"
-        " values ('Sam', %s, 'female', 168, 64.5, 'intermediate')",
+        "insert into athlete (first_name, birth_date, sex, height_cm, weight_kg, level,"
+        " training_places) values ('Sam', %s, 'female', 168, 64.5, 'intermediate',"
+        " array['Gym A', 'Club B'])",
         (born,),
     )
     conn.execute(
@@ -249,6 +250,7 @@ def test_the_profile_shows_the_athlete_their_issues_active_first_and_their_rules
 
     assert body["athlete"]["age"] == 30
     assert body["athlete"]["weight_kg"] == 64.5
+    assert body["athlete"]["training_places"] == ["Gym A", "Club B"]
     assert [(i["body_part"], i["status"]) for i in body["health_issues"]] == [
         ("wrist", "active"),
         ("shoulder", "monitoring"),

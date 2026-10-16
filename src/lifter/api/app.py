@@ -302,7 +302,7 @@ def create_app(
         athlete = conn.execute(
             "select first_name, birth_date, extract(year from age(birth_date))::int as age, sex,"
             " height_cm, weight_kg, weight_date, handedness, level, practice_since,"
-            " sessions_per_week, context from athlete"
+            " sessions_per_week, training_places, context from athlete"
         ).fetchone()
         issues = conn.execute(
             "select id, body_part, side, kind, description, guidance, since, status, resolved_on,"

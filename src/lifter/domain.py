@@ -19,7 +19,7 @@ from typing import Annotated, Any, Literal
 
 import psycopg
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 PartKind = Literal[
     "warmup", "weightlifting", "gymnastics", "strength", "metcon", "cardio", "mobility"
@@ -371,11 +371,18 @@ def apply(conn: psycopg.Connection, proposal_id: int) -> dict[str, Any]:
             )
     except _NotApproved as exc:
         raise DomainError(str(exc)) from None
-    except (DomainError, psycopg.Error) as exc:
-        conn.execute(
-            "update proposal set status = 'failed', result = %s"
-            " where id = %s and status = 'approved'",
-            (Jsonb({"error": str(exc)}), proposal_id),
-        )
+    except (DomainError, psycopg.Error, ValidationError, KeyError) as exc:
+        # A payload that no longer validates, or a kind this path does not apply (a catalogue
+        # operation goes through lifter.operations.run), fails the proposal like any error.
+        try:
+            conn.execute(
+                "update proposal set status = 'failed', result = %s"
+                " where id = %s and status = 'approved'",
+                (Jsonb({"error": str(exc)}), proposal_id),
+            )
+        except psycopg.Error:
+            # The connection itself is gone: report the original error; the proposal stays
+            # approved and can be applied again.
+            pass
         raise DomainError(f"proposal {proposal_id} failed: {exc}") from exc
     return result

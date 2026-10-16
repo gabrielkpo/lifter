@@ -124,6 +124,7 @@ class Exercise(BaseModel):
     name: str
     category: str
     pattern: str
+    equipment: str | None = None
     flags: list[str]
 
 
@@ -393,7 +394,9 @@ def build_context(
     )
     rules = _rows(conn, "select code, text, params from athlete_rule where active order by id")
     exercises = _rows(
-        conn, "select name, category, pattern, flags from exercise order by category, pattern, name"
+        conn,
+        "select name, category, pattern, equipment, flags from exercise"
+        " order by category, pattern, name",
     )
     recent = _rows(
         conn,

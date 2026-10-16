@@ -22,6 +22,8 @@ from lifter.bench.expect import Outcome, evaluate
 from lifter.bench.scenario import Scenario, apply_setup
 
 KEEP_TABLES = ("schema_migrations", "schema_views")
+# Verdicts that are not rule breaks: an unparsable answer, a run stopped by its token budget.
+NOT_RULES = ("schema", "budget")
 
 
 @dataclass
@@ -34,6 +36,7 @@ class RunResult:
     first_violations: int
     final_violations: int
     schema_failures: int
+    budget_stopped: bool
     unsourced_numbers: int
     expectations_met: int
     expectations: int
@@ -57,8 +60,40 @@ def reset(conn: psycopg.Connection) -> None:
         conn.execute(f"truncate {names} restart identity cascade")
 
 
+def run_bench(
+    conn: psycopg.Connection,
+    scenarios: list[Scenario],
+    make_planner: Callable[[], Planner],
+    runs: int,
+    *,
+    token_budget: int | None = None,
+    run_token_budget: int | None = None,
+    on_result: Callable[[RunResult], None] | None = None,
+) -> tuple[list[RunResult], str | None]:
+    """Every scenario in turn; stops before a scenario once the pass has used `token_budget`
+    tokens. Returns the results and why it stopped early (None when it ran them all)."""
+    results: list[RunResult] = []
+    for done, scenario in enumerate(scenarios):
+        used = sum(r.input_tokens + r.output_tokens for r in results)
+        if token_budget is not None and used >= token_budget:
+            left = len(scenarios) - done
+            return (
+                results,
+                f"token budget reached: {used} of {token_budget}, {left} scenario(s) left",
+            )
+        for result in run_scenario(conn, scenario, make_planner, runs, run_token_budget):
+            results.append(result)
+            if on_result:
+                on_result(result)
+    return results, None
+
+
 def run_scenario(
-    conn: psycopg.Connection, scenario: Scenario, make_planner: Callable[[], Planner], runs: int
+    conn: psycopg.Connection,
+    scenario: Scenario,
+    make_planner: Callable[[], Planner],
+    runs: int,
+    run_token_budget: int | None = None,
 ) -> list[RunResult]:
     reset(conn)
     apply_setup(conn, scenario)
@@ -71,6 +106,7 @@ def run_scenario(
             week_number=scenario.target_week,
             today=scenario.today,
             trigger="bench",
+            token_budget=run_token_budget,
         )
         outcomes = evaluate(scenario.expect, result)
         first = result.verdicts[0].violations if result.verdicts else []
@@ -83,8 +119,11 @@ def run_scenario(
                 accepted=result.accepted,
                 attempts=result.attempts,
                 # rule breaks only: an answer that did not parse is counted apart
-                first_violations=sum(1 for v in first if v.check != "schema"),
-                final_violations=sum(1 for v in result.verdict.violations if v.check != "schema"),
+                first_violations=sum(1 for v in first if v.check not in NOT_RULES),
+                final_violations=sum(
+                    1 for v in result.verdict.violations if v.check not in NOT_RULES
+                ),
+                budget_stopped=any(v.check == "budget" for v in result.verdict.violations),
                 schema_failures=sum(1 for v in every if v.check == "schema"),
                 unsourced_numbers=sum(len(v.items) for v in every if v.check == "sources"),
                 expectations_met=sum(o.passed for o in outcomes),
@@ -108,6 +147,7 @@ def summary(results: list[RunResult]) -> dict:
         "first_plan_violations": sum(r.first_violations for r in results),
         "final_violations": sum(r.final_violations for r in results),
         "schema_failures": sum(r.schema_failures for r in results),
+        "budget_stops": sum(r.budget_stopped for r in results),
         "unsourced_numbers": sum(r.unsourced_numbers for r in results),
         "expectations_met_rate": round(met / total, 3),
         "input_tokens": sum(r.input_tokens for r in results),

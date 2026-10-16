@@ -7,6 +7,20 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 
+class ConfigError(ValueError):
+    """A setting in the environment or .env has a value Lifter cannot use."""
+
+
+def _int(env: Mapping[str, str], key: str, default: int) -> int:
+    value = env.get(key)
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        raise ConfigError(f"{key} must be a whole number, got {value!r}") from None
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
@@ -18,6 +32,9 @@ class Settings:
     coach_language: str = "English"
     llm_context: str = "indicators"
     bench_database_url: str = "postgresql:///lifter_bench"
+    run_token_budget: int = 60_000
+    bench_token_budget: int = 1_000_000
+    max_output_tokens: int = 6_000
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -34,4 +51,7 @@ class Settings:
             coach_language=env.get("LIFTER_COACH_LANGUAGE", "English"),
             llm_context=env.get("LIFTER_LLM_CONTEXT", "indicators"),
             bench_database_url=env.get("BENCH_DATABASE_URL", "postgresql:///lifter_bench"),
+            run_token_budget=_int(env, "LIFTER_RUN_TOKEN_BUDGET", 60_000),
+            bench_token_budget=_int(env, "LIFTER_BENCH_TOKEN_BUDGET", 1_000_000),
+            max_output_tokens=_int(env, "LIFTER_MAX_OUTPUT_TOKENS", 6_000),
         )

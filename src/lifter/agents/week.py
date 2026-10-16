@@ -39,15 +39,29 @@ class State(TypedDict, total=False):
 
 
 def build_graph(
-    planner: Planner, steps: list[Step] | None = None, verdicts: list[Verdict] | None = None
+    planner: Planner,
+    steps: list[Step] | None = None,
+    verdicts: list[Verdict] | None = None,
+    token_budget: int | None = None,
 ):
     """The graph. For the audit, `steps` collects each attempt's answer, tokens and seconds, and
-    `verdicts` the guardrail's verdict on it; both survive a run that crashes midway."""
+    `verdicts` the guardrail's verdict on it; both survive a run that crashes midway.
+
+    With a `token_budget`, no new attempt starts once the planner has used that many tokens
+    (input and output): the run ends refused, with a `budget` violation."""
     steps = steps if steps is not None else []
     verdicts = verdicts if verdicts is not None else []
 
     def plan_node(state: State) -> State:
         attempts = state.get("attempts", 0) + 1
+        used = planner.usage.total_tokens
+        if token_budget is not None and used >= token_budget:
+            stopped = Verdict(
+                [Violation("budget", f"token budget reached: {used} of {token_budget} used")],
+                [],
+                [],
+            )
+            return {"plan": None, "verdict": stopped, "attempts": attempts - 1}
         tokens_in, tokens_out = planner.usage.input_tokens, planner.usage.output_tokens
         started = time.monotonic()
 
@@ -72,7 +86,7 @@ def build_graph(
         return {"plan": plan, "verdict": None, "attempts": attempts}
 
     def guard_node(state: State) -> State:
-        if state["plan"] is None:  # the model's output did not even parse
+        if state["plan"] is None:  # no plan: unparsable answer, or the token budget ran out
             verdict = state["verdict"]
         else:
             verdict = check(state["plan"], state["context"])
@@ -84,7 +98,9 @@ def build_graph(
         }
 
     def route(state: State) -> str:
-        if state["verdict"].ok or state["attempts"] >= MAX_ATTEMPTS:
+        verdict = state["verdict"]
+        budget_spent = any(v.check == "budget" for v in verdict.violations)
+        if verdict.ok or budget_spent or state["attempts"] >= MAX_ATTEMPTS:
             return END
         return "plan"
 
@@ -122,8 +138,10 @@ def run_week_planner(
     mode: ContextMode = "indicators",
     propose: bool = False,
     trigger: str | None = None,
+    token_budget: int | None = None,
 ) -> WeekPlannerResult:
-    """Plan a week; `trigger` (cli, app, job, bench) records the run in the audit log."""
+    """Plan a week; `trigger` (cli, app, job, bench) records the run in the audit log, and
+    `token_budget` stops new attempts once that many tokens are used."""
     ctx = build_context(conn, week_number=week_number, today=today, mode=mode)
     started_at = datetime.now(UTC)
     started = time.monotonic()
@@ -139,7 +157,7 @@ def run_week_planner(
         "verdicts": verdicts,
     }
     try:
-        state = build_graph(planner, steps, verdicts).invoke(
+        state = build_graph(planner, steps, verdicts, token_budget).invoke(
             {"context": ctx, "attempts": 0, "feedback": [], "verdicts": []}
         )
         result = WeekPlannerResult(
@@ -160,9 +178,11 @@ def run_week_planner(
                 exc.add_note(f"the run could not be recorded in the audit log: {audit_error}")
         raise
     if trigger:
+        budget = [v.message for v in result.verdict.violations if v.check == "budget"]
         result.run_id = record_run(
             conn,
             **audit,
+            error=f"BudgetExceeded: {budget[0]}" if budget else None,
             final_plan=result.plan,
             accepted=result.accepted,
             proposal_ids=result.proposal_ids,

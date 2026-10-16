@@ -246,9 +246,6 @@ button {
   color: var(--muted);
   line-height: 1.45;
 }
-.card.accent {
-  border-left: 4px solid var(--amber);
-}
 .card-link {
   display: block;
 }
@@ -292,6 +289,31 @@ button {
 .badge[data-status="warning"],
 .badge[data-status="normal"] {
   color: var(--amber);
+}
+.badge[data-status="active"] {
+  color: var(--missed);
+}
+.badge[data-status="monitoring"] {
+  color: var(--amber);
+}
+.badge[data-status="resolved"] {
+  color: var(--done);
+}
+
+/* Key and value rows (profile). */
+.facts {
+  margin: 12px 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  font-size: 15px;
+}
+.facts dt {
+  color: var(--muted);
+}
+.facts dd {
+  margin: 0;
+  text-align: right;
 }
 
 /* Lists (PRs, sessions). */

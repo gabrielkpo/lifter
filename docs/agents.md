@@ -88,6 +88,28 @@ Two checks the operations catalogue runs before applying a change made by the co
   (`introduced(before, after)`), so a week that already broke a rule does not block unrelated
   changes.
 
+## The coach's tools (ADR 0002)
+
+The coach in conversation changes data only through tools generated from the operations
+catalogue (`agents/tools.py`, `lifter/operations.py`). It has no SQL.
+
+| Tool | Does |
+|---|---|
+| `operation_schema` | The payload schema of one operation, from its Pydantic model |
+| `read_rows` | Rows of a table the operations write, with `id` and `version`, filtered by one column (50 at most); any other table is refused, names are quoted identifiers |
+| `pending_suggestions` | The suggestions waiting for the athlete's choice |
+| `apply_change` | Any catalogue operation the athlete asked for, with a quote of their message; `undo` is one of them |
+| `suggest_change` | The coach's own idea, stored as a pending suggestion, applied only when chosen |
+| `accept_suggestion` | Applies a pending suggestion the athlete chose, with their quote |
+
+Every write goes through `operations.run`: the quote is checked against the athlete's message
+stored by the conversation endpoint, then the payload, the row version and, for the programme,
+the guardrail on the weeks it touches; the change is traced and can be undone. What the model
+never supplies: the message the quote is checked against, the idempotency key
+(`message:<id>:write:<n>`, from the order of the write calls) and the author. A refused call
+returns its reason to the model (quote, payload, stale row, rule violated), which explains it to
+the athlete; nothing is written.
+
 ## Audit log
 
 Every run started from the CLI (`trigger` cli), the app, a scheduled job or the bench is

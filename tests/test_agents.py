@@ -273,6 +273,15 @@ def test_a_missing_rir_counts_as_hard_under_a_critical_alert(ctx):
     assert checks(unknown, alarmed) == {"prescription", "critical_alert"}
 
 
+def test_a_failure_note_is_hard_under_a_critical_alert(ctx):
+    alert = Alert(day=TODAY, alert="abnormal_hrv", severity="critical", value=-35, threshold=-30)
+    alarmed = ctx.model_copy(update={"alerts": [alert]})
+    line = PlanLine(exercise="Bench press", sets=3, quantity=8, load_kg=50, rir=3)
+    plan = legs_only(line.model_copy(update={"notes": "then to failure"}))
+    assert "critical_alert" in checks(plan, alarmed)
+    assert "critical_alert" not in checks(legs_only(line), alarmed)
+
+
 @pytest.mark.parametrize("note", ["to failure", "last set AMRAP", "new PR", "1RM"])
 def test_failure_words_in_a_note_are_a_max_on_the_legs(ctx, note):
     line = PlanLine(exercise="Leg press", sets=3, quantity=12, load_kg=100, rir=3, notes=note)

@@ -156,7 +156,9 @@ button {
   font-weight: 600;
   color: var(--text);
 }
-.pill[aria-pressed="true"] {
+/* A pressed pill, or the current view of a tab (components/PlanningTabs). */
+.pill[aria-pressed="true"],
+.pill[aria-current="page"] {
   background: var(--text);
   color: #000;
 }
@@ -649,10 +651,12 @@ button {
   opacity: 0;
   pointer-events: none;
 }
+/* As wide as the screen less 24 px a side, 420 px at most (FLOOR_MAX_W in components/Splash). */
 .splash-floor {
   position: absolute;
-  left: 24px;
-  right: 24px;
+  left: 50%;
+  width: min(420px, 100% - 48px);
+  transform: translateX(-50%);
   height: 1px;
   background: var(--border);
 }
@@ -681,4 +685,57 @@ button {
 }
 .splash-label[data-shown="true"] {
   opacity: 1;
+}
+
+/* Data table (Planning, Goals): the first column names the row. Edge to edge, so the pinned first column covers the gutter; the cells carry the margins. */
+.table-wrap {
+  overflow-x: auto;
+  margin: 8px -16px 0;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.table th,
+.table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.table thead th {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.table th:last-child,
+.table td:last-child {
+  padding-right: 16px;
+}
+.table tbody th {
+  min-width: 140px;
+  white-space: normal;
+  font-weight: 600;
+  color: var(--text);
+}
+/* The goal's name stays in view while the other columns scroll under it. */
+.table th:first-child {
+  padding-left: 16px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+}
+/* A goal written in words ("first one without a band") wraps; figures stay on one line. */
+.table td.text {
+  min-width: 180px;
+  white-space: normal;
+}
+.table td.strong {
+  font-weight: 700;
+  color: var(--text);
 }

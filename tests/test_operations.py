@@ -206,13 +206,18 @@ def test_a_key_reused_for_another_operation_is_refused(conn, program):
 
 def test_a_change_based_on_a_stale_row_is_refused(conn, program):
     goal = conn.execute("select id, version from goal order by id limit 1").fetchone()
-    do(conn, "update_goal", {"id": goal[0], "expected_version": goal[1], "notes": "a"}, "note a")
+    do(
+        conn,
+        "update_goal",
+        {"id": goal[0], "expected_version": goal[1], "notes": "a"},
+        "note alpha",
+    )
     with pytest.raises(StaleRow):
         do(
             conn,
             "update_goal",
             {"id": goal[0], "expected_version": goal[1], "notes": "b"},
-            "note b",
+            "note bravo",
         )
 
 
@@ -220,7 +225,12 @@ def test_an_update_changes_only_the_fields_given_and_null_clears(conn, program):
     goal_id, goal_version, title = conn.execute(
         "select id, version, title from goal where notes is null order by id limit 1"
     ).fetchone()
-    do(conn, "update_goal", {"id": goal_id, "expected_version": goal_version, "notes": "x"}, "x y")
+    do(
+        conn,
+        "update_goal",
+        {"id": goal_id, "expected_version": goal_version, "notes": "x"},
+        "note x",
+    )
     do(
         conn,
         "update_goal",
@@ -384,13 +394,18 @@ def test_a_bank_exercise_still_used_cannot_be_deleted(conn, program):
 
 def test_undo_is_refused_once_the_row_changed_again(conn, program):
     goal = conn.execute("select id, version from goal order by id limit 1").fetchone()
-    do(conn, "update_goal", {"id": goal[0], "expected_version": goal[1], "notes": "a"}, "note a")
+    do(
+        conn,
+        "update_goal",
+        {"id": goal[0], "expected_version": goal[1], "notes": "a"},
+        "note alpha",
+    )
     first = change_id(conn)
     do(
         conn,
         "update_goal",
         {"id": goal[0], "expected_version": goal[1] + 1, "notes": "b"},
-        "note b",
+        "note bravo",
     )
     with pytest.raises(StaleRow):
         do(conn, "undo", {"change_id": first}, "annule")

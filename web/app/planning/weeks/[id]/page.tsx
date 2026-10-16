@@ -17,7 +17,7 @@ export default function WeekPage() {
   const state = valid ? fetched : NOT_FOUND;
   const back = state.status === "ok" && state.data.week.block_id
     ? `/planning/blocks/${state.data.week.block_id}`
-    : "/planning";
+    : "/planning/weeks";
   return (
     <>
       <header className="topbar">

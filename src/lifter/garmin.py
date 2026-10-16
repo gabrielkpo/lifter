@@ -35,12 +35,21 @@ READ_TOOLS = frozenset(
 SHARED_RANGE = ipaddress.ip_network("100.64.0.0/10")
 
 
+class McpUnavailable(ConnectionError):
+    """The Garmin MCP server cannot be reached: nothing was sent to it."""
+
+
 def _on_private_network(host: str) -> bool:
-    """Every address `host` resolves to is loopback, private, link-local or in SHARED_RANGE."""
+    """Every address `host` resolves to is loopback, private, link-local or in SHARED_RANGE.
+
+    A name that does not resolve is an outage (DNS down, network off), not a setting error:
+    McpUnavailable, so the sync reports it as unreachable."""
     try:
         infos = socket.getaddrinfo(host, None)
-    except OSError:
-        return False
+    except OSError as exc:
+        raise McpUnavailable(
+            f"cannot resolve the Garmin MCP server {host!r} ({type(exc).__name__})"
+        ) from None
     addresses = {ipaddress.ip_address(info[4][0].split("%")[0]) for info in infos}
     return bool(addresses) and all(
         a.is_loopback or a.is_private or a.is_link_local or a in SHARED_RANGE for a in addresses
@@ -51,6 +60,10 @@ def check_mcp_url(url: str) -> None:
     """The bearer token travels in a header: refuse plain HTTP outside the loopback and private
     networks (https is accepted anywhere)."""
     parts = urlsplit(url)
+    try:
+        parts.port  # noqa: B018 - read for its validation: a port outside 0-65535 raises
+    except ValueError:
+        raise ConfigError("GARMIN_MCP_URL has an invalid port") from None
     if parts.scheme == "https" and parts.hostname:
         return
     if parts.scheme == "http" and parts.hostname and _on_private_network(parts.hostname):
@@ -59,10 +72,6 @@ def check_mcp_url(url: str) -> None:
         "GARMIN_MCP_URL must be https, or http on the loopback or a private network"
         " (the bearer token would travel in clear)"
     )
-
-
-class McpUnavailable(ConnectionError):
-    """The Garmin MCP server cannot be reached: nothing was sent to it."""
 
 
 async def _reachable(url: str, timeout: float = 10) -> None:

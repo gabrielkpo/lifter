@@ -53,7 +53,7 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `cancellations` | Cancelling a session that is not an open session of the target week |
 | `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values: loads, counts, targets, days, never its titles or notes (agents read numbers, they never compute them) |
 | `prescription` | A strength, weightlifting or gymnastics line without a count, or a strength or weightlifting line in reps without a target RIR (it would escape the checks below) |
-| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3 or without the RIR it needs, in the plan or in a session of the week it keeps |
+| `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3, without the RIR it needs, or with a note asking for a max or for failure (keywords, so 'max 2 min rest' counts too: a refusal in the safe direction), in the plan or in a session of the week it keeps. A gymnastics line without RIR is not counted as hard, since no RIR is required there: a known limit |
 | `forbid_flag` (rule) | An exercise carrying a forbidden flag (`running`, `impact`, `free_barbell_legs`…) |
 | `no_failure_on_legs` (rule) | A legs or hinge line at RIR 0 or marked as a max in its note (max, 1RM, to failure, AMRAP, PR in capitals; keywords, so a negated "never to failure" is refused too) |
 | `weekly_pattern` (rule) | A week without strength work on the given pattern (legs every week), counting the sessions the plan keeps |
@@ -79,9 +79,12 @@ Two checks the operations catalogue runs before applying a change made by the co
   `verify_quote(conn, message_id, quote, short_ok=...)` reads the athlete's message from
   `conversation_message` and refuses the change unless the quote's words appear in it as a
   contiguous run of whole words. Only formatting is normalised (Unicode NFC, typographic quotes
-  and apostrophes, whitespace); case and words are kept. At least two words; a one-word quote
-  ("ok", "annule") only where the operation allows it and only as the whole message, so "ok"
-  inside "pas ok" or "book" never counts. A message from the coach never counts.
+  and apostrophes, whitespace); case and words are kept. At least two words that are not
+  function words ("la semaine" or "ok pour" justify nothing), and never a quote joined to a
+  negation before it ("pas ok pour la 2"). Where the operation allows a short quote (accepting
+  a suggestion, undo), fewer content words do; a one-word quote ("ok", "annule") only as the
+  whole message, so "ok" inside "pas ok" or "book" never counts. A message from the coach never
+  counts, and the message is read from `public.conversation_message`, never a temporary table.
 - **Rules on the stored week** (`agents/week_check.py`): `violations_for_week(conn, week_id)`
   runs the guardrail on the week as it is in the database; the catalogue calls it before and
   after an operation that changes the programme and refuses only what the change introduces
@@ -156,8 +159,11 @@ session was proposed. A crashed run keeps only the error's type and message, nev
 The log holds the context sent to the model, so it lives with the rest of the athlete's data,
 in the database the run reads: for the athlete's runs, the hosted one (Neon, Frankfurt),
 written by `lifter_agents`, which may insert runs but never change or delete them; the
-bench's runs stay in `lifter_bench`. ADR 0002 keeps that context 90 days, then only the metrics
-(tokens, seconds, verdicts); that retention is not in place yet, so the log keeps every run.
+bench's runs stay in `lifter_bench`. ADR 0002 keeps that context 90 days, then only the metrics:
+`lifter audit-purge` (migration 010, `purge_agent_audit()`), run after every scheduled sync,
+clears the context, the plans and the guardrail's messages of runs older than 90 days and sets
+`purged_at`; tokens, seconds, status, attempts, errors and proposals stay. The daily backups
+keep a purged context until they expire (30 days, docs/operations.md).
 
 ```bash
 uv run lifter runs              # the last runs

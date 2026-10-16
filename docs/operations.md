@@ -31,8 +31,8 @@ old, and `lifter data-test --freshness` fails past 72 hours.
 
 1. **Postgres 18 client tools**, the hosted database's version: `brew install postgresql@18`.
 2. **The `lifter` command, apart from any working copy**, so a checkout on another branch never
-   changes what runs: `uv tool install --force git+https://github.com/gabrielkpo/lifter@main`
-   (again after each release to update it).
+   changes what runs: `ops/upgrade.sh` installs the latest release (see Releases and
+   deployment), and the jobs of the same version.
 3. **Passwords of the job roles**, set once by the owner (roles come from `roles.sql`, created
    without password): `alter role lifter_sync password '…'` and the same for `lifter_backup`.
    Generate them, never reuse one.
@@ -71,13 +71,46 @@ never sync it to a cloud drive. A dump keeps the database as it was that day, so
 audit context purged at 90 days (see the sync job) lives on in the dumps for up to
 `LIFTER_BACKUP_KEEP_DAYS` more days.
 
+## Releases and deployment
+
+Production changes with versions, not with merges. Merges to `main` pile up in
+release-please's pull request; **merging that pull request** publishes the version (`vX.Y.Z`,
+changelog included) and runs the Deploy workflow (`.github/workflows/deploy.yml`), one
+deployment at a time:
+
+1. `lifter migrate` then `lifter data-test` on the hosted database, as the owner;
+2. the API (Vercel project `lifter-api`), then the app (`lifter`): the app never calls an
+   endpoint the API does not have yet;
+3. `/status` and `/profile` of the live API must answer 200.
+
+A failed step stops the next ones. Deploy also runs by hand (Actions, Deploy, Run workflow on
+`main`) to redeploy, e.g. after a failure. There is no dump in GitHub (the repository is
+public): Neon keeps 6 hours of history and the Mac backs it up daily (see Backups).
+
+Then, on the Mac, `ops/upgrade.sh` installs the new version's `lifter` command and jobs; until
+then the sync stops with "schema out of date" when the version changed the schema.
+
+The workflow reads the GitHub environment `deploy` (Settings, Environments; not `Production`,
+where Vercel records its own deployments), open to `main` only:
+
+| Name | Kind | What |
+|---|---|---|
+| `NEON_OWNER_URL` | secret | Owner URL of the hosted database (direct endpoint, `sslmode=require`) |
+| `VERCEL_TOKEN` | secret | Vercel token limited to the team of both projects |
+| `LIFTER_API_TOKEN` | secret | The API's bearer token |
+| `LIFTER_API_BYPASS` | secret | Protection bypass secret of `lifter-api` |
+| `VERCEL_ORG_ID` | variable | Vercel team id |
+| `VERCEL_PROJECT_ID_API` | variable | Project id of `lifter-api` |
+| `VERCEL_PROJECT_ID_WEB` | variable | Project id of `lifter` |
+| `LIFTER_API_URL` | variable | Production address of the API, without a trailing slash |
+
 ## Schema changes
 
-The jobs never change the schema. After a merge that adds a migration, changes the dbt models
-(`src/lifter/transform/`) or `roles.sql`, the owner runs `uv run lifter migrate` from a clone (dbt comes with the dev dependencies, or
-the `transform` extra) against the hosted database (owner URL in the
-Mac's `.env`, never on Vercel); until then the sync stops with "schema out of date" and a
-notification, and nothing is half-applied.
+The jobs never change the schema: Deploy migrates the hosted database at each version. To
+migrate without a version, the owner runs `uv run lifter migrate` from a clone (dbt comes with
+the dev dependencies, or the `transform` extra) with the owner URL of the Mac's `.env`, never
+on Vercel. Until the database and the Mac's `lifter` command match, the sync stops with
+"schema out of date" and a notification, and nothing is half-applied.
 
 ## Data tests
 

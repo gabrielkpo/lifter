@@ -4,7 +4,8 @@ A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private, 
 API (FastAPI, `src/lifter/api/`). The API reads the same analytics views as the CLI and
 computes nothing of its own. Five tabs: **WOD** (the week, day by day, and each session planned
 against done), **PRs** (best loads by kind and family), **Coach** (chat, with the agents),
-**Planning** (cycle, blocks counted in strength sessions, weeks, goals) and **Health** (recovery
+**Planning** (three views: Cycles, the blocks counted in strength sessions; Weeks; Goals, a
+table of targets, dates and next milestones) and **Health** (recovery
 read against the sessions of each day); the profile opens from the avatar.
 
 ```bash
@@ -43,7 +44,14 @@ Authentication on every deployment, production included):
   only its own host names and allows no browser origin.
 - **Database** (Neon Postgres, Frankfurt): the API connects with a role that can only read
   (`SELECT` grants, read-only transactions). The owner role, used for migrations, lives in the
-  athlete's local `.env` only.
+  athlete's local `.env` and in the secrets of the GitHub `deploy` environment, never on
+  Vercel.
+
+**Production follows the versions, not the merges.** Vercel's Git deployments are off
+(`vercel.json`, `web/vercel.json`): a merge or a pull request deploys nothing, not even a
+preview. Merging release-please's pull request publishes a version (`vX.Y.Z`), and the Deploy
+workflow then migrates the database, deploys the API, then the app, and checks the live API
+(see [operations](operations.md#releases-and-deployment)).
 
 Locally nothing changes: `uv run lifter-api` needs no token and the app's server reads it at
 `http://127.0.0.1:8000` (`web/.env.example`). On Vercel, the app answers only its own host

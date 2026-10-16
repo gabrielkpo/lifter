@@ -114,15 +114,6 @@ def test_the_context_holds_the_week_the_review_and_the_last_loads(ctx):
     assert [g.title for g in ctx.goals][0] == "Bench press 80 kg"
 
 
-def test_free_text_stays_out_of_the_context_unless_full(conn, program):
-    lean = build_context(conn, week_number=2, today=TODAY)
-    full = build_context(conn, week_number=2, today=TODAY, mode="full")
-
-    assert "Bench felt easy" not in lean.model_dump_json()
-    assert "Bench felt easy" in full.model_dump_json()
-    assert "Moved from Thursday" in full.model_dump_json()
-
-
 def test_indicators_mode_sends_the_programme_text_and_nothing_written_after(conn, program):
     # Free text written about the training (notes, deviations, reviews) stays out by default;
     # the programme the athlete wrote for the coach to follow (titles, intents, rules, goals)

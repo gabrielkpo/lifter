@@ -7,6 +7,10 @@
 ## How to test
 <!-- Commands or steps -->
 
+## Reviews
+<!-- /security-review then /code-review on the final commit: findings, what was fixed (commit),
+what was skipped and why. Required before opening (conduct guide, rule 1.4). -->
+
 ## Checklist
 - [ ] Title follows Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`)
 - [ ] Tests added or updated

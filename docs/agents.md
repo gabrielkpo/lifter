@@ -126,10 +126,14 @@ bound the cost of a run and of a bench pass whatever the model answers.
 
 ## What is sent to Mistral
 
-- `indicators` (default): the structured context above, without any free text written by the
-  athlete; feedback scales and pain location are included (the stop rule needs them).
-- `full`: adds session notes, deviations, week reviews, goal and feedback notes, which may
-  describe pain or injuries.
+- `indicators` (default): the structured context above. The only free text it carries is the
+  programme the athlete wrote for the coach to follow, which is the planner's input: week and
+  session titles, the week's and the block's intent, the text of the athlete's rules (rules
+  without a code are only checked through it), goal titles, text targets and milestone labels,
+  and the pain location of a feedback (the stop rule needs it). Nothing written about the
+  training afterwards.
+- `full`: adds what is written about the training: session notes, deviations, week reviews,
+  goal and feedback notes, which may describe pain or injuries.
 - Never: Garmin activity names (they can contain a place), raw Garmin series, the Garmin token.
 
 The public demo only ever sends synthetic athletes.

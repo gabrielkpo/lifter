@@ -70,6 +70,23 @@ warning, not a refusal.
 Known limit: `sources` accepts any number found in the context, which holds many numbers (ids,
 dates, loads); it stops invented figures and computed differences, not a misattributed one.
 
+## Checks for the coach's write path (ADR 0002)
+
+Two checks the operations catalogue runs before applying a change made by the coach:
+
+- **Quote** (`lifter/quote.py`, outside the agents package: the catalogue imports it):
+  `verify_quote(conn, message_id, quote, short_ok=...)` reads the athlete's message from
+  `conversation_message` and refuses the change unless the quote's words appear in it as a
+  contiguous run of whole words. Only formatting is normalised (Unicode NFC, typographic quotes
+  and apostrophes, whitespace); case and words are kept. At least two words; a one-word quote
+  ("ok", "annule") only where the operation allows it and only as the whole message, so "ok"
+  inside "pas ok" or "book" never counts. A message from the coach never counts.
+- **Rules on the stored week** (`agents/week_check.py`): `violations_for_week(conn, week_id)`
+  runs the guardrail on the week as it is in the database; the catalogue calls it before and
+  after an operation that changes the programme and refuses only what the change introduces
+  (`introduced(before, after)`), so a week that already broke a rule does not block unrelated
+  changes.
+
 ## Audit log
 
 Every run started from the CLI (`trigger` cli), the app, a scheduled job or the bench is

@@ -12,6 +12,9 @@
   </array>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
+  <!-- Logs readable by this user only (63 = octal 077). -->
+  <key>Umask</key>
+  <integer>63</integer>
   <key>StandardOutPath</key>
   <string>__LOG_DIR__/com.lifter.backup.out.log</string>
   <key>StandardErrorPath</key>

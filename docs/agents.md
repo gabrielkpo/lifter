@@ -100,9 +100,10 @@ recorded by code after it ends (migration `007_agent_audit.sql`, `agents/audit.p
 
 A proposal leads back to its run through `agent_run.proposal_ids`, so the app can show why a
 session was proposed. A crashed run keeps only the error's type and message, never the request.
-The log holds the context sent to the model, so it lives with the rest of the athlete's data:
-in the hosted database (Neon, Frankfurt), written by `lifter_agents`, which may insert runs but
-never change or delete them. ADR 0002 keeps that context 90 days, then only the metrics
+The log holds the context sent to the model, so it lives with the rest of the athlete's data,
+in the database the run reads: for the athlete's runs, the hosted one (Neon, Frankfurt),
+written by `lifter_agents`, which may insert runs but never change or delete them; the
+bench's runs stay in `lifter_bench`. ADR 0002 keeps that context 90 days, then only the metrics
 (tokens, seconds, verdicts); that retention is not in place yet, so the log keeps every run.
 
 ```bash

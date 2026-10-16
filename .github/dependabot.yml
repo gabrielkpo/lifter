@@ -14,6 +14,16 @@ updates:
     directory: /web
     schedule:
       interval: weekly
+    # typescript-eslint does not support TypeScript 7 yet, and ESLint 10 and @types/node 26 came in
+    # the same group: their majors wait until it does (#17, closed). Minor and patch updates
+    # still come.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     groups:

@@ -41,6 +41,7 @@ SCHEDULE_WINDOW_DAYS = 28
 EMPTY_SNAPSHOT = {"empty": True}
 REFRESH_DAYS = 3
 PAGE_SIZE = 100
+MAX_PAGES = 100  # 10,000 activities in one range: past it, the listing is not trusted
 MAX_CONSECUTIVE_ERRORS = 5  # the server is down or unreachable: stop instead of hammering it
 # The Garmin client reports a missing resource as "API Error 404" / "HTTP 404 Not Found".
 NOT_FOUND = re.compile(r"\bHTTP 404\b|\bAPI Error 404\b")
@@ -65,6 +66,15 @@ def _start_day(start_time: Any) -> date | None:
         return date.fromisoformat(start_time[:10])
     except (TypeError, ValueError):
         return None
+
+
+def _page_number(value: Any) -> int | None:
+    """A page number as the server sent it (a whole number, or its digits as text)."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.isdecimal():  # exactly what int() reads
+        return int(value)
+    return None
 
 
 @dataclass
@@ -274,7 +284,13 @@ class Syncer:
                 await self._sync_activity(activity)
             if not listing.get("has_more"):
                 return listed_ids if complete else None
-            page = listing.get("next_page", page + 1)
+            next_page = _page_number(listing.get("next_page", page + 1))
+            # A server that does not move forward (same or earlier page, or no end) would loop
+            # for ever: the listing is incomplete, so nothing is reconciled or deleted.
+            if next_page is None or next_page <= page or next_page >= MAX_PAGES:
+                self.report.add("error")
+                return None
+            page = next_page
 
     async def _reconcile_deleted(self, start: date, end: date, listed_ids: set[int]) -> None:
         """Ask Garmin about each known activity of the range missing from a complete listing.

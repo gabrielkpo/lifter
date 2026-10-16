@@ -401,3 +401,45 @@ def test_sync_reports_an_unreachable_database_without_a_traceback(monkeypatch, c
     monkeypatch.setenv("DATABASE_URL", "postgresql://lifter@127.0.0.1:1/lifter?connect_timeout=2")
     assert main(["sync", "--days", "1"]) == 3
     assert "database: OperationalError" in capsys.readouterr().out
+
+
+def test_a_listing_that_does_not_move_forward_stops_and_deletes_nothing(conn):
+    run_sync(conn, FakeCaller(two_days()), today=date(2026, 6, 1))  # activity 11 is known
+    answers = two_days()
+    stuck = listing([], has_more=True)
+    stuck["next_page"] = 0  # the same page again: a buggy server would loop for ever
+    answers[("get_activities_by_date", 0)] = stuck
+    caller = FakeCaller(answers)
+    report = run_sync(conn, caller, today=date(2026, 6, 1))
+
+    pages = [a["page"] for tool, a in caller.calls if tool == "get_activities_by_date"]
+    assert pages == [0]
+    assert report.counts["error"] == 1
+    assert conn.execute("select count(*) from activity_tombstone").fetchone() == (0,)
+
+
+def test_the_listing_stops_at_the_page_cap(conn, monkeypatch):
+    monkeypatch.setattr("lifter.sync.MAX_PAGES", 3)
+    answers = two_days()
+    for page in range(5):
+        answers[("get_activities_by_date", page)] = listing([], page=page, has_more=True)
+    caller = FakeCaller(answers)
+    report = run_sync(conn, caller, today=date(2026, 6, 1))
+
+    pages = [a["page"] for tool, a in caller.calls if tool == "get_activities_by_date"]
+    assert pages == [0, 1, 2]
+    assert report.counts["error"] == 1
+
+
+def test_a_page_number_sent_as_text_is_followed(conn):
+    answers = two_days()
+    first = listing([{"id": 11, "start_time": f"{D1} 07:00:00"}], has_more=True)
+    first["next_page"] = "1"
+    answers[("get_activities_by_date", 0)] = first
+    answers[("get_activities_by_date", 1)] = listing([], page=1)
+    caller = FakeCaller(answers)
+    report = run_sync(conn, caller, today=date(2026, 6, 1))
+
+    pages = [a["page"] for tool, a in caller.calls if tool == "get_activities_by_date"]
+    assert pages == [0, 1]
+    assert report.counts["error"] == 0

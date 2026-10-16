@@ -67,7 +67,9 @@ folder only this user can read; a dump left half-written by an interrupted run i
 next run. **The dumps are not encrypted themselves**: they hold the whole database, health data
 included, and rely on FileVault. A copy that leaves the disk is a plain copy: exclude the folder
 from Time Machine (`tmutil addexclusion` on it) unless the Time Machine disk is encrypted, and
-never sync it to a cloud drive.
+never sync it to a cloud drive. A dump keeps the database as it was that day, so the agents'
+audit context purged at 90 days (see the sync job) lives on in the dumps for up to
+`LIFTER_BACKUP_KEEP_DAYS` more days.
 
 ## Schema changes
 

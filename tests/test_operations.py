@@ -173,6 +173,37 @@ def test_a_retry_with_the_same_key_changes_nothing_more(conn, program):
     assert issue == ("agent", "j'ai mal au poignet droit")
 
 
+def test_the_profile_is_created_then_changed_at_its_version(conn, program):
+    do(conn, "update_athlete", {"weight_kg": 80}, "je pèse 80 kilos")
+    with pytest.raises(StaleRow):
+        do(conn, "update_athlete", {"weight_kg": 81}, "je pèse 81 kilos")
+    do(conn, "update_athlete", {"weight_kg": 81, "expected_version": 1}, "je pèse 81 kilos")
+    assert conn.execute("select weight_kg from athlete").fetchone()[0] == 81
+
+
+def test_a_key_reused_for_another_operation_is_refused(conn, program):
+    message = say(conn, "pas de saut, et note mon genou")
+    run(
+        conn,
+        "add_rule",
+        {"text": "Pas de saut"},
+        quote="pas de saut",
+        message_id=message,
+        idempotency_key="same",
+        author="coach",
+    )
+    with pytest.raises(OperationError, match="was used for add_rule"):
+        run(
+            conn,
+            "add_health_issue",
+            {"body_part": "knee", "kind": "pain", "description": "x"},
+            quote="note mon genou",
+            message_id=message,
+            idempotency_key="same",
+            author="coach",
+        )
+
+
 def test_a_change_based_on_a_stale_row_is_refused(conn, program):
     goal = conn.execute("select id, version from goal order by id limit 1").fetchone()
     do(conn, "update_goal", {"id": goal[0], "expected_version": goal[1], "notes": "a"}, "note a")

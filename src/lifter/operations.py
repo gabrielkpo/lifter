@@ -1267,18 +1267,21 @@ class AthleteFields(StrictModel):
 
 class UpdateAthlete(AthleteFields):
     """Change the athlete's profile (weight, level, where they train, life context...).
-    Partial: only the fields given change; an explicit null clears a field."""
+    Partial: only the fields given change; an explicit null clears a field.
+    `expected_version` is the profile's version as read (none before the profile exists)."""
+
+    expected_version: int | None = None
 
     @model_validator(mode="after")
     def _changes_something(self):
-        if not self.model_fields_set:
+        if not self.model_fields_set - {"expected_version"}:
             raise ValueError("nothing to change: give at least one field")
         return self
 
 
 @_register("update_athlete", UpdateAthlete, ("athlete",))
 def update_athlete(conn, p: UpdateAthlete, ctx: Context) -> Change:
-    values = p.model_dump(exclude_unset=True)
+    values = p.model_dump(exclude_unset=True, exclude={"expected_version"})
     if "training_places" in values and values["training_places"] is None:
         values["training_places"] = []
     if _row(conn, "athlete", 1) is None:
@@ -1286,8 +1289,10 @@ def update_athlete(conn, p: UpdateAthlete, ctx: Context) -> Change:
         return Change(
             operation="update_athlete", entity="athlete", entity_id=1, before=[], after=[img]
         )
+    if p.expected_version is None:
+        raise StaleRow("the profile exists: read it and give its expected_version")
     values["updated_at"] = datetime.now(UTC)
-    return _named(_update(conn, "athlete", 1, None, values), "update_athlete")
+    return _named(_update(conn, "athlete", 1, p.expected_version, values), "update_athlete")
 
 
 class HealthFields(StrictModel):
@@ -1550,9 +1555,12 @@ def run(
     """
     with conn.transaction():
         done = conn.execute(
-            "select status, result from proposal where idempotency_key = %s", (idempotency_key,)
+            "select status, result, kind from proposal where idempotency_key = %s",
+            (idempotency_key,),
         ).fetchone()
         if done is not None:
+            if proposal_id is None and done[2] != name:
+                raise OperationError(f"key {idempotency_key!r} was used for {done[2]}, not {name}")
             if done[0] != "applied":
                 raise OperationError(f"this request was already made and ended {done[0]}")
             return Change.model_validate(done[1])

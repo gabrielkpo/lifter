@@ -3,8 +3,8 @@
 Each answer is stored as received (see sql/001_raw.sql). Days and activities Garmin already
 answered (with data, or with "no data") are not fetched again, except the most recent days:
 Garmin often completes a day late (sleep synced in the morning, training load computed after
-upload). `refresh=True` refetches
-everything in the range, for edits made in Garmin after that window.
+upload). `refresh=True` refetches everything in the range, for edits made in Garmin after
+that window.
 
 A stored activity that a complete listing no longer returns is checked with get_activity:
 only a confirmed "not found" tombstones it, so the metrics stop counting it

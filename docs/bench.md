@@ -66,4 +66,6 @@ uv run lifter bench --only knee_pain deload_week
 The bench database must be named `lifter_bench…` and differ from `DATABASE_URL`: the runner
 refuses anything else, since it empties every table. A pass stops before the next scenario once
 it has used `LIFTER_BENCH_TOKEN_BUDGET` tokens (1,000,000 by default; raise it for `--runs 3`),
-and every run inside it is capped by `LIFTER_RUN_TOKEN_BUDGET` (docs/agents.md).
+and every run inside it is capped by `LIFTER_RUN_TOKEN_BUDGET` (docs/agents.md). The bench
+always sends the default `indicators` context and does not read `LIFTER_LLM_CONTEXT`: its
+athletes are synthetic, and every pass is measured on the same input.

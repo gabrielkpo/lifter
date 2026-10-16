@@ -624,6 +624,14 @@ button {
   background: var(--bg);
   overflow: hidden;
   transition: opacity 350ms ease;
+  /* Leaves on its own after 12 s even if the app's JavaScript never runs: never a dead screen. */
+  animation: splash-timeout 350ms ease 12s forwards;
+}
+@keyframes splash-timeout {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 .splash[data-leaving="true"] {
   opacity: 0;

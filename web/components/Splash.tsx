@@ -16,14 +16,15 @@ const IDLE_MS = 250;
 /** A page with no call at all is ready once this has passed. */
 const NO_CALL_MS = 600;
 /** Whatever happens (a hung request), the app shows after this. */
-const MAX_MS = 12000;
+const MAX_MS = 12000; // the CSS hides it at the same time if JavaScript never runs
 const FADE_MS = 350;
 
 export default function Splash() {
   const [phase, setPhase] = useState<"loading" | "leaving" | "gone">("loading");
 
   useEffect(() => {
-    const start = Date.now();
+    // From the start of the page load, not from hydration: a slow phone does not wait longer.
+    const start = Date.now() - performance.now();
     let busySince = start;
     const unsubscribe = onApiActivity(() => {
       if (apiActivity().inFlight > 0) busySince = Date.now();

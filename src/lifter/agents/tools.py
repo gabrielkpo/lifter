@@ -82,6 +82,7 @@ class ToolContext:
     message_id: int
     writes: int = 0
     changes: list[dict] = field(default_factory=list)  # what was applied, for the reply
+    suggestions: list[int] = field(default_factory=list)  # suggestions recorded this turn
 
     def next_key(self) -> str:
         self.writes += 1
@@ -185,6 +186,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         ).fetchone()
         result = {
             "ok": True,
+            "proposal_id": found[1] if found else None,
             "operation": change.operation,
             "entity": change.entity,
             "entity_id": change.entity_id,
@@ -242,6 +244,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             suggestion = operations.suggest(
                 conn, operation, payload, rationale=rationale, author=AUTHOR
             )
+            ctx.suggestions.append(suggestion)
             return _json({"ok": True, "suggestion_id": suggestion})
 
         return _attempt(call)

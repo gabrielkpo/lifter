@@ -480,6 +480,58 @@ def _plan_lines(plan) -> list[str]:
     return out
 
 
+def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
+    """One message to the coach: stored as the conversation endpoint would, then answered."""
+    import httpx
+    import psycopg
+
+    from lifter.agents.coach import mistral_model, respond
+
+    if not settings.mistral_api_key:
+        print("MISTRAL_API_KEY is not set (see .env.example)")
+        return 2
+    model = mistral_model(settings.mistral_api_key, settings.model, settings.max_output_tokens)
+    try:
+        with connect(settings.database_url) as conn:
+            message_id = conn.execute(
+                "insert into conversation_message (conversation_id, role, text)"
+                " values (%s, 'athlete', %s) returning id",
+                (args.conversation, args.message),
+            ).fetchone()[0]
+            reply = respond(
+                conn,
+                model,
+                conversation_id=args.conversation,
+                message_id=message_id,
+                model_name=settings.model,
+                language=settings.coach_language,
+                today=args.today,
+                trigger="cli",
+                token_budget=settings.run_token_budget,
+            )
+    except httpx.HTTPError as exc:  # the message names the URL, never the key
+        print(printable(f"Mistral API error: {exc}"))
+        return 1
+    except psycopg.Error as exc:
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
+    out = [reply.text, ""]
+    for change in reply.changes:
+        out.append(
+            f"applied {change['operation']} on {change['entity']} {change['entity_id']}"
+            f" (change {change['change_id']}, undo with it)"
+        )
+    if reply.suggestions:
+        out.append(f"suggestions: {', '.join(map(str, reply.suggestions))}")
+    usage = reply.usage
+    out.append(
+        f"model {settings.model}: {usage.calls} call(s), {usage.input_tokens} input"
+        f" + {usage.output_tokens} output tokens; audit: lifter run {reply.run_id}"
+    )
+    print("\n".join(printable(line) for line in out))
+    return 0
+
+
 def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
     import httpx
     import psycopg
@@ -798,6 +850,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--propose", action="store_true", help="store the accepted plan as proposals to approve"
     )
     plan.set_defaults(func=cmd_plan_week)
+
+    chat = sub.add_parser("chat", help="send one message to the coach and print its reply")
+    chat.add_argument("message")
+    chat.add_argument("--conversation", default="cli", help="conversation id (default: cli)")
+    chat.add_argument("--today", type=date.fromisoformat, help="as if today were this day")
+    chat.set_defaults(func=cmd_chat)
 
     runs = sub.add_parser("runs", help="print the last agent runs (audit log)")
     runs.add_argument("--limit", type=int, default=20)

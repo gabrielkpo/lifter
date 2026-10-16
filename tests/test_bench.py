@@ -26,7 +26,7 @@ def status(conn, week, title):
     ).fetchone()[0]
 
 
-def test_twenty_scenarios_with_known_checks(scenarios):
+def test_every_scenario_has_known_checks(scenarios):
     assert len(scenarios) == 21
     categories = {s.category for s in scenarios.values()}
     assert categories == {"phase", "review", "health", "calendar"}

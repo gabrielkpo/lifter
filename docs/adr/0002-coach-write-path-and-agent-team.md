@@ -58,6 +58,10 @@ Every write tool runs the same path in code, in one transaction:
 
 1. **Quote check.** `quote` must appear, word for word, in a message **from the athlete** in the
    current conversation (the message being answered, or the one before it for "ok for 2").
+   The check reads that message **from the database**, by its `message_id`, server side: the
+   conversation endpoint stores every athlete message in `conversation_message` (id, role, text,
+   time) **before** the model runs. It never reads a copy supplied by the model or held in the
+   graph's state, so a model that invents "the athlete said …" cannot pass it.
    Normalisation only: Unicode NFC, typographic quotes and apostrophes, runs of whitespace. A
    quote found only in a coach message, in the data, or nowhere is refused. For
    `accept_suggestion` and `undo` the quote may be short ("ok", "go for 2", "undo", "annule") but
@@ -182,6 +186,10 @@ tokens. Otherwise the README reports the negative result and the single coach st
   instruction inside a note changes nothing).
 - **Alerts**: a failed run, a run stopped by its budget, or a refused quote raise an alert with
   the scheduled-sync alerts (docs/operations.md).
+- **Data quality**: `lifter data-test` after every sync and every night, with an alert; every new
+  table of the catalogue comes with its dbt tests (keys, accepted values, relationships) and its
+  entry in the data dictionary; CI checks the coverage (catalogue and tools) and the privilege
+  matrix.
 - **Cost and latency over time**: from the audit tables, on the demo's monitoring.
 
 ## Security notes
@@ -192,6 +200,15 @@ tokens. Otherwise the README reports the negative result and the single coach st
 - **No write tool for specialists**, no SQL for any model, strict schemas everywhere.
 - **The model never sees credentials**; the hosted coach endpoint holds the Mistral key and the
   `lifter_coach` connection server-side.
+- **Conversation messages**: athlete messages are written to `conversation_message` by the
+  endpoint, before the model runs; `lifter_coach` may only insert the coach's own messages.
+- **Personal and health data** (a sensitive category under the GDPR):
+  - stored only in the EU database (Neon, encrypted at rest); never in the repository, the
+    fixtures or the application logs;
+  - `agent_run` and `agent_step` hold the context sent to the model, so health data: the full
+    context is kept **90 days**, then only the metrics (tokens, seconds, verdicts) remain;
+    reading the audit is limited to the owner and the roles that need it;
+  - sent to Mistral: only what the task needs (the `indicators` context by default).
 
 ## Open questions
 
@@ -205,7 +222,7 @@ tokens. Otherwise the README reports the negative result and the single coach st
 
 | App session | Agents session |
 |---|---|
-| The catalogue (`operations.py`, `domain.py`), one migration after 008 for `change_log`, the trace columns and the records table; `lifter_coach` and its grants with the matrix test; the deferred trigger and the immutable log; the coverage test; the hosted conversation endpoint and the Coach tab; the change history in the app | The tools generated from the catalogue; the quote check; the rule check at apply time; `undo` from the coach's side; the coach graph and its prompt; the specialists; the bench scenarios per entity type and per conversation case |
+| The catalogue (`operations.py`, `domain.py`), one migration after 008 for `change_log`, `conversation_message`, the trace columns and the records table; the audit's retention (full context 90 days); `lifter_coach` and its grants with the matrix test; the deferred trigger and the immutable log; the coverage test; the hosted conversation endpoint and the Coach tab; the change history in the app | The tools generated from the catalogue; the quote check; the rule check at apply time; `undo` from the coach's side; the coach graph and its prompt; the specialists; the bench scenarios per entity type and per conversation case |
 
 Neither session edits `domain.py` or the catalogue while the other has a pull request open on it.
 

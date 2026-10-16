@@ -400,7 +400,8 @@ def build_context(
         "select distinct on (l.exercise, l.quantity) l.exercise, l.pattern,"
         " l.quantity as reps, l.load_kg, l.rir, p.day"
         " from session_line l join planned_session p on p.id = l.session_id"
-        " where l.origin = 'done' and l.load_kg is not null and p.day between %s and %s"
+        " where l.origin = 'done' and l.unit = 'reps' and l.load_kg is not null"
+        " and p.day between %s and %s"
         " order by l.exercise, l.quantity, l.load_kg desc, p.day desc",
         (today - timedelta(days=RECENT_LOAD_DAYS), today),
     )

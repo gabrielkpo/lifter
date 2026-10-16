@@ -22,8 +22,8 @@ START → plan (LLM) → guard (code) ─ accepted ─────────�
   status, parts, planned and done lines, metcon targets and results, Garmin minutes), sessions
   already planned in the target week, 7 days of recovery (`daily_metrics`, readiness and Body
   Battery from `daily_recovery`), alerts of the last 3 days, the athlete's rules, the exercise
-  bank, the heaviest logged load of each exercise per repetition count (28 days, so a deload
-  week does not become the reference), the athlete's feedback of the last 14 days (RPE,
+  bank, the heaviest logged load of each exercise per repetition count, sets in reps only
+  (28 days, so a deload week does not become the reference), the athlete's feedback of the last 14 days (RPE,
   fatigue, pain and where, with the loaded lines of the session concerned), active goals with their next milestone.
 - **Plan** (`agents/plan.py`): a typed `WeekPlan` (summary, sessions with parts and prescribed
   lines, a rationale per session, sessions of the week it replaces). Unknown fields are
@@ -51,7 +51,7 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `days` | A session outside the target week |
 | `exercise_bank` | An exercise that is not in the bank |
 | `cancellations` | Cancelling a session that is not an open session of the target week |
-| `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values (agents read numbers, they never compute them) |
+| `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values: loads, counts, targets, days, never its titles or notes (agents read numbers, they never compute them) |
 | `prescription` | A strength, weightlifting or gymnastics line without a count, or a strength or weightlifting line in reps without a target RIR (it would escape the checks below) |
 | `critical_alert` | While a critical health alert is on: any metcon, any line under RIR 3 or without the RIR it needs, in the plan or in a session of the week it keeps |
 | `forbid_flag` (rule) | An exercise carrying a forbidden flag (`running`, `impact`, `free_barbell_legs`…) |
@@ -62,7 +62,7 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `metcon_no_row` (rule) | A listed exercise (the rower) inside a metcon |
 | `metcon_light_barbell` (rule) | A weightlifting line above the given load inside a metcon |
 | `stop_rule` (rule) | After a feedback with pain above the threshold (3/10), two steps back (−5 kg upper body, −10 kg lower body) on every **pattern** the painful session loaded: an exercise loaded that day from its load that day, another exercise of the pattern from its heaviest load logged in 28 days, refused if loaded without any logged load; until a later session loading the pattern is reported without such pain (and, for an exercise loaded that day, a later session loading that exercise). Pain without a loaded session is a warning |
-| `progression` (rule) | A load more than one step (2.5 kg upper body, 5 kg lower body) above the heaviest set logged in 28 days at as many reps or more |
+| `progression` (rule) | A load more than one step (2.5 kg upper body, 5 kg lower body) above the heaviest set logged in 28 days at as many reps or more; a line in another unit (seconds, metres) or without a count is compared with the heaviest set logged at any reps |
 
 Rules without a code, or with a code the guardrail does not know, are context for the planner
 only; the CLI reports how many were not checked. A low recovery score on the last day is a

@@ -117,3 +117,19 @@ Lifter too.
 The athlete's program, rules, notes and pain reports are health data: they stay in the local
 database and in `data/`. Activity names from Garmin can contain a place (the default name of an
 activity is the town where it started); the agents' context must not include them (step 3).
+
+## Roles (who may do what)
+
+Defined in `src/lifter/sql/roles.sql`, applied by `lifter migrate` (and again whenever the views
+are recreated, since that drops their grants). Group roles carry the privileges; login roles only
+inherit them and hold nothing of their own. Passwords never live in the repository.
+
+| Login role | Inherits | Can | Cannot |
+|---|---|---|---|
+| `lifter_api` | `lifter_read` | read every table and view (read-only transactions, 10 s per statement) | write anything |
+| `lifter_sync` | `lifter_ingest` | read and write the raw Garmin layer (`raw_garmin_payload`, `sync_log`, `activity_tombstone`), read the staging views it reconciles with | read or write the program, the log, goals, proposals or metrics |
+| `lifter_agents` | `lifter_read`, `lifter_propose` | read everything, insert proposals and the audit of their runs | decide or apply a proposal, change the program |
+
+No role may create objects; only the owner runs migrations. `tests/test_roles.py` checks the
+whole matrix and runs a sync as `lifter_sync` and a proposal as `lifter_agents`.
+

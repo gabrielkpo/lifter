@@ -3,7 +3,8 @@
 Tables live in numbered migrations (`NNN_name.sql`, schema `public`), applied once each.
 Views and functions live in `views.sql` (schema `analytics`), recreated only when the file
 changes, so changing a view never needs a new migration and an unchanged file never drops
-views that a reader may be using.
+views that a reader may be using. Roles and grants live in `roles.sql`, applied after the views
+when either changes (recreated views lose their grants).
 """
 
 import hashlib
@@ -13,6 +14,8 @@ import psycopg
 from psycopg.conninfo import conninfo_to_dict
 
 VIEWS_FILE = "views.sql"
+# Roles and grants (RBAC). Applied after the views: recreating a view drops its grants.
+ROLES_FILE = "roles.sql"
 SEARCH_PATH = "analytics,public"
 
 
@@ -36,7 +39,8 @@ def migration_files() -> list[tuple[str, str]]:
 
 
 def migrate(conn: psycopg.Connection) -> list[str]:
-    """Apply the table migrations not applied yet, then recreate the views if they changed.
+    """Apply the table migrations not applied yet, then recreate the views if they changed, then
+    the roles and grants (roles.sql) if they changed or the views were recreated.
 
     Returns the names of the migrations applied by this call.
     """
@@ -60,25 +64,26 @@ def migrate(conn: psycopg.Connection) -> list[str]:
             conn.execute(sql)
             conn.execute("insert into public.schema_migrations (name) values (%s)", (name,))
         done.append(name)
-    _apply_views(conn)
-    return done
-
-
-def _apply_views(conn: psycopg.Connection) -> None:
-    sql = resources.files("lifter.sql").joinpath(VIEWS_FILE).read_text()
-    digest = hashlib.sha256(sql.encode()).hexdigest()
-    row = conn.execute(
-        "select sha256 from public.schema_views where name = %s", (VIEWS_FILE,)
-    ).fetchone()
     exists = conn.execute(
         "select 1 from information_schema.schemata where schema_name = 'analytics'"
     ).fetchone()
-    if row is not None and row[0] == digest and exists:
-        return
+    views_applied = _apply_repeatable(conn, VIEWS_FILE, force=not exists)
+    _apply_repeatable(conn, ROLES_FILE, force=views_applied)
+    return done
+
+
+def _apply_repeatable(conn: psycopg.Connection, name: str, force: bool = False) -> bool:
+    """Run a repeatable SQL file when it changed (or when forced); True when it ran."""
+    sql = resources.files("lifter.sql").joinpath(name).read_text()
+    digest = hashlib.sha256(sql.encode()).hexdigest()
+    row = conn.execute("select sha256 from public.schema_views where name = %s", (name,)).fetchone()
+    if row is not None and row[0] == digest and not force:
+        return False
     with conn.transaction():
         conn.execute(sql)
         conn.execute(
             "insert into public.schema_views (name, sha256) values (%s, %s)"
             " on conflict (name) do update set sha256 = excluded.sha256, applied_at = now()",
-            (VIEWS_FILE, digest),
+            (name, digest),
         )
+    return True

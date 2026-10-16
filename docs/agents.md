@@ -120,7 +120,11 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
 ```
 
 - **Before the model**: the athlete's message is stored in `conversation_message` (by the
-  conversation endpoint, or `lifter chat`); the quote check reads it from there.
+  conversation endpoint, or `lifter chat`); the quote check reads it from there. `respond()`
+  answers only the latest athlete message of its conversation and raises `StaleMessage`
+  otherwise, before the model runs: a caller retrying an older message gets a refusal, not a
+  change. A message that arrives while the coach runs is caught at apply time by
+  `operations.run` (ADR 0002, N1).
 - **What the coach sees**: a snapshot built by code (today, this week's and next week's sessions
   with ids and versions, health issues not resolved, pending suggestions), the last 20 messages
   of the conversation, and the tools above. The prompt carries the behaviour of ADR 0002

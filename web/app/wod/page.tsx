@@ -13,23 +13,23 @@ export default function WodPage() {
   const weeks = useApi<Week[]>("/weeks");
   // null: the week containing today.
   const [weekId, setWeekId] = useState<number | null>(null);
-  const current = useApi<WeekDetail>(weekId === null ? "/weeks/current" : `/weeks/${weekId}`);
-
+  const thisWeek = useApi<WeekDetail>(weekId === null ? "/weeks/current" : null);
   // No week of the program contains today: open the last one that started.
-  if (weekId === null && current.status === "error" && current.notFound) {
-    if (weeks.status !== "ok") return <ApiStatus state={weeks} />;
-    const started = weeks.data.filter((w) => w.start_date <= today());
-    const fallback = started.at(-1) ?? weeks.data[0];
-    if (!fallback) {
-      return (
-        <>
-          <TopBar title="WOD" />
-          <p className="empty">No program loaded yet.</p>
-        </>
-      );
-    }
-    setWeekId(fallback.id);
-    return null;
+  const noCurrent = weekId === null && thisWeek.status === "error" && thisWeek.notFound;
+  const started = weeks.status === "ok" ? weeks.data.filter((w) => w.start_date <= today()) : [];
+  const fallback = noCurrent && weeks.status === "ok" ? (started.at(-1) ?? weeks.data[0]) : undefined;
+  const shownId = weekId ?? fallback?.id ?? null;
+  const picked = useApi<WeekDetail>(shownId === null ? null : `/weeks/${shownId}`);
+  const current = shownId === null ? thisWeek : picked;
+
+  if (noCurrent && weeks.status !== "ok") return <ApiStatus state={weeks} />;
+  if (noCurrent && !fallback) {
+    return (
+      <>
+        <TopBar title="WOD" />
+        <p className="empty">No program loaded yet.</p>
+      </>
+    );
   }
   if (current.status !== "ok") {
     return (

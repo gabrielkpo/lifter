@@ -28,6 +28,12 @@ export function weekday(day: string): string {
   return WEEKDAYS[parseDay(day).getDay()];
 }
 
+/** "2026-07-16" -> "Jul 2026" */
+export function monthYear(day: string): string {
+  const date = parseDay(day);
+  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
+
 export function shortDate(day: string): string {
   const date = parseDay(day);
   return `${WEEKDAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;

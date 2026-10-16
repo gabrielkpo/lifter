@@ -234,6 +234,12 @@ class Health(BaseModel):
     alerts: list[Alert]
 
 
+class Status(BaseModel):
+    """How fresh the Garmin data is: when the sync last stored or confirmed a payload."""
+
+    garmin_last_seen_at: datetime | None
+
+
 class Milestone(BaseModel):
     day: date
     label: str | None
@@ -259,8 +265,9 @@ class Goal(BaseModel):
 
 
 class Athlete(BaseModel):
+    """The athlete as the app shows them: the age only, never the birth date (data minimisation)."""
+
     first_name: str | None
-    birth_date: date | None
     age: int | None
     sex: str | None
     height_cm: float | None

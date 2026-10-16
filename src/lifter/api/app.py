@@ -252,6 +252,13 @@ def create_app(
             ],
         )
 
+    @app.get("/status")
+    def status(conn: Conn) -> models.Status:
+        """When Garmin data last arrived, so the app can warn when the Mac's sync stopped."""
+        return conn.execute(
+            "select max(last_seen_at) as garmin_last_seen_at from raw_garmin_payload"
+        ).fetchone()
+
     @app.get("/health")
     def health(
         conn: Conn, days: Annotated[int, Query(ge=1, le=MAX_HEALTH_DAYS)] = 14
@@ -300,7 +307,7 @@ def create_app(
     def profile(conn: Conn) -> models.Profile:
         """The athlete, their health issues (active first) and their active rules."""
         athlete = conn.execute(
-            "select first_name, birth_date, extract(year from age(birth_date))::int as age, sex,"
+            "select first_name, extract(year from age(birth_date))::int as age, sex,"
             " height_cm, weight_kg, weight_date, handedness, level, practice_since,"
             " sessions_per_week, training_places, context from athlete"
         ).fetchone()

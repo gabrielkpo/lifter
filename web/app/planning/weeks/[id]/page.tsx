@@ -5,14 +5,16 @@ import { useParams } from "next/navigation";
 import ApiStatus from "@/components/ApiStatus";
 import { BackIcon } from "@/components/icons";
 import SessionView from "@/components/SessionView";
-import { useApi } from "@/lib/api";
+import { NOT_FOUND, useApi } from "@/lib/api";
 import { label, shortDate } from "@/lib/format";
 import type { SessionDetail, SessionSummary, WeekDetail } from "@/lib/types";
 
 /** A week as it went: every session with what was done, its Garmin line and its note. */
 export default function WeekPage() {
   const { id } = useParams<{ id: string }>();
-  const state = useApi<WeekDetail>(/^\d+$/.test(id) ? `/weeks/${id}` : null);
+  const valid = /^\d+$/.test(id);
+  const fetched = useApi<WeekDetail>(valid ? `/weeks/${id}` : null);
+  const state = valid ? fetched : NOT_FOUND;
   const back = state.status === "ok" && state.data.week.block_id
     ? `/planning/blocks/${state.data.week.block_id}`
     : "/planning";

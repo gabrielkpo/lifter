@@ -1,9 +1,10 @@
 """The guardrail on a week as it stands in the database, for changes applied by the coach.
 
 ADR 0002, Decision 3: an operation that changes the programme is checked before commit, on the
-week as it would be. `violations_for_week` is registered as the catalogue's programme check at
-start-up (`operations.set_programme_check`, so the domain does not import the agents); the
-catalogue calls it inside the operation's transaction, before and after applying it, and
+week as it would be. Whoever applies changes registers `violations_for_week` and `introduced`
+as the catalogue's programme check first (`operations.set_programme_check`, so the domain does
+not import the agents); without it, the catalogue refuses every operation on the programme. It
+calls them inside the operation's transaction, before and after applying it, and
 refuses the change only for the violations it **introduces** (`introduced`): a week that
 already broke a rule (an old draft, imported data) must not block every unrelated change, nor
 the move of the session at fault.

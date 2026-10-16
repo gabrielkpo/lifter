@@ -623,13 +623,13 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
     from psycopg.conninfo import conninfo_to_dict
 
     from lifter.bench.baseline import CopyLastWeek
-    from lifter.bench.runner import run_bench, summary, write_results
+    from lifter.bench.runner import is_resettable, run_bench, summary, write_results
     from lifter.bench.scenario import read_scenarios
 
     # The bench empties its database before every scenario: never the athlete's one.
     bench_db = conninfo_to_dict(settings.bench_database_url).get("dbname", "")
     real_db = conninfo_to_dict(settings.database_url).get("dbname", "")
-    if not bench_db.startswith("lifter_bench") or bench_db == real_db:
+    if not is_resettable(bench_db) or bench_db == real_db:
         print("BENCH_DATABASE_URL must name a database starting with 'lifter_bench'")
         return 2
     if args.planner == "mistral":

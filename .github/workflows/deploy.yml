@@ -16,8 +16,9 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    # Secrets of the "production" environment, readable from main and version tags only.
-    environment: production
+    # Secrets of the "deploy" environment, readable from main only (not "Production": Vercel
+    # writes its own deployments there).
+    environment: deploy
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -37,7 +38,7 @@ jobs:
   deploy-api:
     needs: migrate
     runs-on: ubuntu-latest
-    environment: production
+    environment: deploy
     steps:
       - uses: actions/checkout@v7
       - name: Deploy the API (Vercel project lifter-api)
@@ -50,7 +51,7 @@ jobs:
   deploy-web:
     needs: deploy-api
     runs-on: ubuntu-latest
-    environment: production
+    environment: deploy
     steps:
       - uses: actions/checkout@v7
       # From the repository root: the project's own root directory (web/) is set on Vercel.
@@ -64,13 +65,14 @@ jobs:
   check:
     needs: deploy-web
     runs-on: ubuntu-latest
-    environment: production
+    environment: deploy
     steps:
       # The live API answers its token through Vercel's protection: /status and /profile.
       - name: Check the live API
         run: |
           for path in status profile; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' \
+            # A cold start may answer 502/504 once: curl retries those, 30 s at most each.
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 --retry 4 --retry-delay 5 \
               -H "Authorization: Bearer $LIFTER_API_TOKEN" \
               -H "x-vercel-protection-bypass: $LIFTER_API_BYPASS" \
               "$LIFTER_API_URL/$path")

@@ -90,8 +90,8 @@ public): Neon keeps 6 hours of history and the Mac backs it up daily (see Backup
 Then, on the Mac, `ops/upgrade.sh` installs the new version's `lifter` command and jobs; until
 then the sync stops with "schema out of date" when the version changed the schema.
 
-The workflow reads the GitHub environment `production` (Settings, Environments), open to
-`main` only:
+The workflow reads the GitHub environment `deploy` (Settings, Environments; not `Production`,
+where Vercel records its own deployments), open to `main` only:
 
 | Name | Kind | What |
 |---|---|---|

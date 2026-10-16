@@ -43,7 +43,7 @@ Authentication on every deployment, production included):
   only its own host names and allows no browser origin.
 - **Database** (Neon Postgres, Frankfurt): the API connects with a role that can only read
   (`SELECT` grants, read-only transactions). The owner role, used for migrations, lives in the
-  athlete's local `.env` and in the secrets of the GitHub `production` environment, never on
+  athlete's local `.env` and in the secrets of the GitHub `deploy` environment, never on
   Vercel.
 
 **Production follows the versions, not the merges.** Vercel's Git deployments are off

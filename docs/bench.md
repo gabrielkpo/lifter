@@ -49,7 +49,15 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   the 21 scenarios: 71 % accepted, **66 % of expectations met**
   (`bench/results/copy-baseline.json`); it fails the deload, the return after it, the stop rule,
   low recovery, critical alerts and duplicates the drafts.
-- **Single agent** (`--planner mistral`): the week planner of step 3.
+- **Single agent** (`--planner mistral`): the week planner of step 3, `mistral-small-latest`,
+  3 runs per scenario (`bench/results/single-agent-mistral-small.json`): **82.5 % accepted,
+  79 % of expectations met**, 129 first-plan violations over 63 runs, 6 answers that did not
+  parse, 1 unsourced number, about 1.14 million tokens for the 63 runs. Above the floor on
+  both measures; the stop rule (`knee_pain` 3/3, all expectations) and the volume weeks are
+  solid. Still weak: the light first days after low recovery or short sleep (0/6), the
+  intensification and test weeks (low reps, the AMRAP benchmark, the bench single), a load
+  kept after a missed RIR (`bench_rir_missed`), and load jumps of several steps on the first
+  answer of the power week, which the guardrail sends back each time.
 - **Agent team** (step 7): kept only if it has **no constraint violation**, cites numbers **at
   least as accurately** as the single agent, and costs **at most 2×** its tokens; otherwise the
   README reports the negative result.

@@ -13,11 +13,15 @@ import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from lifter.agents.context import PlanningContext, Rule
+from lifter.agents.context import LineInfo, PlanningContext, Rule
 from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
 
 LOWER_BODY = {"legs", "hinge"}
-MAX_TERMS = re.compile(r"\b(1 ?RM|max(imum)?)\b", re.IGNORECASE)
+# "to failure", not "failure" ("stay 2 reps from failure" is the opposite); "PR" in capitals
+# only, so the French "pr" (pour) is not a record attempt.
+MAX_TERMS = re.compile(r"\b(1 ?RM|max(imum)?|to (muscle )?failure|AMRAP|(?-i:PR))\b", re.IGNORECASE)
+COUNTED_PARTS = ("strength", "weightlifting", "gymnastics")  # every line needs a count
+RIR_PARTS = ("strength", "weightlifting")  # and, in reps, a target RIR
 NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
 
 
@@ -61,6 +65,17 @@ def kept_sessions(plan: WeekPlan, ctx: PlanningContext):
 
 def top_load(line: PlanLine) -> float | None:
     return line.load_kg_max if line.load_kg_max is not None else line.load_kg
+
+
+def needs_rir(part_kind: str, line: PlanLine | LineInfo) -> bool:
+    return part_kind in RIR_PARTS and line.unit == "reps"
+
+
+def is_hard(part_kind: str, line: PlanLine | LineInfo) -> bool:
+    """Close to failure: under RIR 3, or no RIR where one is required (unknown counts as hard)."""
+    if line.rir is not None:
+        return line.rir < 3
+    return needs_rir(part_kind, line)
 
 
 def normalize(number: str) -> str:
@@ -119,6 +134,20 @@ def check_sources(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
             )
 
 
+def check_prescription(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
+    """Every line of a strength, weightlifting or gymnastics part has a count, and a strength or
+    weightlifting line in reps has a target RIR: a line without them escapes the rules that read
+    them (failure, critical alert, progression)."""
+    for s in plan.sessions:
+        for part, line in _lines(s):
+            if part.kind in COUNTED_PARTS and line.quantity is None:
+                yield Violation(
+                    "prescription", f"'{line.exercise}' has no {line.unit} count", str(s.day)
+                )
+            if needs_rir(part.kind, line) and line.rir is None:
+                yield Violation("prescription", f"'{line.exercise}' has no target RIR", str(s.day))
+
+
 def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
     """A critical health signal: no metcon and nothing close to failure until it clears."""
     critical = [a for a in ctx.alerts if a.severity == "critical"]
@@ -127,7 +156,7 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
     names = ", ".join(sorted({a.alert for a in critical}))
     for kept in kept_sessions(plan, ctx):
         hard = any(p.kind == "metcon" for p in kept.parts) or any(
-            line.rir is not None and line.rir < 3 for p in kept.parts for line in p.planned
+            is_hard(p.kind, line) for p in kept.parts for line in p.planned
         )
         if hard:
             yield Violation(
@@ -138,7 +167,7 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
             )
     for s in plan.sessions:
         hard = any(p.kind == "metcon" for p in s.parts) or any(
-            line.rir is not None and line.rir < 3 for _, line in _lines(s)
+            is_hard(part.kind, line) for part, line in _lines(s)
         )
         if hard:
             yield Violation(
@@ -202,7 +231,9 @@ def rule_no_max_before_test(
     if ctx.target_week.phase in ("peak", "test"):
         return
     for s in plan.sessions:
-        for _, line in _lines(s):
+        for part, line in _lines(s):
+            if part.kind == "metcon":  # an AMRAP metcon is not a max attempt
+                continue
             single_to_failure = line.quantity == 1 and line.unit == "reps" and line.rir == 0
             if single_to_failure or (line.notes and MAX_TERMS.search(line.notes)):
                 yield Violation(
@@ -367,6 +398,7 @@ GENERIC_CHECKS = (
     check_exercises,
     check_cancellations,
     check_sources,
+    check_prescription,
     check_critical_alerts,
 )
 

@@ -146,7 +146,7 @@ def test_a_plan_within_the_rules_is_accepted(ctx):
 def test_sessions_outside_the_week_and_unknown_exercises_are_refused(ctx):
     plan = good_plan()
     plan.sessions[0].day = date(2026, 3, 20)
-    plan.sessions[1].parts[0].lines.append(PlanLine(exercise="Squat snatch", quantity=3))
+    plan.sessions[1].parts[0].lines.append(PlanLine(exercise="Squat snatch", quantity=3, rir=3))
     assert checks(plan, ctx) == {"days", "exercise_bank"}
 
 
@@ -199,6 +199,58 @@ def test_a_critical_alert_allows_easy_work_only(ctx):
     alert = Alert(day=TODAY, alert="abnormal_hrv", severity="critical", value=-35, threshold=-30)
     alarmed = ctx.model_copy(update={"alerts": [alert]})
     assert "critical_alert" in checks(good_plan(), alarmed)
+
+
+def legs_only(*lines: PlanLine) -> WeekPlan:
+    plan = good_plan()
+    plan.sessions = plan.sessions[1:]
+    plan.sessions[0].parts[0].lines = list(lines)
+    return plan
+
+
+def test_a_line_without_rir_or_count_is_refused(ctx):
+    plan = legs_only(PlanLine(exercise="Leg press", sets=4, load_kg=100))
+    messages = [v.message for v in guardrail.check(plan, ctx).violations]
+    assert messages == ["'Leg press' has no reps count", "'Leg press' has no target RIR"]
+
+
+def test_rir_is_only_required_where_it_means_something(ctx):
+    plan = legs_only(
+        PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=100, rir=3),
+        PlanLine(exercise="Farmer carry", sets=4, quantity=40, unit="m", load_kg=24),
+    )
+    assert checks(plan, ctx) == set()
+
+
+def test_a_missing_rir_counts_as_hard_under_a_critical_alert(ctx):
+    alert = Alert(day=TODAY, alert="abnormal_hrv", severity="critical", value=-35, threshold=-30)
+    alarmed = ctx.model_copy(update={"alerts": [alert]})
+    easy = legs_only(PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=100, rir=3))
+    assert checks(easy, alarmed) == set()
+    unknown = legs_only(PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=100))
+    assert checks(unknown, alarmed) == {"prescription", "critical_alert"}
+
+
+@pytest.mark.parametrize("note", ["to failure", "last set AMRAP", "new PR", "1RM"])
+def test_failure_words_in_a_note_are_a_max_on_the_legs(ctx, note):
+    line = PlanLine(exercise="Leg press", sets=3, quantity=12, load_kg=100, rir=3, notes=note)
+    assert checks(legs_only(line), ctx) == {"no_failure_on_legs"}
+
+
+@pytest.mark.parametrize("note", ["stay 2 reps from failure", "3 séries pr le quad"])
+def test_prudent_notes_are_not_a_max(ctx, note):
+    line = PlanLine(exercise="Leg press", sets=3, quantity=12, load_kg=100, rir=3, notes=note)
+    assert checks(legs_only(line), ctx) == set()
+
+
+def test_an_amrap_metcon_is_not_a_max_attempt(ctx):
+    assert ctx.target_week.phase not in ("peak", "test")
+    rule = guardrail.Rule(code="no_max_before_test", text="No max before the test.", params={})
+    plan = good_plan()
+    metcon = plan.sessions[0].parts[-1]
+    assert metcon.kind == "metcon"
+    metcon.lines[0].notes = "AMRAP 12 min, steady"
+    assert list(guardrail.rule_no_max_before_test(rule, plan, ctx)) == []
 
 
 def test_rule_checks_know_the_fresh_first_rule():

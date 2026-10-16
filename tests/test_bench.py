@@ -172,3 +172,96 @@ def test_the_bench_refuses_unknown_scenario_names(monkeypatch, capsys):
     monkeypatch.setenv("BENCH_DATABASE_URL", "postgresql:///lifter_bench_test")
     assert main(["bench", "--only", "knee-pain"]) == 2
     assert "unknown scenarios: knee-pain" in capsys.readouterr().out
+
+
+def test_the_bench_stops_before_a_scenario_once_its_budget_is_used(conn, scenarios):
+    from lifter.agents.planner import Usage
+    from lifter.bench.runner import run_bench
+
+    class Costly(CopyLastWeek):
+        def __call__(self, ctx, feedback):
+            self.usage.input_tokens += 900
+            self.usage.output_tokens += 100
+            return super().__call__(ctx, feedback)
+
+    picked = [scenarios["volume_peak_week"], scenarios["deload_week"], scenarios["knee_pain"]]
+    seen = []
+    results, stopped = run_bench(
+        conn,
+        picked,
+        lambda: Costly(usage=Usage()),
+        runs=1,
+        token_budget=1000,
+        on_result=seen.append,
+    )
+
+    assert [r.scenario for r in results] == ["volume_peak_week"]
+    assert seen == results
+    assert stopped == "token budget reached: 1000 of 1000, 2 scenario(s) left"
+
+
+def test_a_run_budget_applies_inside_the_bench(conn, scenarios):
+    from lifter.agents.planner import Usage
+    from lifter.bench.runner import run_bench
+
+    class Costly(CopyLastWeek):
+        def __call__(self, ctx, feedback):
+            self.usage.input_tokens += 1000
+            return super().__call__(ctx, feedback)
+
+    # knee_pain is refused by the stop rule, so it would retry: the run budget stops it
+    results, stopped = run_bench(
+        conn, [scenarios["knee_pain"]], lambda: Costly(usage=Usage()), runs=1, run_token_budget=1500
+    )
+    assert stopped is None
+    assert results[0].input_tokens == 2000 and not results[0].accepted
+
+
+def test_a_budget_stop_is_not_a_rule_violation(conn, scenarios):
+    from lifter.agents.planner import Usage
+    from lifter.bench.runner import run_bench, summary
+
+    class Costly(CopyLastWeek):
+        def __call__(self, ctx, feedback):
+            self.usage.input_tokens += 1000
+            return super().__call__(ctx, feedback)
+
+    # volume_peak_week is accepted at once; a budget of 0 stops it before any call
+    results, _ = run_bench(
+        conn,
+        [scenarios["volume_peak_week"]],
+        lambda: Costly(usage=Usage()),
+        runs=1,
+        run_token_budget=0,
+    )
+    run = results[0]
+    assert (run.budget_stopped, run.first_violations, run.final_violations, run.attempts) == (
+        True,
+        0,
+        0,
+        0,
+    )
+    assert summary(results)["budget_stops"] == 1
+
+
+def test_reset_refuses_a_database_that_is_not_a_bench_or_test_one(database_url):
+    import uuid
+
+    import psycopg
+
+    from lifter.bench.runner import NotABenchDatabase
+
+    name = f"lifter_real_{uuid.uuid4().hex[:8]}"
+    admin = psycopg.connect(database_url, autocommit=True)
+    admin.execute(f'create database "{name}"')
+    try:
+        url = psycopg.conninfo.make_conninfo(database_url, dbname=name)
+        with psycopg.connect(url) as other:
+            other.execute("create table keep_me (id int)")
+            other.execute("insert into keep_me values (1)")
+            with pytest.raises(NotABenchDatabase, match=name):
+                reset(other)
+            assert other.execute("select count(*) from keep_me").fetchone() == (1,)
+    finally:
+        admin.execute(f'drop database "{name}" with (force)')
+        admin.close()

@@ -53,8 +53,13 @@ def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
+    import httpx
+    import psycopg
+    from mcp.shared.exceptions import MCPError
+
+    from lifter.config import ConfigError
     from lifter.db import SchemaOutOfDate, ensure_schema
-    from lifter.garmin import McpToolCaller
+    from lifter.garmin import McpToolCaller, McpUnavailable
     from lifter.sync import SyncAborted, sync_range
 
     if not settings.garmin_mcp_token:
@@ -86,6 +91,15 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     except SchemaOutOfDate as exc:
         print(f"schema out of date: {exc}")
         return 2
+    except ConfigError as exc:  # the MCP URL, refused before the token is sent
+        print(printable(f"invalid setting: {exc}"))
+        return 2
+    except (McpUnavailable, MCPError, httpx.HTTPError) as exc:  # down, or the token refused
+        print(printable(f"Garmin MCP server: {type(exc).__name__}: {exc}"))
+        return 3
+    except psycopg.Error as exc:  # unreachable, or a refused write: the sync wrote nothing more
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
     print(f"sync {start} -> {end}: " + ", ".join(f"{k}={v}" for k, v in report.counts.items()))
     return 1 if report.counts["error"] else 0
 
@@ -102,6 +116,21 @@ def cmd_data_test(settings: Settings, args: argparse.Namespace) -> int:
         print(printable(f"data tests failed: {exc}"))
         return 1
     print("data tests passed" + (", data fresh" if args.freshness else ""))
+    return 0
+
+
+def cmd_audit_purge(settings: Settings, args: argparse.Namespace) -> int:
+    """The agents' audit keeps the full context 90 days (ADR 0002); the rule lives in the
+    database (purge_agent_audit), this only triggers it."""
+    import psycopg
+
+    try:
+        with connect(settings.database_url) as conn:
+            purged = conn.execute("select purge_agent_audit()").fetchone()[0]
+    except psycopg.Error as exc:
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
+    print(f"audit: {purged} run(s) older than 90 days purged")
     return 0
 
 
@@ -468,6 +497,7 @@ def _plan_lines(plan) -> list[str]:
 
 def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
     import httpx
+    import psycopg
 
     from lifter.agents.context import PlanningError
     from lifter.agents.planner import MistralPlanner
@@ -484,6 +514,7 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
         api_key=settings.mistral_api_key,
         model=settings.model,
         language=settings.coach_language,
+        max_output_tokens=settings.max_output_tokens,
     )
     try:
         with connect(settings.database_url) as conn:
@@ -495,6 +526,7 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
                 mode=settings.llm_context,
                 propose=args.propose,
                 trigger="cli",
+                token_budget=settings.run_token_budget,
             )
     except (PlanningError, DomainError) as exc:
         print(printable(f"refused: {exc}"))
@@ -502,6 +534,9 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
     except httpx.HTTPError as exc:  # the message names the URL, never the key
         print(printable(f"Mistral API error: {exc}"))
         return 1
+    except psycopg.Error as exc:  # nothing half-written: proposals and audit share one commit
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
     week = result.context.target_week
     out = [f"week {week.number} ({week.phase}), {week.start_date} to {week.end_date}"]
     if result.plan is not None:
@@ -588,7 +623,7 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
     from psycopg.conninfo import conninfo_to_dict
 
     from lifter.bench.baseline import CopyLastWeek
-    from lifter.bench.runner import run_scenario, summary, write_results
+    from lifter.bench.runner import run_bench, summary, write_results
     from lifter.bench.scenario import read_scenarios
 
     # The bench empties its database before every scenario: never the athlete's one.
@@ -609,6 +644,7 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
                 api_key=settings.mistral_api_key,
                 model=settings.model,
                 language=settings.coach_language,
+                max_output_tokens=settings.max_output_tokens,
             )
 
         model = settings.model
@@ -622,7 +658,6 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
             print(printable(f"unknown scenarios: {', '.join(unknown)}"))
             return 2
         scenarios = [s for s in scenarios if s.name in args.only]
-    results = []
     try:
         conn = connect(settings.bench_database_url)
     except psycopg.OperationalError as exc:
@@ -630,21 +665,32 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
             printable(f"cannot reach the bench database ({exc}); create it: createdb lifter_bench")
         )
         return 2
+
+    def show(r):
+        failed = [o.check for o in r.outcomes if not o.passed]
+        print(
+            printable(
+                f"{r.scenario} #{r.run}: {'accepted' if r.accepted else 'refused'}"
+                f" ({r.attempts} attempt(s)), expectations {r.expectations_met}"
+                f"/{r.expectations}, first-plan violations {r.first_violations},"
+                f" {r.input_tokens + r.output_tokens} tokens"
+                + (f", failed: {', '.join(failed)}" if failed else "")
+            )
+        )
+
     with conn:
         migrate(conn)
-        for scenario in scenarios:
-            runs = run_scenario(conn, scenario, make_planner, args.runs)
-            results += runs
-            for r in runs:
-                failed = [o.check for o in r.outcomes if not o.passed]
-                print(
-                    printable(
-                        f"{r.scenario} #{r.run}: {'accepted' if r.accepted else 'refused'}"
-                        f" ({r.attempts} attempt(s)), expectations {r.expectations_met}"
-                        f"/{r.expectations}, first-plan violations {r.first_violations}"
-                        + (f", failed: {', '.join(failed)}" if failed else "")
-                    )
-                )
+        results, stopped = run_bench(
+            conn,
+            scenarios,
+            make_planner,
+            args.runs,
+            token_budget=settings.bench_token_budget,
+            run_token_budget=settings.run_token_budget,
+            on_result=show,
+        )
+    if stopped:
+        print(f"bench stopped early: {stopped}")
     print(", ".join(f"{k}={v}" for k, v in summary(results).items()))
     if args.out:
         write_results(args.out, args.planner, model, results)
@@ -681,6 +727,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--freshness", action="store_true", help="also check that Garmin data arrived recently"
     )
     data_test.set_defaults(func=cmd_data_test)
+
+    audit_purge = sub.add_parser(
+        "audit-purge",
+        help="purge the context, plans and messages of agent runs older than 90 days",
+    )
+    audit_purge.set_defaults(func=cmd_audit_purge)
 
     metrics = sub.add_parser("metrics", help="print the daily metrics of the last days")
     metrics.add_argument("--days", type=int, default=14)
@@ -802,8 +854,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     from pydantic import ValidationError
 
+    from lifter.config import ConfigError
+
     try:
-        return args.func(Settings.from_env(), args)
+        settings = Settings.from_env()
+    except ConfigError as exc:
+        print(printable(f"invalid setting: {exc}"))
+        return 2
+    try:
+        return args.func(settings, args)
     except ValidationError as exc:
         problems = "; ".join(
             f"{'.'.join(str(p) for p in e['loc']) or 'input'}: {e['msg']}" for e in exc.errors()

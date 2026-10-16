@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import FreshnessBanner from "@/components/FreshnessBanner";
 import ServiceWorker from "@/components/ServiceWorker";
+import Splash from "@/components/Splash";
 import TabBar from "@/components/TabBar";
 import "./globals.css";
 
@@ -25,9 +27,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <main className="app">{children}</main>
+        <main className="app">
+          <FreshnessBanner />
+          {children}
+        </main>
         <TabBar />
         <ServiceWorker />
+        <Splash />
       </body>
     </html>
   );

@@ -7,12 +7,12 @@ A **CrossFit** coaching app for athletes who wear a Garmin watch, where the coac
 of agents (**LangGraph + Mistral**, Garmin through the **Model Context Protocol**). It follows
 one method: a three-month cycle in three blocks, sessions in a fixed frame (weightlifting or
 gymnastics, strength, metcon), every movement prescribed with a target RIR, and every week
-programmed from the review of the last one and from the watch's recovery data. Agents only
-propose; nothing changes without the athlete's **approval**.
+programmed from the review of the last one and from the watch's recovery data. The athlete
+talks to the coach; nothing changes unless **the athlete's own words**, checked by code, ask for it.
 
-> **Status: data layer and CrossFit domain done, first agent in progress, built in public.**
-> Garmin sync, documented metrics, the training cycle, sessions (planned and logged), goals and
-> proposals work from the command line; the week planner agent programs a week in dry run. See [Status / Roadmap](#status--roadmap). Expect breaking changes until `v0.1.0`.
+> **Status: built in public.** Data layer, CrossFit domain and the app are done and hosted; the
+> week planner runs in dry run; the coach in conversation is next. See
+> [Status / Roadmap](#status--roadmap). Expect breaking changes until `v0.1.0`.
 
 ## Why
 Programming CrossFit well is a weekly chore: review what was done (loads, RIR, skipped
@@ -22,13 +22,9 @@ training log knows the program but not the body. Lifter puts both in one place a
 weekly programming to an agent coach, which explains every proposal with numbers traced to a
 documented metric or to the log.
 
-| Module | What the athlete does |
-|---|---|
-| Calendar | Sees planned and done sessions with their Garmin line, moves, adds or cancels them |
-| Coach (chat) | "Program next week", "move Thursday's legs", "why this load?"; each action comes back as a card to approve |
-| Long term | The cycle: blocks, weekly phases, deloads, test week; when to move to the next block |
-| Goals and bests | Loads and skills per block (bench, power clean, first bar muscle-up), benchmark metcons, best logged loads |
-| Health and feedback | Recovery, sleep, HRV, resting HR, Body Battery, alerts; RPE and pain after each session |
+It covers the calendar (planned and done sessions with their Garmin line), the coach in
+conversation, the long term (blocks, deloads, test week), goals and best loads, and health
+(recovery, sleep, HRV, alerts, pain after each session).
 
 ## How it works
 Built parts are solid, planned ones dashed:
@@ -42,50 +38,35 @@ flowchart LR
     F["program file<br/>(YAML)"] --> D
     D[("domain tables<br/>cycle, sessions, exercises,<br/>goals, rules, proposals")] --> V
     V -.-> A["Agent coach<br/>LangGraph + Mistral"]
-    A -.->|proposal| P[("proposal")]
-    P -.-> U{"athlete approves<br/>PWA"}
-    U -.->|approved| X["executor (code)"]
+    U["athlete's message<br/>(PWA chat)"] -.-> A
+    A -.->|typed operation<br/>+ athlete's quote| X["write path (code)<br/>quote, rules, trace"]
     X -.-> D
     classDef planned stroke-dasharray: 5 5
     class A,U,X planned
 ```
 
-Target agent team (steps 3 to 6):
-
-```mermaid
-flowchart LR
-    C["Chat message"] --> SV["Coach (supervisor)"]
-    J["Scheduled jobs<br/>morning, weekly, after a session"] --> SV
-    SV --> W["Week planner"]
-    SV --> L["Long-term planner"]
-    SV --> H["Health analyst"]
-    SV --> PF["Performance analyst"]
-    W --> GR{"Guardrail (code)<br/>numbers sourced? rules?<br/>medical signal?"}
-    L --> GR
-    GR -->|fails| SV
-    GR -->|passes| PR["Proposal card"]
-```
+The agent team behind the coach (supervisor, week and long-term planners, health and performance
+analysts) is designed in [ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md).
 
 Choices and their trade-offs:
-- **Agents never write.** They create typed proposals; code validates them, the athlete
-  approves, code applies them once. Fewer surprises, at the cost of one tap per change.
+- **The athlete's words are the approval, checked by code.** The coach writes only through typed
+  operations; each must quote the athlete's message, verified word for word, passes the rules
+  and is traced and reversible ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)).
 - **A supervisor with specialists rather than one agent with every tool.** One agent choosing
   among many tools tends to choose poorly; the bench will check this against a single agent.
 - **dbt for the analytics layer, as views.** Not for the volume (a few MB) but for guarantees on
-  the numbers the agents cite: contracts on the models the API and the agents read, data tests
-  on the real data, lineage. Every model stays a view in the `analytics` schema, rebuilt by
-  `lifter migrate` when the project changes ([ADR 0001](docs/adr/0001-dbt-for-the-analytics-layer.md)).
+  the numbers the agents cite: contracts, data tests on the real data, lineage
+  ([ADR 0001](docs/adr/0001-dbt-for-the-analytics-layer.md)).
 - **Agents read numbers, they never compute them.** Metrics are defined once in
   [docs/metrics.md](docs/metrics.md), the domain in [docs/domain.md](docs/domain.md); the
   athlete's rules (no running, no free barbell on the legs, load up only when the RIR is met)
   run as code in the guardrail, not as prompt text.
-- **One sport, one method.** Scoping to CrossFit gives sessions a fixed frame and the coach a
-  clear job (program next week); a generic multi-sport planner would be vaguer and harder to
-  evaluate.
+- **One sport, one method.** CrossFit gives sessions a fixed frame and the coach a clear job; a
+  multi-sport planner would be vaguer and harder to evaluate.
 
 ## Example
-`lifter metrics --days 14` on 56 days of **synthetic** data with a hard last week, not real
-data (regenerate it with [scripts/readme_example.py](scripts/readme_example.py)), last 6 rows:
+`lifter metrics --days 14` on **synthetic** data with a hard last week
+([scripts/readme_example.py](scripts/readme_example.py)), last 6 rows:
 
 ```
 day         load   acute_load_7d  chronic_load_28d  acwr  hrv_delta_pct  rhr_delta_bpm  sleep_hours  recovery_score  recovery_status  trend
@@ -106,27 +87,21 @@ Each step lands as a reviewed pull request with green CI.
 | # | Step | Status |
 |---|---|---|
 | 1 | Garmin sync, metrics, recovery and form | ✅ Done |
-| 2 | CrossFit domain: cycle, blocks and weeks, sessions in parts (planned and logged), exercise bank, goals, rules, proposals; program file loader | ✅ Done |
-| 3 | Agent coach v1 from the command line: programs next week from the week review and the phase, dry-run, guardrail, audit log; release `v0.1.0` | 🔨 Week planner, guardrail and audit log done ([docs/agents.md](docs/agents.md)); first run on Mistral next |
-| 4 | FastAPI + responsive PWA: calendar, session log, chat, health, goals; approval cards | Planned |
+| 2 | CrossFit domain: cycle, blocks, weeks, sessions in parts, exercise bank, goals, rules | ✅ Done |
+| 3 | Week planner agent from the command line, guardrail, audit log; release `v0.1.0` | 🔨 Built ([docs/agents.md](docs/agents.md)); first run on Mistral next |
+| 4 | App (API + PWA, hosted) and the coach in conversation ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)) | 🔨 App and hosting done ([docs/app.md](docs/app.md)); coach's write path next |
 | 5 | Optional: push approved sessions to the Garmin calendar | Planned |
-| 6 | Long term (block transitions, test week) and scheduled jobs (morning, weekly, after a session), notifications | Planned |
-| 7 | Evaluation bench: single agent vs agent team | Planned |
-| 8 | Two deployments: public demo (synthetic athletes, replayed runs, full ops pipeline) and private personal instance | Planned |
+| 6 | Long term (block transitions, test week), scheduled coach runs, notifications | Planned |
+| 7 | Evaluation bench: single agent vs agent team | 🔨 Bench and 20 scenarios built ([docs/bench.md](docs/bench.md)); comparison after the coach |
+| 8 | Public demo on synthetic athletes, next to the private instance | Planned |
 | 9 | Results write-up | Planned |
 
-**Evaluation plan** (written before any run): 20 synthetic scenarios so far
-([docs/bench.md](docs/bench.md): deload, return after a deload, skipped sessions, RIR missed on
-the main lift, knee pain, low recovery, critical alerts, drafts already planned), each with its
-expected outcome written first. Floor to beat, without a model ("copy last week"): 66 % of the
-expectations met. Measures: constraint violations, accuracy of cited numbers, plan quality
-graded by hand, tokens, latency, variance over 3 runs. The agent team is kept only if it has
-**no constraint violation**, cites numbers **at least as accurately** as a single agent with
-every tool, and costs **at most 2×** its tokens; otherwise this README reports the negative result.
+**Evaluation plan**, written before any run: 20 scenarios with their expected outcome, a floor
+to beat without a model, and a decision rule for the agent team ([docs/bench.md](docs/bench.md)).
 
 ## Run it
-Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 if missing), a local Postgres 17
-and a running [garmin-mcp-remote](https://github.com/gabrielkpo/garmin-mcp-remote), reached on the
+Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 if missing), a local Postgres 18
+(the hosted version) and a running [garmin-mcp-remote](https://github.com/gabrielkpo/garmin-mcp-remote), reached on the
 loopback or a private network; its bearer token goes in `.env`.
 
 ```bash
@@ -139,93 +114,56 @@ uv run lifter weeks                # also: program, week N, session ID, calendar
 uv run lifter plan-week            # the week planner agent, dry run (needs MISTRAL_API_KEY)
 ```
 
-`lifter sync --no-migrate` only checks the schema (scheduled syncs run as `lifter_sync`, which may
-not change it). Also: `metrics`, `recovery`, `exercises`, `session-add`, `session-move`, `session-cancel`,
-`goal-add`, `feedback --rpe 7`, `proposals`, `proposal approve|reject ID`.
+`lifter sync --no-migrate` only checks the schema (scheduled syncs may not change it). Every
+command: `uv run lifter --help`.
 
 ## App
 A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private, read-only HTTP
-API (FastAPI, `src/lifter/api/`). The API reads the same analytics views as the CLI and
-computes nothing of its own. Five tabs: **WOD** (the week, day by day, and each session planned
-against done), **PRs** (best loads by kind and family), **Coach** (chat, with the agents),
-**Planning** (cycle, blocks counted in strength sessions, weeks, goals) and **Health** (recovery
-read against the sessions of each day); the profile opens from the avatar.
+API (FastAPI, `src/lifter/api/`) that reads the same analytics views as the CLI. Five tabs:
+**WOD**, **PRs**, **Coach**, **Planning** and **Health**; the profile opens from the avatar.
+Hosted on Vercel behind Deployment Protection, data on Neon Postgres (Frankfurt). Screens,
+endpoints and deployment: [docs/app.md](docs/app.md).
 
 ```bash
 uv run lifter-api                  # http://127.0.0.1:8000, interactive docs at /docs
 cd web && npm ci && npm run dev    # http://localhost:3000
 ```
 
-| Endpoint | Screen |
-|---|---|
-| `GET /weeks/current`, `/weeks`, `/weeks/{id}` | The week: review, intent, sessions with status and Garmin line |
-| `GET /sessions/{id}` | A session: parts, planned and done side by side, metcon target and result |
-| `GET /calendar?start=&end=` | Sessions and activities between two days |
-| `GET /program` | Cycle and blocks, strength sessions done against the block target |
-| `GET /health?days=14` | Daily metrics, Garmin recovery values and alerts |
-| `GET /goals`, `/bests` | Goals with milestones, best logged loads |
-| `GET /proposals?status=pending` | The agents' proposals |
-
-The API has no authentication yet, so it only listens on `127.0.0.1` and opens its database
-connection read-only; only the app origins in `LIFTER_APP_ORIGINS` may call it from a browser.
-
-**Deployment.** Three pieces, each behind Vercel's Deployment Protection (Vercel
-Authentication on every deployment, production included):
-- **App** (Vercel project `lifter`, root `web/`): the browser only talks to the app's own server,
-  which reads the API (`web/app/api/[...path]/route.ts`, GET on the API's endpoints only). The
-  API's address, token and protection bypass secret are server-side variables, never sent to
-  the page.
-- **API** (Vercel project `lifter-api`, entry point `api/index.py`): refuses to start without
-  `LIFTER_API_TOKEN` when hosted, requires `Authorization: Bearer` on every request, answers
-  only its own host names and allows no browser origin.
-- **Database** (Neon Postgres, Frankfurt): the API connects with a role that can only read
-  (`SELECT` grants, read-only transactions). The owner role, used for migrations, lives in the
-  athlete's local `.env` only.
-
-Locally nothing changes: `uv run lifter-api` needs no token and the app's server reads it at
-`http://127.0.0.1:8000` (`web/.env.example`). On Vercel, the app answers only its own host
-names (`VERCEL_URL`, `VERCEL_BRANCH_URL`, `VERCEL_PROJECT_PRODUCTION_URL`, plus
-`LIFTER_WEB_HOSTS`).
-
 ## Project structure
 | Path | Content |
 |---|---|
-| `src/lifter/cli.py` | Command-line entry point |
-| `src/lifter/api/` | Read-only HTTP API of the app (FastAPI) |
-| `api/index.py` | Entry point of the API on Vercel |
-| `web/` | The app: Next.js PWA, mobile first |
-| `src/lifter/garmin.py`, `sync.py` | MCP client (read-only allowlist), Garmin to raw layer |
-| `src/lifter/domain.py`, `program.py` | Sessions in parts, exercises, goals, rules, proposal lifecycle; program file loader |
-| `examples/program.yaml` | Synthetic CrossFit program, every field of the format |
-| `src/lifter/db.py`, `sql/` | Migrations (tables), roles and grants (`roles.sql`) |
-| `src/lifter/transform/` | The analytics layer: dbt models (staging, intermediate, marts), data tests, contracts |
-| `src/lifter/agents/` | Week planner: context, typed plan, Mistral call, guardrail, LangGraph graph |
-| `src/lifter/bench/`, `bench/` | Evaluation bench: synthetic athlete, scenarios, expectations, runner, results |
-| `docs/metrics.md`, `docs/domain.md`, `docs/agents.md`, `docs/bench.md` | Every metric, threshold, table and status; the agents and their guardrail |
-| `ops/`, `docs/operations.md` | Scheduled jobs on the athlete's Mac: Garmin sync, backups, restore test |
-| `tests/` | pytest on synthetic data, against a throwaway Postgres database |
+| `src/lifter/` | CLI, Garmin sync (read-only MCP allowlist), domain and program loader, migrations and roles (`sql/`) |
+| `src/lifter/transform/` | Analytics layer: dbt models, data tests, contracts |
+| `src/lifter/agents/`, `bench/` | Week planner (LangGraph + Mistral, guardrail) and its evaluation bench |
+| `src/lifter/api/`, `api/`, `web/` | Read-only API (FastAPI, on Vercel) and the Next.js PWA |
+| `ops/` | Scheduled jobs on the athlete's Mac: sync, backups, restore test |
+| `docs/` | Metrics, domain, agents, bench, app, operations, decisions (`adr/`) |
+| `tests/`, `examples/` | pytest on synthetic data; a synthetic CrossFit program |
 
 ## Data and privacy
 - **In the repository**: code, definitions and synthetic data only; `data/` and `.env` are
   ignored; gitleaks scans every pull request.
-- **Never in the repository**: the athlete's Garmin data, program, rules, log and feedback;
-  they stay in the local Postgres database and in `data/`.
+- **Never in the repository**: the athlete's Garmin data, program, rules, log, profile and
+  health; they live in the database (Neon, Frankfurt, read through least-privilege roles) and
+  in `data/`.
 - **Sent to a third party**: calls to the athlete's own MCP server, never exposed without
-  authentication, and the agents' context to Mistral: the structured log and computed
-  indicators, no free text by default, never raw series nor activity names (they can contain a
-  place). See [docs/agents.md](docs/agents.md#what-is-sent-to-mistral).
-- **Two instances**: the personal one on the athlete's data; the public demo only replays runs
-  on synthetic athletes. Visitors never connect a Garmin account or enter a key.
+  authentication, and the agents' context to Mistral: the structured log, indicators and the
+  programme's text (titles, intents, rules, goals, pain locations); no notes, deviations or
+  reviews by default, never raw series nor activity names. See
+  [docs/agents.md](docs/agents.md#what-is-sent-to-mistral).
+- **Two instances**: the personal one; a public demo on synthetic athletes only.
 - **No medical advice**: unusual signals raise `critical` alerts that block intense plans and
   point to a health professional.
 
 ## Limitations / next
 - Thresholds are version 1 training heuristics for one athlete, to be tuned with the bench.
 - Baselines need 14 measured nights and the load ratio 28 days: a new athlete waits two weeks.
-- A session is matched to the day's training activities by order; an activity Lifter does not
-  count as training (e.g. outdoor cycling) never completes a session.
-- Until the app exists, the log is written in the program file and reloaded with `--replace`.
-- The sync runs on demand; daily scheduling is not automated.
+- Sessions are matched to the day's training activities by order; other activities (a bike
+  commute) never complete one.
+- Until the coach can write (ADR 0002), the log is written in the program file and reloaded
+  with `--replace`.
+- The sync, the backup and the restore test run on the athlete's Mac (launchd,
+  [docs/operations.md](docs/operations.md)): no sync while the Mac is off.
 
 ## Development
 ```bash
@@ -234,10 +172,8 @@ uv run pre-commit install         # ruff (locked version) and gitleaks before ea
 uv run pytest                     # needs a local Postgres 18, the hosted version (TEST_DATABASE_URL)
 ```
 Pull requests use Conventional Commits titles, go through a security review and a code review
-before opening, and need green tests, gitleaks and PR title checks. Releases start at `v0.1.0`:
-release-please keeps a release pull request open from the Conventional Commits on `main`
-(changelog, version in `pyproject.toml`, `src/lifter/__init__.py` and `uv.lock`); a release is
-published only when that pull request is merged.
+before opening, and need green tests, gitleaks and PR title checks. Releases come from
+release-please's pull request, published only when it is merged.
 
 ## License
 [MIT](LICENSE)

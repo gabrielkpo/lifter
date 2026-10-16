@@ -248,3 +248,38 @@ export interface HistoryPoint {
   reps: number | null;
   sets: number | null;
 }
+
+export interface Athlete {
+  first_name: string | null;
+  age: number | null;
+  sex: string | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+  weight_date: string | null;
+  handedness: string | null;
+  level: string | null;
+  practice_since: string | null;
+  sessions_per_week: number | null;
+  training_places: string[];
+  context: string | null;
+}
+
+export interface HealthIssue {
+  id: number;
+  body_part: string;
+  side: string | null;
+  kind: string;
+  description: string;
+  guidance: string | null;
+  since: string | null;
+  status: "active" | "monitoring" | "resolved";
+  resolved_on: string | null;
+  source: string;
+  reported_quote: string | null;
+}
+
+export interface Profile {
+  athlete: Athlete | null;
+  health_issues: HealthIssue[];
+  rules: { code: string | null; text: string }[];
+}

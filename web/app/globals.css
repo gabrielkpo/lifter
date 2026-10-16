@@ -246,9 +246,6 @@ button {
   color: var(--muted);
   line-height: 1.45;
 }
-.card.accent {
-  border-left: 4px solid var(--amber);
-}
 .card-link {
   display: block;
 }
@@ -293,6 +290,32 @@ button {
 .badge[data-status="normal"] {
   color: var(--amber);
 }
+.badge[data-status="active"] {
+  color: var(--missed);
+}
+.badge[data-status="monitoring"] {
+  color: var(--amber);
+}
+.badge[data-status="resolved"] {
+  color: var(--done);
+}
+
+/* Key and value rows (profile). */
+.facts {
+  margin: 12px 0 0;
+  display: grid;
+  /* The name keeps at least a third; a short value (a date) never wraps. */
+  grid-template-columns: minmax(35%, 1fr) minmax(0, max-content);
+  gap: 8px 16px;
+  font-size: 15px;
+}
+.facts dt {
+  color: var(--muted);
+}
+.facts dd {
+  margin: 0;
+  text-align: right;
+}
 
 /* Lists (PRs, sessions). */
 .section-title {
@@ -331,27 +354,6 @@ button {
   white-space: nowrap;
 }
 
-/* Planned vs done, side by side. */
-.compare {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 10px;
-}
-.compare > div {
-  background: var(--surface-2);
-  border-radius: 12px;
-  padding: 10px 12px;
-  min-width: 0;
-}
-.compare .head {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 6px;
-}
 .line {
   margin: 0 0 8px;
   font-size: 14px;
@@ -610,4 +612,73 @@ button {
 .timechart .axis {
   font-size: 10px;
   fill: var(--muted);
+}
+
+/* Stale Garmin data (components/FreshnessBanner). */
+.banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--missed);
+  font-size: 14px;
+}
+
+/* Launch screen: one kettlebell falls, bounces off the floor and the sides, settles. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  overflow: hidden;
+  transition: opacity 350ms ease;
+  /* Leaves on its own after 12 s even if the app's JavaScript never runs: never a dead screen. */
+  animation: splash-timeout 350ms ease 12s forwards;
+}
+@keyframes splash-timeout {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.splash[data-leaving="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.splash-floor {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: var(--border);
+}
+/* Above the screen until the fall starts (components/Splash moves it frame by frame). */
+.splash-bell {
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--text);
+  transform: translate(-200px, -200px);
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+.splash-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(62% + 40px);
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.splash-label[data-shown="true"] {
+  opacity: 1;
 }

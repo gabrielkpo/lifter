@@ -3,8 +3,8 @@
 Each answer is stored as received (see sql/001_raw.sql). Days and activities Garmin already
 answered (with data, or with "no data") are not fetched again, except the most recent days:
 Garmin often completes a day late (sleep synced in the morning, training load computed after
-upload). `refresh=True` refetches
-everything in the range, for edits made in Garmin after that window.
+upload). `refresh=True` refetches everything in the range, for edits made in Garmin after
+that window.
 
 A stored activity that a complete listing no longer returns is checked with get_activity:
 only a confirmed "not found" tombstones it, so the metrics stop counting it
@@ -41,6 +41,7 @@ SCHEDULE_WINDOW_DAYS = 28
 EMPTY_SNAPSHOT = {"empty": True}
 REFRESH_DAYS = 3
 PAGE_SIZE = 100
+MAX_PAGES = 100  # 10,000 activities in one range: past it, the listing is not trusted
 MAX_CONSECUTIVE_ERRORS = 5  # the server is down or unreachable: stop instead of hammering it
 # The Garmin client reports a missing resource as "API Error 404" / "HTTP 404 Not Found".
 NOT_FOUND = re.compile(r"\bHTTP 404\b|\bAPI Error 404\b")
@@ -48,6 +49,32 @@ NOT_FOUND = re.compile(r"\bHTTP 404\b|\bAPI Error 404\b")
 
 class SyncAborted(RuntimeError):
     """Too many consecutive failed calls: the sync stopped early."""
+
+
+def _activity_id(activity: Any) -> int | None:
+    """The id of a listed activity, or None when the entry cannot be read."""
+    if not isinstance(activity, dict):
+        return None
+    try:
+        return int(activity["id"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _start_day(start_time: Any) -> date | None:
+    try:
+        return date.fromisoformat(start_time[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _page_number(value: Any) -> int | None:
+    """A page number as the server sent it (a whole number, or its digits as text)."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.isdecimal():  # exactly what int() reads
+        return int(value)
+    return None
 
 
 @dataclass
@@ -234,6 +261,7 @@ class Syncer:
         Returns the ids listed in the range, or None if the listing is incomplete.
         """
         listed_ids: set[int] = set()
+        complete = True
         page = 0
         while True:
             params = {
@@ -247,11 +275,22 @@ class Syncer:
             if not isinstance(listing, dict):
                 return None
             for activity in listing.get("activities", []):
-                listed_ids.add(int(activity["id"]))
+                activity_id = _activity_id(activity)
+                if activity_id is None:  # unreadable entry: skipped, the listing is incomplete
+                    self.report.add("error")
+                    complete = False
+                    continue
+                listed_ids.add(activity_id)
                 await self._sync_activity(activity)
             if not listing.get("has_more"):
-                return listed_ids
-            page = listing.get("next_page", page + 1)
+                return listed_ids if complete else None
+            next_page = _page_number(listing.get("next_page", page + 1))
+            # A server that does not move forward (same or earlier page, or no end) would loop
+            # for ever: the listing is incomplete, so nothing is reconciled or deleted.
+            if next_page is None or next_page <= page or next_page >= MAX_PAGES:
+                self.report.add("error")
+                return None
+            page = next_page
 
     async def _reconcile_deleted(self, start: date, end: date, listed_ids: set[int]) -> None:
         """Ask Garmin about each known activity of the range missing from a complete listing.
@@ -289,9 +328,9 @@ class Syncer:
 
     async def _sync_activity(self, activity: dict) -> None:
         activity_id = str(activity["id"])
-        start_time = activity.get("start_time")  # "YYYY-MM-DD HH:MM:SS", local time
-        # An activity without a start time is always refetched rather than trusted as final.
-        final = self._is_final(date.fromisoformat(start_time[:10]) if start_time else None)
+        # An activity without a readable start time is always refetched rather than trusted as
+        # final ("YYYY-MM-DD HH:MM:SS", local time).
+        final = self._is_final(_start_day(activity.get("start_time")))
         for tool in ACTIVITY_TOOLS:
             if final and is_known(self.conn, tool, activity_id):
                 self.report.add("skipped")

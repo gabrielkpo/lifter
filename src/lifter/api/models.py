@@ -10,7 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 SessionStatus = Literal["done", "missed", "planned", "cancelled", "rest"]
-ProposalStatus = Literal["pending", "approved", "rejected", "applied", "failed"]
+ProposalStatus = Literal["pending", "approved", "rejected", "applied", "failed", "expired"]
 
 
 class Block(BaseModel):
@@ -234,6 +234,12 @@ class Health(BaseModel):
     alerts: list[Alert]
 
 
+class Status(BaseModel):
+    """How fresh the Garmin data is: when the sync last stored or confirmed a payload."""
+
+    garmin_last_seen_at: datetime | None
+
+
 class Milestone(BaseModel):
     day: date
     label: str | None
@@ -256,6 +262,50 @@ class Goal(BaseModel):
     status: str
     notes: str | None
     milestones: list[Milestone]
+
+
+class Athlete(BaseModel):
+    """The athlete as the app shows them: the age only, never the birth date (data minimisation)."""
+
+    first_name: str | None
+    age: int | None
+    sex: str | None
+    height_cm: float | None
+    weight_kg: float | None
+    weight_date: date | None
+    handedness: str | None
+    level: str | None
+    practice_since: date | None
+    sessions_per_week: int | None
+    training_places: list[str]
+    context: str | None
+
+
+class HealthIssue(BaseModel):
+    id: int
+    body_part: str
+    side: str | None
+    kind: str
+    description: str
+    guidance: str | None
+    since: date | None
+    status: str
+    resolved_on: date | None
+    source: str
+    reported_quote: str | None
+
+
+class Rule(BaseModel):
+    code: str | None
+    text: str
+
+
+class Profile(BaseModel):
+    """Everything about the athlete: identity, declared health issues, permanent rules."""
+
+    athlete: Athlete | None
+    health_issues: list[HealthIssue]
+    rules: list[Rule]
 
 
 class Best(BaseModel):

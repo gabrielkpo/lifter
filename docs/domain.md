@@ -27,15 +27,20 @@ Lifter coaches CrossFit only, with one method:
 
 | Table | One row per | Key columns |
 |---|---|---|
-| `exercise` | Movement of the bank | `name`, `category` (weightlifting, gymnastics, strength, monostructural, mobility), `pattern` (olympic, push, pull, legs, hinge, core, carry, engine, full_body, mobility), `equipment`, `flags` (e.g. `running`, `impact`, `free_barbell_legs`, for the athlete's rules) |
+| `exercise` | Movement of the bank | `name`, `category` (weightlifting, gymnastics, strength, monostructural, mobility, other), `pattern` (olympic, push, pull, legs, hinge, core, carry, engine, full_body, mobility, other), `equipment`, `flags` (e.g. `running`, `impact`, `free_barbell_legs`, for the athlete's rules) |
 | `cycle` | Training cycle | `name`, `start_date`, `end_date`, `notes`, `status` |
 | `block` | Block of a cycle | `position`, `kind` (accumulation, transmutation, realisation), dates, `intent`, `target_strength_sessions` |
 | `training_week` | Week of a cycle | `number` (0 for an entry week outside any block), `block_id`, `start_date`, `phase`, `intent` (JSON: weightlifting, push, pull, legs, metcon, notes), `review` |
-| `planned_session` | Session in the calendar | `day`, `title`, `kind` (training, cardio, mobility, rest), `week_id`, `notes`, `deviation` (gap with the plan, in words), `status` (planned, cancelled), `source` (program, athlete, agent), `moved_from`, `matched_activity_id` |
-| `session_part` | Part of a session, in order | `position`, `kind` (warmup, weightlifting, gymnastics, strength, metcon, cardio, mobility); for a metcon: `format` (for_time, amrap, emom, every_n, rounds, intervals), `duration_minutes`, `rounds`, `interval_seconds`, `target_seconds` or `target_rounds`, and once done `result_seconds`, `result_rounds`, `result_notes` |
+| `planned_session` | Session in the calendar | `day`, `title`, `kind` (training, cardio, mobility, rest), `week_id`, `notes`, `deviation` (gap with the plan, in words), `status` (planned, cancelled), `source` (program, athlete, agent), `moved_from`, `matched_activity_id` (reserved for a manual match; nothing writes it yet and the views match sessions to activities by order) |
+| `session_part` | Part of a session, in order | `position`, `kind` (warmup, weightlifting, gymnastics, strength, metcon, cardio, mobility); for a metcon: `format` (for_time, amrap, emom, every_n, rounds, intervals, other), `duration_minutes`, `rounds`, `interval_seconds`, `target_seconds` or `target_rounds`, and once done `result_seconds`, `result_rounds`, `result_notes` |
 | `session_exercise` | Exercise line of a part | `origin` (`planned` or `done`), `exercise_id`, `sets`, `quantity` + `unit` (reps, cal, m, s, min), `load_kg` (+ `load_kg_max` for a range), `rir`, `rest_seconds`, `notes` |
-| `goal` | Goal | `kind` (strength, skill, benchmark), `exercise_id`, `unit`, baseline and target (a value or a text, e.g. "first rep without a band"), `target_date`, `source` |
+| `goal` | Goal | `kind` (strength, skill, benchmark, other), `exercise_id`, `unit`, baseline and target (a value or a text, e.g. "first rep without a band"), `target_date`, `source` |
 | `goal_milestone` | Dated step toward a goal | `day`, `label` (e.g. end of block 1), `value` or `value_text` |
+| `athlete` | The athlete (one row) | birth date, height, weight and its date, level, training since, sessions per week, `training_places`, life `context` (on-call duty) |
+| `health_issue` | A pain, injury or limitation the athlete declared | `body_part`, `side`, `kind`, `description`, `guidance` (what the coach must respect), `since`, `status` (active, monitoring, resolved), `source`, `reported_quote` |
+| `record_definition` | Something that can hold a record (PR tab) | `name`, `kind` (lift, gym, cardio, benchmark), `family`, `record_type` (rep_max, max_reps, max_load, max_distance, max_time, time, rounds), `unit`, `exercise_id` |
+| `record_entry` | A dated record | `definition_id`, `day`, `reps` (for a rep max), `value` or `value_text`, `source` |
+| `activity_annotation` | A correction or note on a Garmin activity (the raw data is never edited) | `activity_id`, `field`, `value`, `note`, `source` |
 | `athlete_rule` | Permanent rule of the athlete | `code` (a rule the guardrail will check in code, step 3), `text`, `params` |
 | `feedback` | Report after a session, or morning check-in | `rpe` (1–10), `fatigue` (1–5), `pain` (0–10) + `pain_location`, `notes` |
 | `proposal` | Change proposed by an agent | `kind`, `payload`, `rationale`, `author`, `status`, `result` |
@@ -135,3 +140,16 @@ inherit them and hold nothing of their own. Passwords never live in the reposito
 No role may create objects; only the owner runs migrations. `tests/test_roles.py` checks the
 whole matrix and runs a sync as `lifter_sync` and a proposal as `lifter_agents`.
 
+
+## The coach's write path
+
+The coach changes data only through `lifter.operations` ([ADR 0002](adr/0002-coach-write-path-and-agent-team.md)):
+one typed operation per entity and verb (52 today, every writable table covered, checked in
+CI), applied by `run()` in one transaction: the athlete's quote checked against their stored
+message (`conversation_message`), the payload validated, the row version checked
+(`expected_version`), the guardrail on the weeks it touches (only violations it introduces
+refuse it), then the trace: a `proposal` row (applied, with `quote`, `message_id`,
+`idempotency_key`) and a `change_log` row (rows before and after). `undo` rebuilds the
+previous state from it, ids included, and is refused when those rows changed since. Every
+domain table has a `version` bumped on each update, and the database refuses a commit by the
+coach's role (`lifter_coach`) that wrote without such a trace.

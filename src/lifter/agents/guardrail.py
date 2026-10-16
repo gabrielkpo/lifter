@@ -13,11 +13,15 @@ import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from lifter.agents.context import PlanningContext, Rule
+from lifter.agents.context import LineInfo, PlanningContext, Rule
 from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
 
 LOWER_BODY = {"legs", "hinge"}
-MAX_TERMS = re.compile(r"\b(1 ?RM|max(imum)?)\b", re.IGNORECASE)
+# "to failure", not "failure" ("stay 2 reps from failure" is the opposite); "PR" in capitals
+# only, so the French "pr" (pour) is not a record attempt.
+MAX_TERMS = re.compile(r"\b(1 ?RM|max(imum)?|to (muscle )?failure|AMRAP|(?-i:PR))\b", re.IGNORECASE)
+COUNTED_PARTS = ("strength", "weightlifting", "gymnastics")  # every line needs a count
+RIR_PARTS = ("strength", "weightlifting")  # and, in reps, a target RIR
 NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?")
 
 
@@ -63,6 +67,17 @@ def top_load(line: PlanLine) -> float | None:
     return line.load_kg_max if line.load_kg_max is not None else line.load_kg
 
 
+def needs_rir(part_kind: str, line: PlanLine | LineInfo) -> bool:
+    return part_kind in RIR_PARTS and line.unit == "reps"
+
+
+def is_hard(part_kind: str, line: PlanLine | LineInfo) -> bool:
+    """Close to failure: under RIR 3, or no RIR where one is required (unknown counts as hard)."""
+    if line.rir is not None:
+        return line.rir < 3
+    return needs_rir(part_kind, line)
+
+
 def normalize(number: str) -> str:
     """'62,50' and '62.5' are the same number."""
     value = float(number.replace(",", "."))
@@ -97,14 +112,25 @@ def check_exercises(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]
                 )
 
 
+# Free text of a plan: never a source for the numbers of its summary and rationales, or a number
+# invented in a note could be cited in a rationale.
+PLAN_FREE_TEXT = {
+    "summary": True,
+    "sessions": {
+        "__all__": {
+            "title": True,
+            "rationale": True,
+            "parts": {"__all__": {"title": True, "notes": True, "lines": {"__all__": {"notes"}}}},
+        }
+    },
+}
+
+
 def check_sources(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
     """Every number of the summary and rationales exists in the context or in the plan."""
     known = numbers_in(ctx.model_dump_json())
-    # The plan's own values (loads, reps, targets), not its free text: a rationale cannot be the
-    # source of its own numbers.
-    known |= numbers_in(
-        plan.model_dump_json(exclude={"summary": True, "sessions": {"__all__": {"rationale"}}})
-    )
+    # The plan's own values (loads, reps, targets, days), not its free text.
+    known |= numbers_in(plan.model_dump_json(exclude=PLAN_FREE_TEXT))
     texts = [("summary", None, plan.summary)] + [
         ("rationale", str(s.day), s.rationale) for s in plan.sessions
     ]
@@ -119,6 +145,20 @@ def check_sources(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
             )
 
 
+def check_prescription(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
+    """Every line of a strength, weightlifting or gymnastics part has a count, and a strength or
+    weightlifting line in reps has a target RIR: a line without them escapes the rules that read
+    them (failure, critical alert, progression)."""
+    for s in plan.sessions:
+        for part, line in _lines(s):
+            if part.kind in COUNTED_PARTS and line.quantity is None:
+                yield Violation(
+                    "prescription", f"'{line.exercise}' has no {line.unit} count", str(s.day)
+                )
+            if needs_rir(part.kind, line) and line.rir is None:
+                yield Violation("prescription", f"'{line.exercise}' has no target RIR", str(s.day))
+
+
 def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
     """A critical health signal: no metcon and nothing close to failure until it clears."""
     critical = [a for a in ctx.alerts if a.severity == "critical"]
@@ -127,7 +167,7 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
     names = ", ".join(sorted({a.alert for a in critical}))
     for kept in kept_sessions(plan, ctx):
         hard = any(p.kind == "metcon" for p in kept.parts) or any(
-            line.rir is not None and line.rir < 3 for p in kept.parts for line in p.planned
+            is_hard(p.kind, line) for p in kept.parts for line in p.planned
         )
         if hard:
             yield Violation(
@@ -138,7 +178,7 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
             )
     for s in plan.sessions:
         hard = any(p.kind == "metcon" for p in s.parts) or any(
-            line.rir is not None and line.rir < 3 for _, line in _lines(s)
+            is_hard(part.kind, line) for part, line in _lines(s)
         )
         if hard:
             yield Violation(
@@ -202,7 +242,9 @@ def rule_no_max_before_test(
     if ctx.target_week.phase in ("peak", "test"):
         return
     for s in plan.sessions:
-        for _, line in _lines(s):
+        for part, line in _lines(s):
+            if part.kind == "metcon":  # an AMRAP metcon is not a max attempt
+                continue
             single_to_failure = line.quantity == 1 and line.unit == "reps" and line.rir == 0
             if single_to_failure or (line.notes and MAX_TERMS.search(line.notes)):
                 yield Violation(
@@ -235,14 +277,20 @@ def rule_metcon_no_row(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iter
 def rule_metcon_light_barbell(
     rule: Rule, plan: WeekPlan, ctx: PlanningContext
 ) -> Iterator[Violation]:
+    """A barbell above `max_kg` inside a metcon: any exercise on a barbell (a bench press as
+    well as a clean), or a weightlifting one whose equipment is not recorded."""
     max_kg = rule.params.get("max_kg")
-    categories = {e.name: e.category for e in ctx.exercises}
+    barbell = set()
+    for e in ctx.exercises:
+        equipment = (e.equipment or "").strip().lower()  # free text in the bank
+        if equipment == "barbell" or (not equipment and e.category == "weightlifting"):
+            barbell.add(e.name)
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)
             if (
                 part.kind == "metcon"
-                and categories.get(line.exercise) == "weightlifting"
+                and line.exercise in barbell
                 and max_kg is not None
                 and top is not None
                 and top > max_kg
@@ -261,14 +309,14 @@ def rule_progression(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterat
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)
-            if part.kind == "metcon" or top is None or line.quantity is None:
+            if part.kind == "metcon" or top is None:
                 continue
-            # Sets logged at fewer reps say nothing about this load: a heavier one is expected.
-            refs = [
-                r
-                for r in ctx.recent_loads
-                if r.exercise == line.exercise and r.reps is not None and r.reps >= line.quantity
-            ]
+            refs = [r for r in ctx.recent_loads if r.exercise == line.exercise]
+            if line.unit == "reps" and line.quantity is not None:
+                # Sets logged at fewer reps say nothing about this load: a heavier one is expected.
+                refs = [r for r in refs if r.reps is not None and r.reps >= line.quantity]
+            # Otherwise (seconds, metres, no count) the reps cannot be compared: the heaviest set
+            # logged at any reps is the reference, so a change of unit does not skip the rule.
             if not refs:
                 continue
             ref = max(refs, key=lambda r: r.load_kg)
@@ -289,49 +337,86 @@ def _painful(rule: Rule, ctx: PlanningContext):
 
 
 def rule_stop_rule(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
-    """Pain above the threshold after a session: two load steps back on what it loaded.
+    """Pain above the threshold after a session: two load steps back on the patterns it loaded.
 
-    Every loaded exercise of the painful session is capped at its load that day minus `steps`
-    steps (2.5 kg upper body, 5 kg lower body by default), until a later session loading it is
-    reported without such pain. Pain reported without a session, or on a session without
-    loads, cannot be checked by code: it is a warning (see `check`).
+    Every pattern the painful session loaded is capped, until a later session loading that
+    pattern is reported without such pain; an exercise loaded on the painful day stays capped
+    until a later session loading that exercise itself is. On the pattern, an exercise loaded
+    that day is capped
+    at its load that day minus `steps` steps (2.5 kg upper body, 5 kg lower body by default);
+    another exercise of the pattern at its heaviest load logged in 28 days minus `steps` steps,
+    and refused when loaded without any logged load to step back from. Pain reported without a
+    session, or on a session without loads, cannot be checked by code: it is a warning (see
+    `check`).
     """
     steps = rule.params.get("steps", 2)
     upper = rule.params.get("upper_kg", 2.5)
     lower = rule.params.get("lower_kg", 5)
     patterns = {e.name: e.pattern for e in ctx.exercises}
     pain_max = rule.params.get("pain_max", 3)
-    # The latest reported session that loaded each exercise decides: a later session reported
+
+    def pattern_of(exercise: str) -> str:
+        return patterns.get(exercise) or f"exercise:{exercise}"
+
+    # The latest reported session that loaded each pattern decides: a later session reported
     # without pain lifts the cap (feedback is ordered by day).
-    latest: dict[str, tuple] = {}  # exercise -> (feedback, heaviest load that day)
+    latest: dict[str, tuple] = {}  # pattern -> (feedback, {exercise: heaviest load that day})
+    latest_by_exercise: dict[str, tuple] = {}
     for fb in ctx.feedback:
         if fb.pain is None:
             continue
-        heaviest: dict[str, float] = {}
+        loaded: dict[str, dict[str, float]] = {}
         for line in fb.lines:
             load = line.load_kg_max if line.load_kg_max is not None else line.load_kg
-            heaviest[line.exercise] = max(load, heaviest.get(line.exercise, load))
-        for exercise, load in heaviest.items():
-            latest[exercise] = (fb, load)
-    caps: dict[str, tuple[float, str]] = {}
-    for exercise, (fb, top) in latest.items():
-        if fb.pain <= pain_max:
-            continue
-        step = lower if patterns.get(exercise) in LOWER_BODY else upper
-        where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
-        reason = f"{where} after '{fb.session_title}' on {fb.day}, {top:g} kg that day"
-        caps[exercise] = (top - steps * step, reason)
+            day = loaded.setdefault(pattern_of(line.exercise), {})
+            day[line.exercise] = max(load, day.get(line.exercise, load))
+        for pattern, heaviest in loaded.items():
+            latest[pattern] = (fb, heaviest)
+            for exercise in heaviest:
+                latest_by_exercise[exercise] = (fb, heaviest)
+    painful = {pattern: v for pattern, v in latest.items() if v[0].pain > pain_max}
+    # The exercise that hurt is lifted only by a pain-free session loading it, not by a light
+    # session on another exercise of the pattern.
+    for exercise, (fb, heaviest) in latest_by_exercise.items():
+        if fb.pain > pain_max:
+            painful.setdefault(f"exercise:{exercise}", (fb, heaviest))
+    if not painful:
+        return
+    logged: dict[str, float] = {}  # exercise -> heaviest load logged in the recent window
+    for r in ctx.recent_loads:
+        logged[r.exercise] = max(r.load_kg, logged.get(r.exercise, r.load_kg))
     for s in plan.sessions:
         for part, line in _lines(s):
             top = top_load(line)
-            if part.kind == "metcon" or top is None or line.exercise not in caps:
+            if part.kind == "metcon" or top is None:
                 continue
-            cap, reason = caps[line.exercise]
+            pattern = pattern_of(line.exercise)
+            capped = painful.get(f"exercise:{line.exercise}") or painful.get(pattern)
+            if capped is None:
+                continue
+            fb, heaviest = capped
+            step = lower if patterns.get(line.exercise) in LOWER_BODY else upper
+            where = f"pain {fb.pain}/10" + (f" ({fb.pain_location})" if fb.pain_location else "")
+            loads = ", ".join(f"{e} {kg:g} kg" for e, kg in sorted(heaviest.items()))
+            reason = f"{where} after '{fb.session_title}' on {fb.day} ({loads})"
+            if line.exercise in heaviest:
+                ref, source = heaviest[line.exercise], "that day"
+            elif line.exercise in logged:
+                ref, source = logged[line.exercise], "its heaviest logged load"
+            else:
+                yield Violation(
+                    "stop_rule",
+                    f"'{line.exercise}' at {top:g} kg on a painful pattern without a logged load"
+                    f" to step back from: {reason} ({rule.text})",
+                    str(s.day),
+                )
+                continue
+            cap = ref - steps * step
             if top > cap:
                 yield Violation(
                     "stop_rule",
-                    f"'{line.exercise}' at {top:g} kg: {reason}, so at most {max(cap, 0):g} kg"
-                    f" ({rule.text})",
+                    f"'{line.exercise}' at {top:g} kg: {reason}; {ref:g} kg {source},"
+                    f" so at most {max(cap, 0):g} kg ({rule.text})",
                     str(s.day),
                 )
 
@@ -367,6 +452,7 @@ GENERIC_CHECKS = (
     check_exercises,
     check_cancellations,
     check_sources,
+    check_prescription,
     check_critical_alerts,
 )
 

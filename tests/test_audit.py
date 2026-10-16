@@ -164,3 +164,71 @@ def test_an_audit_failure_does_not_hide_the_real_error(conn, program, monkeypatc
             trigger="cli",
         )
     assert any("could not be recorded" in note for note in raised.value.__notes__)
+
+
+def test_a_token_budget_stops_new_attempts_and_is_audited(conn, program):
+    bad = good_plan()
+    bad.sessions[1].parts[0].lines[0].rir = 0
+    planner = Costly(bad, bad, bad)  # 1200 tokens per call
+    result = run_week_planner(
+        conn, planner, week_number=2, today=TODAY, trigger="cli", token_budget=2000
+    )
+
+    assert planner.usage.calls == 2  # the third attempt never started
+    assert not result.accepted
+    assert [v.check for v in result.verdict.violations] == ["budget"]
+    status, error, attempts = conn.execute(
+        "select status, error, attempts from agent_run where id = %s", (result.run_id,)
+    ).fetchone()
+    assert (status, attempts) == ("error", 2)
+    assert result.attempts == 2  # attempts that called the model, as in the audit
+    assert error == "BudgetExceeded: token budget reached: 2400 of 2000 used"
+
+
+def test_without_a_budget_every_attempt_runs(conn, program):
+    bad = good_plan()
+    bad.sessions[1].parts[0].lines[0].rir = 0
+    planner = Costly(bad, bad, bad)
+    run_week_planner(conn, planner, week_number=2, today=TODAY)
+    assert planner.usage.calls == 3
+
+
+def test_the_mistral_planner_caps_its_output(monkeypatch):
+    from lifter.agents.planner import MistralPlanner
+
+    seen = {}
+
+    class FakeChat:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+        def with_structured_output(self, schema, include_raw):
+            return object()
+
+    monkeypatch.setattr("langchain_mistralai.ChatMistralAI", FakeChat)
+    MistralPlanner(api_key="test-key", model="m", max_output_tokens=1234)
+    assert seen["max_tokens"] == 1234
+
+
+def test_proposals_are_rolled_back_when_their_audit_cannot_be_written(conn, program, monkeypatch):
+    import psycopg
+
+    def audit_down(*args, **kwargs):
+        raise psycopg.OperationalError("audit table unavailable")
+
+    monkeypatch.setattr("lifter.agents.week.record_run", audit_down)
+    with pytest.raises(psycopg.OperationalError):
+        run_week_planner(
+            conn, Costly(good_plan()), week_number=2, today=TODAY, propose=True, trigger="cli"
+        )
+    assert conn.execute("select count(*) from proposal").fetchone() == (0,)
+
+
+def test_plan_week_reports_an_unreachable_database_without_a_traceback(monkeypatch, capsys):
+    from lifter.cli import main
+
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://lifter@127.0.0.1:1/lifter?connect_timeout=2")
+    assert main(["plan-week"]) == 3
+    assert "database: OperationalError" in capsys.readouterr().out

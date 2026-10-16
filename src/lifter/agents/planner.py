@@ -19,7 +19,8 @@ week and from the phase of the coming week.
 Method:
 - Every training session follows the frame: warmup, then weightlifting or gymnastics while \
 fresh, then strength, then the metcon. Cardio and mobility days have their own parts.
-- Every strength or weightlifting line has a target RIR (repetitions in reserve). The RIR is the \
+- Every strength, weightlifting or gymnastics line has a count (quantity), and every strength \
+or weightlifting line in reps a target RIR (repetitions in reserve). The RIR is the \
 instruction, the load only a guide.
 - A metcon has a target (target_seconds for a for_time, target_rounds for an amrap), never a \
 time cap.
@@ -43,6 +44,10 @@ class Usage:
     calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
 
 
 class Planner(Protocol):
@@ -73,11 +78,12 @@ def user_message(ctx: PlanningContext, feedback: list[str]) -> str:
 class MistralPlanner:
     """WeekPlan from a Mistral chat model, through LangChain's structured output."""
 
-    api_key: str
+    api_key: str = field(repr=False)  # never in a repr, a traceback's locals or a log line
     model: str
     language: str = "English"
     temperature: float = 0.2
     timeout_seconds: float = 120
+    max_output_tokens: int = 6000  # one answer can never cost more than this in output
     usage: Usage = field(default_factory=Usage)
 
     def __post_init__(self) -> None:
@@ -89,6 +95,7 @@ class MistralPlanner:
             temperature=self.temperature,
             timeout=self.timeout_seconds,
             max_retries=2,
+            max_tokens=self.max_output_tokens,
         )
         self._llm = llm.with_structured_output(WeekPlan, include_raw=True)
 

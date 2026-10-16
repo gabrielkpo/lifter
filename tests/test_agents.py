@@ -11,7 +11,7 @@ import pytest
 
 from lifter import domain
 from lifter.agents import guardrail
-from lifter.agents.context import Alert, PlanningError, build_context
+from lifter.agents.context import Alert, PlanningError, RecentLoad, build_context
 from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
 from lifter.agents.planner import MistralPlanner, PlannerOutputError, Usage, user_message
 from lifter.agents.week import run_week_planner
@@ -114,13 +114,22 @@ def test_the_context_holds_the_week_the_review_and_the_last_loads(ctx):
     assert [g.title for g in ctx.goals][0] == "Bench press 80 kg"
 
 
-def test_free_text_stays_out_of_the_context_unless_full(conn, program):
-    lean = build_context(conn, week_number=2, today=TODAY)
-    full = build_context(conn, week_number=2, today=TODAY, mode="full")
+def test_indicators_mode_sends_the_programme_text_and_nothing_written_after(conn, program):
+    # Free text written about the training (notes, deviations, reviews) stays out by default;
+    # the programme the athlete wrote for the coach to follow (titles, intents, rules, goals)
+    # is the planner's input and is sent in every mode (docs/agents.md).
+    conn.execute("update planned_session set notes = 'CANARY-note', deviation = 'CANARY-dev'")
+    conn.execute("update training_week set review = 'CANARY-review'")
+    conn.execute("update goal set notes = 'CANARY-goal'")
+    conn.execute("update athlete_rule set text = text || ' RULE-text'")
+    domain.add_feedback(conn, domain.FeedbackIn(day=TODAY, kind="morning", notes="CANARY-fb"))
 
-    assert "Bench felt easy" not in lean.model_dump_json()
-    assert "Bench felt easy" in full.model_dump_json()
-    assert "Moved from Thursday" in full.model_dump_json()
+    lean = build_context(conn, week_number=2, today=TODAY).model_dump_json()
+    full = build_context(conn, week_number=2, today=TODAY, mode="full").model_dump_json()
+
+    for canary in ("CANARY-note", "CANARY-dev", "CANARY-review", "CANARY-goal", "CANARY-fb"):
+        assert canary not in lean and canary in full
+    assert "RULE-text" in lean
 
 
 def test_no_cycle_means_nothing_to_plan(conn):
@@ -146,7 +155,7 @@ def test_a_plan_within_the_rules_is_accepted(ctx):
 def test_sessions_outside_the_week_and_unknown_exercises_are_refused(ctx):
     plan = good_plan()
     plan.sessions[0].day = date(2026, 3, 20)
-    plan.sessions[1].parts[0].lines.append(PlanLine(exercise="Squat snatch", quantity=3))
+    plan.sessions[1].parts[0].lines.append(PlanLine(exercise="Squat snatch", quantity=3, rir=3))
     assert checks(plan, ctx) == {"days", "exercise_bank"}
 
 
@@ -199,6 +208,116 @@ def test_a_critical_alert_allows_easy_work_only(ctx):
     alert = Alert(day=TODAY, alert="abnormal_hrv", severity="critical", value=-35, threshold=-30)
     alarmed = ctx.model_copy(update={"alerts": [alert]})
     assert "critical_alert" in checks(good_plan(), alarmed)
+
+
+def test_loads_logged_in_another_unit_are_not_reps(conn, program):
+    part = conn.execute(
+        "select part_id from session_exercise e join exercise x on x.id = e.exercise_id"
+        " where e.origin = 'done' and x.name = 'Power clean'"
+    ).fetchone()[0]
+    conn.execute(
+        "insert into session_exercise (part_id, origin, position, exercise_id, sets, quantity,"
+        " unit, load_kg) select %s, 'done', 99, id, 4, 40, 'm', 24 from exercise"
+        " where name = 'Farmer carry'",
+        (part,),
+    )
+    ctx = build_context(conn, week_number=2, today=TODAY)
+    assert "Farmer carry" not in {r.exercise for r in ctx.recent_loads}
+
+
+def test_a_change_of_unit_does_not_skip_the_progression(ctx):
+    plan = good_plan()
+    line = plan.sessions[0].parts[1].lines[0]  # bench press, logged at most 70 kg in 28 days
+    line.unit, line.quantity, line.load_kg = "s", 30, 80
+    violations = [v for v in guardrail.check(plan, ctx).violations if v.check == "progression"]
+    assert len(violations) == 1 and "at most 72.5 kg" in violations[0].message
+    line.load_kg = 70
+    assert "progression" not in checks(plan, ctx)
+
+
+def test_a_number_from_a_note_is_not_a_source(ctx):
+    plan = good_plan()
+    plan.sessions[0].parts[1].notes = "437 reps in total"
+    plan.sessions[0].rationale = "437 reps in total this session."
+    violations = [v for v in guardrail.check(plan, ctx).violations if v.check == "sources"]
+    assert [v.items for v in violations] == [("437",)]
+
+
+def legs_only(*lines: PlanLine) -> WeekPlan:
+    plan = good_plan()
+    plan.sessions = plan.sessions[1:]
+    plan.sessions[0].parts[0].lines = list(lines)
+    return plan
+
+
+def test_a_line_without_rir_or_count_is_refused(ctx):
+    plan = legs_only(PlanLine(exercise="Leg press", sets=4, load_kg=100))
+    messages = [v.message for v in guardrail.check(plan, ctx).violations]
+    assert messages == ["'Leg press' has no reps count", "'Leg press' has no target RIR"]
+
+
+def test_rir_is_only_required_where_it_means_something(ctx):
+    plan = legs_only(
+        PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=100, rir=3),
+        PlanLine(exercise="Farmer carry", sets=4, quantity=40, unit="m", load_kg=24),
+    )
+    assert checks(plan, ctx) == set()
+
+
+def test_a_missing_rir_counts_as_hard_under_a_critical_alert(ctx):
+    alert = Alert(day=TODAY, alert="abnormal_hrv", severity="critical", value=-35, threshold=-30)
+    alarmed = ctx.model_copy(update={"alerts": [alert]})
+    easy = legs_only(PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=100, rir=3))
+    assert checks(easy, alarmed) == set()
+    unknown = legs_only(PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=100))
+    assert checks(unknown, alarmed) == {"prescription", "critical_alert"}
+
+
+@pytest.mark.parametrize("note", ["to failure", "last set AMRAP", "new PR", "1RM"])
+def test_failure_words_in_a_note_are_a_max_on_the_legs(ctx, note):
+    line = PlanLine(exercise="Leg press", sets=3, quantity=12, load_kg=100, rir=3, notes=note)
+    assert checks(legs_only(line), ctx) == {"no_failure_on_legs"}
+
+
+@pytest.mark.parametrize("note", ["stay 2 reps from failure", "3 séries pr le quad"])
+def test_prudent_notes_are_not_a_max(ctx, note):
+    line = PlanLine(exercise="Leg press", sets=3, quantity=12, load_kg=100, rir=3, notes=note)
+    assert checks(legs_only(line), ctx) == set()
+
+
+def test_an_amrap_metcon_is_not_a_max_attempt(ctx):
+    assert ctx.target_week.phase not in ("peak", "test")
+    rule = guardrail.Rule(code="no_max_before_test", text="No max before the test.", params={})
+    plan = good_plan()
+    metcon = plan.sessions[0].parts[-1]
+    assert metcon.kind == "metcon"
+    metcon.lines[0].notes = "AMRAP 12 min, steady"
+    assert list(guardrail.rule_no_max_before_test(rule, plan, ctx)) == []
+
+
+def test_the_light_barbell_rule_covers_every_barbell_in_a_metcon(ctx):
+    rule = guardrail.Rule(
+        code="metcon_light_barbell", text="Light barbell in metcons.", params={"max_kg": 40}
+    )
+    plan = good_plan()
+    metcon = plan.sessions[0].parts[-1]
+    metcon.lines = [
+        PlanLine(exercise="Bench press", quantity=10, load_kg=60),  # strength, on a barbell
+        PlanLine(exercise="Power clean", quantity=5, load_kg=50),  # weightlifting, a barbell
+        PlanLine(exercise="Kettlebell swing", quantity=15, load_kg=48),  # not a barbell
+    ]
+    found = [v.message for v in guardrail.rule_metcon_light_barbell(rule, plan, ctx)]
+    assert [m.split("'")[1] for m in found] == ["Bench press", "Power clean"]
+
+    # equipment is free text: "Barbell" is a barbell too
+    bank = [
+        e.model_copy(update={"equipment": "Barbell "}) if e.name == "Bench press" else e
+        for e in ctx.exercises
+    ]
+    found = guardrail.rule_metcon_light_barbell(
+        rule, plan, ctx.model_copy(update={"exercises": bank})
+    )
+    assert "Bench press" in [v.message.split("'")[1] for v in found]
 
 
 def test_rule_checks_know_the_fresh_first_rule():
@@ -433,6 +552,74 @@ def test_pain_above_the_threshold_caps_the_session_loads_two_steps_down(conn, pr
 
     plan.sessions[1].parts[0].lines[0].load_kg = 95
     assert "stop_rule" not in checks(plan, ctx)
+
+
+def stop_rule_messages(plan, ctx):
+    return [v.message for v in guardrail.check(plan, ctx).violations if v.check == "stop_rule"]
+
+
+def test_the_cap_covers_the_whole_pattern_of_the_painful_session(conn, program):
+    ctx = report_pain(conn, pain=5)  # knee, after leg press 105 kg
+    plan = good_plan()
+    plan.sessions[1].parts[0].lines = [
+        PlanLine(exercise="Leg press", sets=4, quantity=12, load_kg=95, rir=3),
+        PlanLine(exercise="Leg curl", sets=4, quantity=12, load_kg=80, rir=3),
+    ]
+    # Leg curl is on the same pattern (legs) and has no logged load to step back from
+    (message,) = stop_rule_messages(plan, ctx)
+    assert "'Leg curl' at 80 kg on a painful pattern without a logged load" in message
+
+    logged = RecentLoad(
+        exercise="Leg curl", pattern="legs", reps=12, load_kg=40, rir=3, day=date(2026, 3, 4)
+    )
+    ctx = ctx.model_copy(update={"recent_loads": [*ctx.recent_loads, logged]})
+    (message,) = stop_rule_messages(plan, ctx)
+    assert "40 kg its heaviest logged load, so at most 30 kg" in message
+    plan.sessions[1].parts[0].lines[1].load_kg = 30
+    assert stop_rule_messages(plan, ctx) == []
+
+
+def test_a_light_pain_free_session_on_the_pattern_keeps_the_painful_exercise_capped(ctx):
+    from lifter.agents.context import Feedback, LineInfo
+
+    def fb(day, pain, exercise, load):
+        line = LineInfo(
+            exercise=exercise,
+            sets=3,
+            quantity=12,
+            unit="reps",
+            load_kg=load,
+            load_kg_max=None,
+            rir=3,
+        )
+        return Feedback(
+            day=day,
+            kind="session",
+            session_id=None,
+            session_title="Legs",
+            lines=[line],
+            rpe=None,
+            fatigue=None,
+            pain=pain,
+            pain_location="knee",
+        )
+
+    feedback = [fb(date(2026, 3, 6), 5, "Leg press", 105), fb(date(2026, 3, 7), 0, "Leg curl", 20)]
+    ctx = ctx.model_copy(update={"feedback": feedback, "rules": [*ctx.rules, STOP]})
+    plan = good_plan()
+    plan.sessions[1].parts[0].lines[0].load_kg = 110
+    (message,) = stop_rule_messages(plan, ctx)
+    assert "'Leg press' at 110 kg" in message and "at most 95 kg" in message
+
+
+def test_another_pattern_is_not_capped(conn, program):
+    ctx = report_pain(conn, pain=5)
+    plan = good_plan()
+    plan.sessions[1].parts[0].lines.append(
+        PlanLine(exercise="Romanian deadlift", sets=3, quantity=8, load_kg=90, rir=3)
+    )
+    plan.sessions[1].parts[0].lines[0].load_kg = 95
+    assert stop_rule_messages(plan, ctx) == []  # hinge, the painful session loaded legs only
 
 
 def test_pain_at_or_under_the_threshold_changes_nothing(conn, program):

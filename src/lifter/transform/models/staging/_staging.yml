@@ -20,7 +20,7 @@ models:
       - name: last_seen_at
         data_type: timestamp with time zone
   - name: stg_activity
-    description: ""
+    description: "One row per Garmin activity (latest payload, tombstoned ones left out): date, type, duration, heart rate, training load and effect."
     config:
       contract:
         enforced: true
@@ -55,7 +55,7 @@ models:
       - name: rpe
         data_type: numeric
   - name: stg_activity_hr_zone
-    description: ""
+    description: "Seconds spent in each heart-rate zone, per Garmin activity."
     columns:
       - name: activity_id
       - name: zone_number
@@ -97,7 +97,7 @@ models:
       - name: lowest_spo2_percent
       - name: avg_waking_respiration
   - name: stg_hrv
-    description: ""
+    description: "One row per night: Garmin's last-night average HRV and its status."
     columns:
       - name: day
         data_tests:

@@ -54,7 +54,7 @@ function PlannedPart({ part }: { part: Part }) {
   const format = partFormat(part);
   const target = partTarget(part);
   return (
-    <section className={part.kind === "metcon" ? "card accent" : "card"}>
+    <section className="card">
       <h2>{part.title ?? label(part.kind)}</h2>
       {(format || target) && (
         <p className="small" style={{ marginBottom: 10 }}>

@@ -27,6 +27,16 @@ export default function Splash() {
   const [settled, setSettled] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
   const bell = useRef<SVGSVGElement>(null);
+  // From the start of the page load, not from hydration: a slow phone does not wait longer.
+  // Kept across renders, so the bell settling does not forget when the last call ended.
+  const busySince = useRef<number | null>(null);
+
+  useEffect(() => {
+    busySince.current ??= Date.now() - performance.now();
+    return onApiActivity(() => {
+      if (apiActivity().inFlight > 0) busySince.current = Date.now();
+    });
+  }, []);
 
   // The fall: plain physics, one frame at a time.
   useEffect(() => {
@@ -96,26 +106,18 @@ export default function Splash() {
 
   // When to leave: the bell has settled and the first page's calls are done.
   useEffect(() => {
-    // From the start of the page load, not from hydration: a slow phone does not wait longer.
     const start = Date.now() - performance.now();
-    let busySince = start;
-    const unsubscribe = onApiActivity(() => {
-      if (apiActivity().inFlight > 0) busySince = Date.now();
-    });
     const timer = setInterval(() => {
       const now = Date.now();
       const { inFlight, started } = apiActivity();
-      const idle = inFlight === 0 && now - busySince >= IDLE_MS;
+      const idle = inFlight === 0 && now - (busySince.current ?? start) >= IDLE_MS;
       const ready = started > 0 ? idle : now - start >= NO_CALL_MS;
       if ((settled && ready) || now - start >= MAX_MS) {
         clearInterval(timer);
         setPhase("leaving");
       }
     }, 100);
-    return () => {
-      clearInterval(timer);
-      unsubscribe();
-    };
+    return () => clearInterval(timer);
   }, [settled]);
 
   useEffect(() => {

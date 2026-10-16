@@ -319,23 +319,31 @@ def build_context(
     conn: psycopg.Connection,
     *,
     week_number: int | None = None,
+    week_id: int | None = None,
     today: date | None = None,
     mode: ContextMode = "indicators",
 ) -> PlanningContext:
-    """The context to program `week_number` of the active cycle (default: next week)."""
+    """The context to program `week_number` of the active cycle (default: next week), or the
+    week `week_id` of any cycle."""
     today = today or date.today()
-    cycles = _rows(
-        conn, "select id from cycle where status = 'active' order by start_date desc limit 1"
-    )
-    if not cycles:
-        raise PlanningError("no active cycle: load a program first")
-    cycle = cycles[0]
-    if week_number is None:
-        week = _week(conn, "w.cycle_id = %s and w.start_date > %s", (cycle["id"], today))
+    if week_id is not None:
+        week = _week(conn, "w.id = %s", (week_id,))
+        if week is None:
+            raise PlanningError(f"week {week_id} does not exist")
+        cycle = {"id": week["cycle_id"]}
     else:
-        week = _week(conn, "w.cycle_id = %s and w.number = %s", (cycle["id"], week_number))
-    if week is None:
-        raise PlanningError("no week to plan in the active cycle")
+        cycles = _rows(
+            conn, "select id from cycle where status = 'active' order by start_date desc limit 1"
+        )
+        if not cycles:
+            raise PlanningError("no active cycle: load a program first")
+        cycle = cycles[0]
+        if week_number is None:
+            week = _week(conn, "w.cycle_id = %s and w.start_date > %s", (cycle["id"], today))
+        else:
+            week = _week(conn, "w.cycle_id = %s and w.number = %s", (cycle["id"], week_number))
+        if week is None:
+            raise PlanningError("no week to plan in the active cycle")
 
     target = WeekInfo(
         week_id=week["week_id"],

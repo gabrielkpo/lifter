@@ -22,8 +22,8 @@ START → plan (LLM) → guard (code) ─ accepted ─────────�
   status, parts, planned and done lines, metcon targets and results, Garmin minutes), sessions
   already planned in the target week, 7 days of recovery (`daily_metrics`, readiness and Body
   Battery from `daily_recovery`), alerts of the last 3 days, the athlete's rules, the exercise
-  bank, the heaviest logged load of each exercise per repetition count, sets in reps only (28 days, so a deload
-  week does not become the reference), the athlete's feedback of the last 14 days (RPE,
+  bank, the heaviest logged load of each exercise per repetition count, sets in reps only
+  (28 days, so a deload week does not become the reference), the athlete's feedback of the last 14 days (RPE,
   fatigue, pain and where, with the loaded lines of the session concerned), active goals with their next milestone.
 - **Plan** (`agents/plan.py`): a typed `WeekPlan` (summary, sessions with parts and prescribed
   lines, a rationale per session, sessions of the week it replaces). Unknown fields are

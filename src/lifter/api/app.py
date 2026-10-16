@@ -296,6 +296,25 @@ def create_app(
             for goal in goals
         ]
 
+    @app.get("/profile")
+    def profile(conn: Conn) -> models.Profile:
+        """The athlete, their health issues (active first) and their active rules."""
+        athlete = conn.execute(
+            "select first_name, birth_date, extract(year from age(birth_date))::int as age, sex,"
+            " height_cm, weight_kg, weight_date, handedness, level, practice_since,"
+            " sessions_per_week, training_places, context from athlete"
+        ).fetchone()
+        issues = conn.execute(
+            "select id, body_part, side, kind, description, guidance, since, status, resolved_on,"
+            " source, reported_quote from health_issue"
+            " order by array_position(array['active', 'monitoring', 'resolved'], status),"
+            " since desc nulls last, id"
+        ).fetchall()
+        rules = conn.execute(
+            "select code, text from athlete_rule where active order by code nulls last, id"
+        ).fetchall()
+        return models.Profile(athlete=athlete, health_issues=issues, rules=rules)
+
     @app.get("/bests")
     def bests(conn: Conn) -> list[models.Best]:
         """Best logged load per exercise and repetition count."""

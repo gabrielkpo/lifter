@@ -258,6 +258,49 @@ class Goal(BaseModel):
     milestones: list[Milestone]
 
 
+class Athlete(BaseModel):
+    first_name: str | None
+    birth_date: date | None
+    age: int | None
+    sex: str | None
+    height_cm: float | None
+    weight_kg: float | None
+    weight_date: date | None
+    handedness: str | None
+    level: str | None
+    practice_since: date | None
+    sessions_per_week: int | None
+    training_places: list[str]
+    context: str | None
+
+
+class HealthIssue(BaseModel):
+    id: int
+    body_part: str
+    side: str | None
+    kind: str
+    description: str
+    guidance: str | None
+    since: date | None
+    status: str
+    resolved_on: date | None
+    source: str
+    reported_quote: str | None
+
+
+class Rule(BaseModel):
+    code: str | None
+    text: str
+
+
+class Profile(BaseModel):
+    """Everything about the athlete: identity, declared health issues, permanent rules."""
+
+    athlete: Athlete | None
+    health_issues: list[HealthIssue]
+    rules: list[Rule]
+
+
 class Best(BaseModel):
     exercise: str
     category: str

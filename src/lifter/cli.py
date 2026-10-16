@@ -53,9 +53,13 @@ def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
+    import httpx
+    import psycopg
+    from mcp.shared.exceptions import MCPError
+
     from lifter.config import ConfigError
     from lifter.db import SchemaOutOfDate, ensure_schema
-    from lifter.garmin import McpToolCaller
+    from lifter.garmin import McpToolCaller, McpUnavailable
     from lifter.sync import SyncAborted, sync_range
 
     if not settings.garmin_mcp_token:
@@ -90,6 +94,12 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     except ConfigError as exc:  # the MCP URL, refused before the token is sent
         print(printable(f"invalid setting: {exc}"))
         return 2
+    except (McpUnavailable, MCPError, httpx.HTTPError) as exc:  # down, or the token refused
+        print(printable(f"Garmin MCP server: {type(exc).__name__}: {exc}"))
+        return 3
+    except psycopg.Error as exc:  # unreachable, or a refused write: the sync wrote nothing more
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
     print(f"sync {start} -> {end}: " + ", ".join(f"{k}={v}" for k, v in report.counts.items()))
     return 1 if report.counts["error"] else 0
 
@@ -472,6 +482,7 @@ def _plan_lines(plan) -> list[str]:
 
 def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
     import httpx
+    import psycopg
 
     from lifter.agents.context import PlanningError
     from lifter.agents.planner import MistralPlanner
@@ -508,6 +519,9 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
     except httpx.HTTPError as exc:  # the message names the URL, never the key
         print(printable(f"Mistral API error: {exc}"))
         return 1
+    except psycopg.Error as exc:  # nothing half-written: proposals and audit share one commit
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
     week = result.context.target_week
     out = [f"week {week.number} ({week.phase}), {week.start_date} to {week.end_date}"]
     if result.plan is not None:

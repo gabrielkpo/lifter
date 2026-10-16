@@ -12,7 +12,9 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 | `com.lifter.backup` | 13:00 | `pg_dump` of the whole database (custom format), kept 30 days, verified with `pg_restore --list` | `lifter_backup` (read-only) |
 | `com.lifter.restore-check` | Sunday 13:30 | restores the latest backup into a throwaway local database and checks the core tables | none on the hosted side |
 
-A job missed while the Mac sleeps runs at wake-up. Every failure raises a macOS notification;
+The sync needs the Garmin MCP server up on `127.0.0.1:8080` (a Docker container: Docker
+Desktop must start at login), and the restore test needs the local Postgres server. A job
+missed while the Mac sleeps runs at wake-up. Every failure raises a macOS notification;
 logs are in `~/Library/Logs/lifter/`. Backups are in
 `~/Library/Application Support/Lifter/backups/` (folder readable by this user only, disk
 encrypted by FileVault).

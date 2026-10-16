@@ -1,0 +1,164 @@
+version: 2
+
+models:
+  - name: latest_garmin_payload
+    description: "Staging layer: typed columns read from the latest payload of each key."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: tool
+        data_type: text
+        data_tests:
+          - not_null
+      - name: natural_key
+        data_type: text
+        data_tests:
+          - not_null
+      - name: payload
+        data_type: jsonb
+      - name: last_seen_at
+        data_type: timestamp with time zone
+  - name: stg_activity
+    description: ""
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: activity_id
+        data_type: bigint
+        data_tests:
+          - unique
+          - not_null
+      - name: name
+        data_type: text
+      - name: activity_type
+        data_type: text
+      - name: start_time_local
+        data_type: timestamp without time zone
+      - name: activity_date
+        data_type: date
+      - name: duration_seconds
+        data_type: numeric
+      - name: distance_meters
+        data_type: numeric
+      - name: avg_hr_bpm
+        data_type: numeric
+      - name: max_hr_bpm
+        data_type: numeric
+      - name: calories
+        data_type: numeric
+      - name: training_load
+        data_type: numeric
+      - name: aerobic_training_effect
+        data_type: numeric
+      - name: rpe
+        data_type: numeric
+  - name: stg_activity_hr_zone
+    description: ""
+    columns:
+      - name: activity_id
+      - name: zone_number
+      - name: seconds_in_zone
+      - name: zone_low_bpm
+  - name: stg_activity_listed
+    description: "Every activity seen in a listing, even when its details could not be fetched."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: activity_id
+        data_type: bigint
+        data_tests:
+          - unique
+          - not_null
+      - name: activity_date
+        data_type: date
+  - name: stg_daily_stats
+    description: "Garmin's own daily values (get_stats): Body Battery, stress, resting HR, SpO2, respiration."
+    columns:
+      - name: day
+        data_tests:
+          - unique
+          - not_null
+      - name: steps
+      - name: active_calories
+      - name: moderate_intensity_minutes
+      - name: vigorous_intensity_minutes
+      - name: garmin_resting_hr_bpm
+      - name: avg_stress
+      - name: max_stress
+      - name: stress_qualifier
+      - name: body_battery_charged
+      - name: body_battery_drained
+      - name: body_battery_highest
+      - name: body_battery_lowest
+      - name: avg_spo2_percent
+      - name: lowest_spo2_percent
+      - name: avg_waking_respiration
+  - name: stg_hrv
+    description: ""
+    columns:
+      - name: day
+        data_tests:
+          - unique
+          - not_null
+      - name: hrv_ms
+      - name: garmin_hrv_status
+  - name: stg_scheduled_workout
+    description: "Garmin calendar snapshot (latest sync only)."
+    columns:
+      - name: day
+      - name: garmin_schedule_id
+      - name: garmin_workout_id
+      - name: name
+      - name: sport
+      - name: completed
+  - name: stg_sleep
+    description: "Garmin files a night under the day you wake up."
+    columns:
+      - name: day
+        data_tests:
+          - unique
+          - not_null
+      - name: sleep_seconds
+      - name: sleep_score
+      - name: resting_hr_bpm
+      - name: deep_sleep_seconds
+      - name: light_sleep_seconds
+      - name: rem_sleep_seconds
+      - name: awake_seconds
+      - name: awake_count
+      - name: avg_sleep_stress
+      - name: avg_overnight_hrv_ms
+      - name: sleep_avg_spo2_percent
+  - name: stg_training_readiness
+    description: "Garmin training readiness: one or more snapshots a day; the earliest one is the morning value (after waking up), the one that matters to plan the day."
+    columns:
+      - name: day
+        data_tests:
+          - unique
+          - not_null
+      - name: score
+      - name: level
+      - name: feedback
+      - name: recovery_time_hours
+      - name: acute_load
+      - name: hrv_weekly_avg_ms
+      - name: snapshot_time
+  - name: stg_training_status
+    description: "Garmin training status: its own acute / chronic load (exponentially weighted), status, VO2max."
+    columns:
+      - name: day
+        data_tests:
+          - unique
+          - not_null
+      - name: garmin_training_status
+      - name: garmin_training_status_code
+      - name: garmin_training_status_feedback
+      - name: vo2_max
+      - name: cycling_vo2_max
+      - name: garmin_acute_load
+      - name: garmin_chronic_load
+      - name: garmin_load_ratio
+      - name: garmin_acwr_status

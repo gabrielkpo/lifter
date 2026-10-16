@@ -1,10 +1,11 @@
 """Postgres connection and schema migrations.
 
 Tables live in numbered migrations (`NNN_name.sql`, schema `public`), applied once each.
-Views and functions live in `views.sql` (schema `analytics`), recreated only when the file
-changes, so changing a view never needs a new migration and an unchanged file never drops
-views that a reader may be using. Roles and grants live in `roles.sql`, applied after the views
-when either changes (recreated views lose their grants).
+Views and functions (schema `analytics`) are dbt models (src/lifter/transform), rebuilt only
+when the dbt project changes and swapped in at once, so changing a view never needs a new
+migration and an unchanged project never drops views that a reader may be using. Roles and
+grants live in `roles.sql`, applied after the views when either changes (recreated views lose
+their grants).
 """
 
 import hashlib
@@ -13,7 +14,10 @@ from importlib import resources
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
 
-VIEWS_FILE = "views.sql"
+# Key of the analytics layer (the dbt project's hash) in public.schema_views.
+TRANSFORM_KEY = "dbt"
+# The analytics layer before dbt; its row is dropped once the dbt layer is built.
+LEGACY_VIEWS_KEY = "views.sql"
 # Roles and grants (RBAC). Applied after the views: recreating a view drops its grants.
 ROLES_FILE = "roles.sql"
 SEARCH_PATH = "analytics,public"
@@ -39,8 +43,9 @@ def migration_files() -> list[tuple[str, str]]:
 
 
 def migrate(conn: psycopg.Connection) -> list[str]:
-    """Apply the table migrations not applied yet, then recreate the views if they changed, then
-    the roles and grants (roles.sql) if they changed or the views were recreated.
+    """Apply the table migrations not applied yet, then rebuild the analytics layer (dbt) if its
+    project changed, then the roles and grants (roles.sql) if they changed or the layer was
+    rebuilt.
 
     Returns the names of the migrations applied by this call.
     """
@@ -67,9 +72,37 @@ def migrate(conn: psycopg.Connection) -> list[str]:
     exists = conn.execute(
         "select 1 from information_schema.schemata where schema_name = 'analytics'"
     ).fetchone()
-    views_applied = _apply_repeatable(conn, VIEWS_FILE, force=not exists)
-    _apply_repeatable(conn, ROLES_FILE, force=views_applied)
+    rebuilt = _build_analytics(conn, force=not exists)
+    _apply_repeatable(conn, ROLES_FILE, force=rebuilt is not None)
+    if rebuilt is not None:
+        # Recorded only once the grants are back: if roles.sql fails, the next migrate rebuilds
+        # the layer and applies the grants again instead of finding nothing to do.
+        _record_analytics(conn, rebuilt)
     return done
+
+
+def _build_analytics(conn: psycopg.Connection, force: bool = False) -> str | None:
+    """Rebuild the analytics layer with dbt when its project changed; its digest when it ran."""
+    from lifter import transform
+
+    digest = transform.project_digest()
+    row = conn.execute(
+        "select sha256 from public.schema_views where name = %s", (TRANSFORM_KEY,)
+    ).fetchone()
+    if row is not None and row[0] == digest and not force:
+        return None
+    transform.build(conn)
+    return digest
+
+
+def _record_analytics(conn: psycopg.Connection, digest: str) -> None:
+    with conn.transaction():
+        conn.execute("delete from public.schema_views where name = %s", (LEGACY_VIEWS_KEY,))
+        conn.execute(
+            "insert into public.schema_views (name, sha256) values (%s, %s)"
+            " on conflict (name) do update set sha256 = excluded.sha256, applied_at = now()",
+            (TRANSFORM_KEY, digest),
+        )
 
 
 def _apply_repeatable(conn: psycopg.Connection, name: str, force: bool = False) -> bool:
@@ -104,11 +137,19 @@ def schema_problems(conn: psycopg.Connection) -> list[str]:
     if conn.execute("select to_regnamespace('analytics')").fetchone()[0] is None:
         problems.append("the analytics views are missing")
     hashes = dict(conn.execute("select name, sha256 from public.schema_views").fetchall())
-    for name in (VIEWS_FILE, ROLES_FILE):
-        sql = resources.files("lifter.sql").joinpath(name).read_text()
-        if hashes.get(name) != hashlib.sha256(sql.encode()).hexdigest():
-            problems.append(f"{name} changed")
+    if hashes.get(TRANSFORM_KEY) != _transform_digest():
+        problems.append("the analytics models changed")
+    roles = resources.files("lifter.sql").joinpath(ROLES_FILE).read_text()
+    if hashes.get(ROLES_FILE) != hashlib.sha256(roles.encode()).hexdigest():
+        problems.append(f"{ROLES_FILE} changed")
     return problems
+
+
+def _transform_digest() -> str:
+    # Hashing the project needs no dbt: the scheduled sync checks the schema without it.
+    from lifter.transform import project_digest
+
+    return project_digest()
 
 
 def ensure_schema(conn: psycopg.Connection, *, allow_migrate: bool = True) -> list[str]:

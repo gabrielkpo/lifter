@@ -15,12 +15,21 @@ dependencies = [
     "uvicorn>=0.54.0",
 ]
 
+[project.optional-dependencies]
+# For whoever migrates or runs the data tests (the owner, the tests). The API and the scheduled
+# sync never import dbt.
+transform = [
+    "dbt-core>=1.12.6",
+    "dbt-postgres>=1.11.0",
+]
+
 [project.scripts]
 lifter = "lifter.cli:main"
 lifter-api = "lifter.api.server:main"
 
 [dependency-groups]
 dev = [
+    "lifter[transform]",
     "httpx>=0.28.1",
     "pre-commit>=4.7.0",
     "pytest>=8",

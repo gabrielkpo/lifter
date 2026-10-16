@@ -71,8 +71,10 @@ Choices and their trade-offs:
   approves, code applies them once. Fewer surprises, at the cost of one tap per change.
 - **A supervisor with specialists rather than one agent with every tool.** One agent choosing
   among many tools tends to choose poorly; the bench will check this against a single agent.
-- **Plain SQL views rather than dbt.** Every line is readable and pinned by hand-computed
-  tests; views live in an `analytics` schema recreated when `views.sql` changes.
+- **dbt for the analytics layer, as views.** Not for the volume (a few MB) but for guarantees on
+  the numbers the agents cite: contracts on the models the API and the agents read, data tests
+  on the real data, lineage. Every model stays a view in the `analytics` schema, rebuilt by
+  `lifter migrate` when the project changes ([ADR 0001](docs/adr/0001-dbt-for-the-analytics-layer.md)).
 - **Agents read numbers, they never compute them.** Metrics are defined once in
   [docs/metrics.md](docs/metrics.md), the domain in [docs/domain.md](docs/domain.md); the
   athlete's rules (no running, no free barbell on the legs, load up only when the RIR is met)
@@ -195,7 +197,8 @@ names (`VERCEL_URL`, `VERCEL_BRANCH_URL`, `VERCEL_PROJECT_PRODUCTION_URL`, plus
 | `src/lifter/garmin.py`, `sync.py` | MCP client (read-only allowlist), Garmin to raw layer |
 | `src/lifter/domain.py`, `program.py` | Sessions in parts, exercises, goals, rules, proposal lifecycle; program file loader |
 | `examples/program.yaml` | Synthetic CrossFit program, every field of the format |
-| `src/lifter/db.py`, `sql/` | Migrations (tables) and `views.sql` (analytics schema) |
+| `src/lifter/db.py`, `sql/` | Migrations (tables), roles and grants (`roles.sql`) |
+| `src/lifter/transform/` | The analytics layer: dbt models (staging, intermediate, marts), data tests, contracts |
 | `src/lifter/agents/` | Week planner: context, typed plan, Mistral call, guardrail, LangGraph graph |
 | `src/lifter/bench/`, `bench/` | Evaluation bench: synthetic athlete, scenarios, expectations, runner, results |
 | `docs/metrics.md`, `docs/domain.md`, `docs/agents.md`, `docs/bench.md` | Every metric, threshold, table and status; the agents and their guardrail |

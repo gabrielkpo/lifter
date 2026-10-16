@@ -1,0 +1,24 @@
+# The analytics layer of Lifter (docs/adr/0001-dbt-for-the-analytics-layer.md). Built by
+# `lifter migrate` (lifter.transform.build), never by hand against a database: the connection
+# comes from the URL migrate receives.
+name: lifter
+version: "1.0.0"
+config-version: 2
+profile: lifter
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+# Only when building: `lifter data-test` (dbt test, source freshness) must stay read-only.
+on-run-start:
+  - "{{ create_functions() if flags.WHICH == 'run' }}"
+
+models:
+  lifter:
+    # Views only: readers see the state right after a sync or a log, with no rebuild.
+    +materialized: view
+
+flags:
+  send_anonymous_usage_stats: false
+  partial_parse: false

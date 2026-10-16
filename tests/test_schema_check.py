@@ -9,7 +9,7 @@ from test_sync import FakeCaller, two_days
 
 
 def stale_views(conn):
-    conn.execute("update public.schema_views set sha256 = 'changed' where name = 'views.sql'")
+    conn.execute("update public.schema_views set sha256 = 'changed' where name = 'dbt'")
 
 
 def test_an_up_to_date_schema_has_no_problem(conn):
@@ -24,9 +24,9 @@ def test_the_sync_role_checks_and_passes_when_up_to_date(conn, database_url):
 def test_the_sync_role_refuses_a_stale_schema_without_touching_it(conn, database_url):
     stale_views(conn)
     with as_role(database_url, "lifter_sync") as sync_conn:
-        with pytest.raises(SchemaOutOfDate, match="views.sql changed"):
+        with pytest.raises(SchemaOutOfDate, match="the analytics models changed"):
             ensure_schema(sync_conn)
-    row = conn.execute("select sha256 from public.schema_views where name = 'views.sql'")
+    row = conn.execute("select sha256 from public.schema_views where name = 'dbt'")
     assert row.fetchone() == ("changed",)  # nothing was applied
 
 
@@ -73,5 +73,5 @@ def test_the_cli_sync_stops_clearly_on_a_stale_schema(monkeypatch, capsys, conn,
     code = main(["sync", "--start", "2026-03-02", "--end", "2026-03-03", "--no-migrate"])
 
     assert code == 2
-    assert "schema out of date: views.sql changed" in capsys.readouterr().out
+    assert "schema out of date: the analytics models changed" in capsys.readouterr().out
     assert conn.execute("select count(*) from raw_garmin_payload").fetchone() == (0,)

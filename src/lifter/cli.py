@@ -40,8 +40,14 @@ RECOVERY_COLUMNS = (
 
 
 def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
-    with connect(settings.database_url) as conn:
-        applied = migrate(conn)
+    from lifter.transform import TransformError
+
+    try:
+        with connect(settings.database_url) as conn:
+            applied = migrate(conn)
+    except TransformError as exc:
+        print(printable(f"migration failed: {exc}"))
+        return 1
     print("applied: " + (", ".join(applied) if applied else "nothing, schema up to date"))
     return 0
 
@@ -82,6 +88,21 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
         return 2
     print(f"sync {start} -> {end}: " + ", ".join(f"{k}={v}" for k, v in report.counts.items()))
     return 1 if report.counts["error"] else 0
+
+
+def cmd_data_test(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter import transform
+
+    try:
+        with connect(settings.database_url) as conn:
+            transform.test(conn)
+            if args.freshness:
+                transform.freshness(conn)
+    except transform.TransformError as exc:
+        print(printable(f"data tests failed: {exc}"))
+        return 1
+    print("data tests passed" + (", data fresh" if args.freshness else ""))
+    return 0
 
 
 def printable(value: object) -> str:
@@ -652,6 +673,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="only check that the schema is up to date, never change it (scheduled syncs)",
     )
     sync.set_defaults(func=cmd_sync)
+
+    data_test = sub.add_parser(
+        "data-test", help="run the data tests of the analytics layer (dbt), read-only"
+    )
+    data_test.add_argument(
+        "--freshness", action="store_true", help="also check that Garmin data arrived recently"
+    )
+    data_test.set_defaults(func=cmd_data_test)
 
     metrics = sub.add_parser("metrics", help="print the daily metrics of the last days")
     metrics.add_argument("--days", type=int, default=14)

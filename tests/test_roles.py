@@ -157,8 +157,8 @@ def test_lifter_api_only_reads(database_url):
 
 
 def test_grants_survive_the_views_being_recreated(conn):
-    # A changed views.sql recreates the analytics schema; roles.sql must run again after it.
-    conn.execute("update public.schema_views set sha256 = 'changed' where name = 'views.sql'")
+    # A changed dbt project rebuilds the analytics schema; roles.sql must run again after it.
+    conn.execute("update public.schema_views set sha256 = 'changed' where name = 'dbt'")
     migrate(conn)
     assert privileges(conn, "lifter_sync", "analytics.stg_activity") == {READ}
     assert privileges(conn, "lifter_api", "analytics.daily_metrics") == {READ}

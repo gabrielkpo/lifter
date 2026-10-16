@@ -60,7 +60,7 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | `no_max_before_test` (rule) | A single to failure, or a line marked as a max, outside the peak and test weeks (metcons excepted: an AMRAP is not a max attempt) |
 | `fresh_first` (rule) | Weightlifting or gymnastics placed after the metcon |
 | `metcon_no_row` (rule) | A listed exercise (the rower) inside a metcon |
-| `metcon_light_barbell` (rule) | A weightlifting line above the given load inside a metcon |
+| `metcon_light_barbell` (rule) | A barbell line above the given load inside a metcon: any exercise on a barbell, or a weightlifting one whose equipment is not recorded |
 | `stop_rule` (rule) | After a feedback with pain above the threshold (3/10), two steps back (−5 kg upper body, −10 kg lower body) on every **pattern** the painful session loaded: an exercise loaded that day from its load that day, another exercise of the pattern from its heaviest load logged in 28 days, refused if loaded without any logged load; until a later session loading the pattern is reported without such pain (and, for an exercise loaded that day, a later session loading that exercise). Pain without a loaded session is a warning |
 | `progression` (rule) | A load more than one step (2.5 kg upper body, 5 kg lower body) above the heaviest set logged in 28 days at as many reps or more; a line in another unit (seconds, metres) or without a count is compared with the heaviest set logged at any reps |
 

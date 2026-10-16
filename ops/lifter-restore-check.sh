@@ -1,7 +1,8 @@
 #!/bin/bash
 # Weekly restore test, run by launchd: a backup only counts if it restores. Restores the latest
 # dump into a throwaway local database, checks that the core tables are there and not empty,
-# then drops it. Needs the local Postgres server running.
+# then drops it. Needs the local Postgres server running. Grants and row-level policies are left
+# out (they name the hosted roles); `lifter migrate` recreates them on a real restore.
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
 LIFTER_LOG="$LIFTER_LOG_DIR/restore-check.log"
@@ -19,7 +20,8 @@ log "restore-check: $(basename "$latest")"
 "$PG_BIN/dropdb" --if-exists "$TARGET" 2>>"$LIFTER_LOG"
 ok=1
 if "$PG_BIN/createdb" "$TARGET" 2>>"$LIFTER_LOG" \
-  && "$PG_BIN/pg_restore" --no-owner --no-privileges --exit-on-error --dbname="$TARGET" \
+  && "$PG_BIN/pg_restore" --no-owner --no-privileges --no-policies --exit-on-error \
+    --dbname="$TARGET" \
     "$latest" 2>>"$LIFTER_LOG"; then
   counts=$("$PG_BIN/psql" -d "$TARGET" -Atc \
     "select (select count(*) from raw_garmin_payload), (select count(*) from planned_session),

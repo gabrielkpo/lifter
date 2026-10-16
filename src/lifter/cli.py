@@ -53,12 +53,18 @@ def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
+    from lifter.config import ConfigError
     from lifter.db import SchemaOutOfDate, ensure_schema
-    from lifter.garmin import McpToolCaller
+    from lifter.garmin import McpToolCaller, check_mcp_url
     from lifter.sync import SyncAborted, sync_range
 
     if not settings.garmin_mcp_token:
         print("GARMIN_MCP_TOKEN is not set (see .env.example)")
+        return 2
+    try:
+        check_mcp_url(settings.garmin_mcp_url)
+    except ConfigError as exc:
+        print(printable(f"invalid setting: {exc}"))
         return 2
     end = args.end or date.today()
     start = args.start or end - timedelta(days=args.days - 1)

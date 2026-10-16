@@ -57,8 +57,40 @@ def reset(conn: psycopg.Connection) -> None:
         conn.execute(f"truncate {names} restart identity cascade")
 
 
+def run_bench(
+    conn: psycopg.Connection,
+    scenarios: list[Scenario],
+    make_planner: Callable[[], Planner],
+    runs: int,
+    *,
+    token_budget: int | None = None,
+    run_token_budget: int | None = None,
+    on_result: Callable[[RunResult], None] | None = None,
+) -> tuple[list[RunResult], str | None]:
+    """Every scenario in turn; stops before a scenario once the pass has used `token_budget`
+    tokens. Returns the results and why it stopped early (None when it ran them all)."""
+    results: list[RunResult] = []
+    for done, scenario in enumerate(scenarios):
+        used = sum(r.input_tokens + r.output_tokens for r in results)
+        if token_budget is not None and used >= token_budget:
+            left = len(scenarios) - done
+            return (
+                results,
+                f"token budget reached: {used} of {token_budget}, {left} scenario(s) left",
+            )
+        for result in run_scenario(conn, scenario, make_planner, runs, run_token_budget):
+            results.append(result)
+            if on_result:
+                on_result(result)
+    return results, None
+
+
 def run_scenario(
-    conn: psycopg.Connection, scenario: Scenario, make_planner: Callable[[], Planner], runs: int
+    conn: psycopg.Connection,
+    scenario: Scenario,
+    make_planner: Callable[[], Planner],
+    runs: int,
+    run_token_budget: int | None = None,
 ) -> list[RunResult]:
     reset(conn)
     apply_setup(conn, scenario)
@@ -71,6 +103,7 @@ def run_scenario(
             week_number=scenario.target_week,
             today=scenario.today,
             trigger="bench",
+            token_budget=run_token_budget,
         )
         outcomes = evaluate(scenario.expect, result)
         first = result.verdicts[0].violations if result.verdicts else []

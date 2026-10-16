@@ -484,6 +484,7 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
         api_key=settings.mistral_api_key,
         model=settings.model,
         language=settings.coach_language,
+        max_output_tokens=settings.max_output_tokens,
     )
     try:
         with connect(settings.database_url) as conn:
@@ -495,6 +496,7 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
                 mode=settings.llm_context,
                 propose=args.propose,
                 trigger="cli",
+                token_budget=settings.run_token_budget,
             )
     except (PlanningError, DomainError) as exc:
         print(printable(f"refused: {exc}"))
@@ -588,7 +590,7 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
     from psycopg.conninfo import conninfo_to_dict
 
     from lifter.bench.baseline import CopyLastWeek
-    from lifter.bench.runner import run_scenario, summary, write_results
+    from lifter.bench.runner import run_bench, summary, write_results
     from lifter.bench.scenario import read_scenarios
 
     # The bench empties its database before every scenario: never the athlete's one.
@@ -609,6 +611,7 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
                 api_key=settings.mistral_api_key,
                 model=settings.model,
                 language=settings.coach_language,
+                max_output_tokens=settings.max_output_tokens,
             )
 
         model = settings.model
@@ -622,7 +625,6 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
             print(printable(f"unknown scenarios: {', '.join(unknown)}"))
             return 2
         scenarios = [s for s in scenarios if s.name in args.only]
-    results = []
     try:
         conn = connect(settings.bench_database_url)
     except psycopg.OperationalError as exc:
@@ -630,21 +632,32 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
             printable(f"cannot reach the bench database ({exc}); create it: createdb lifter_bench")
         )
         return 2
+
+    def show(r):
+        failed = [o.check for o in r.outcomes if not o.passed]
+        print(
+            printable(
+                f"{r.scenario} #{r.run}: {'accepted' if r.accepted else 'refused'}"
+                f" ({r.attempts} attempt(s)), expectations {r.expectations_met}"
+                f"/{r.expectations}, first-plan violations {r.first_violations},"
+                f" {r.input_tokens + r.output_tokens} tokens"
+                + (f", failed: {', '.join(failed)}" if failed else "")
+            )
+        )
+
     with conn:
         migrate(conn)
-        for scenario in scenarios:
-            runs = run_scenario(conn, scenario, make_planner, args.runs)
-            results += runs
-            for r in runs:
-                failed = [o.check for o in r.outcomes if not o.passed]
-                print(
-                    printable(
-                        f"{r.scenario} #{r.run}: {'accepted' if r.accepted else 'refused'}"
-                        f" ({r.attempts} attempt(s)), expectations {r.expectations_met}"
-                        f"/{r.expectations}, first-plan violations {r.first_violations}"
-                        + (f", failed: {', '.join(failed)}" if failed else "")
-                    )
-                )
+        results, stopped = run_bench(
+            conn,
+            scenarios,
+            make_planner,
+            args.runs,
+            token_budget=settings.bench_token_budget,
+            run_token_budget=settings.run_token_budget,
+            on_result=show,
+        )
+    if stopped:
+        print(f"bench stopped early: {stopped}")
     print(", ".join(f"{k}={v}" for k, v in summary(results).items()))
     if args.out:
         write_results(args.out, args.planner, model, results)

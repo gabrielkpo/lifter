@@ -18,7 +18,8 @@ EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
 
 
 def test_a_quote_copied_from_the_message_passes():
-    check_quote("décale jeudi à vendredi", "Salut ! Décale jeudi… non : décale jeudi à vendredi.")
+    message = "Salut ! Décale jeudi… non : décale jeudi à vendredi."
+    assert check_quote("décale jeudi à vendredi", message) is None
 
 
 def test_only_formatting_is_normalised():
@@ -43,9 +44,43 @@ def test_anything_but_the_athletes_words_is_refused(quote, message, short_ok, re
 
 
 def test_a_short_quote_passes_where_the_operation_allows_it():
-    check_quote("annule", "annule !", short_ok=True)
-    check_quote("ok", "ok.", short_ok=True)
-    check_quote("ok pour la 2", "Super, ok pour la 2", short_ok=False)
+    assert check_quote("annule", "annule !", short_ok=True) is None
+    assert check_quote("ok", "ok.", short_ok=True) is None
+    # one content word ("2"): enough to pick a suggestion, not to justify a change
+    assert check_quote("ok pour la 2", "Super, ok pour la 2", short_ok=True) is None
+    with pytest.raises(QuoteError, match="besides words such as"):
+        check_quote("ok pour la 2", "Super, ok pour la 2")
+
+
+@pytest.mark.parametrize(
+    ("quote", "message"),
+    [
+        ("la semaine", "ok pour la semaine, mais pas de squat"),  # two function-ish words
+        ("ok pour", "ok pour la 2"),
+        ("the week", "fine for the week"),
+    ],
+)
+def test_function_words_alone_justify_nothing(quote, message):
+    with pytest.raises(QuoteError, match="besides words such as"):
+        check_quote(quote, message)
+
+
+@pytest.mark.parametrize(
+    ("quote", "message", "short_ok"),
+    [
+        ("ok pour la 2", "pas ok pour la 2", True),
+        ("annule la séance", "n'annule la séance que s'il pleut", False),
+        ("move Thursday", "don't move Thursday", False),
+    ],
+)
+def test_a_negated_quote_is_refused(quote, message, short_ok):
+    with pytest.raises(QuoteError, match="negated"):
+        check_quote(quote, message, short_ok=short_ok)
+
+
+def test_a_quote_also_found_without_its_negation_passes():
+    message = "Ne décale pas jeudi. Enfin si, décale jeudi à vendredi."
+    assert check_quote("décale jeudi", message) is None
 
 
 @pytest.mark.parametrize(
@@ -69,25 +104,33 @@ def test_quotes_match_whole_words_only():
 
 @pytest.fixture
 def messages(conn):
-    # The table belongs to the app's migration; a temporary one stands in for it here.
-    conn.execute(
-        "create temp table conversation_message (id bigint primary key, role text, text text)"
-    )
-    conn.execute(
-        "insert into conversation_message values"
-        " (1, 'athlete', 'Décale jeudi à vendredi stp'),"
-        " (2, 'coach', 'Je propose de décaler jeudi à vendredi')"
-    )
-    yield
-    conn.execute("drop table pg_temp.conversation_message")
+    """An athlete's message and a coach's reply, as the conversation endpoint stores them."""
+    rows = conn.execute(
+        "insert into conversation_message (conversation_id, role, text) values"
+        " ('c1', 'athlete', 'Décale jeudi à vendredi stp'),"
+        " ('c1', 'coach', 'Je propose de décaler jeudi à vendredi') returning id"
+    ).fetchall()
+    return [r[0] for r in rows]
 
 
 def test_the_quote_is_read_from_the_athletes_stored_message(conn, messages):
-    verify_quote(conn, 1, "Décale jeudi à vendredi")
+    athlete, coach = messages
+    assert verify_quote(conn, athlete, "Décale jeudi à vendredi") is None
     with pytest.raises(QuoteError, match="not from the athlete"):
-        verify_quote(conn, 2, "décaler jeudi à vendredi")  # the coach's own words
+        verify_quote(conn, coach, "décaler jeudi à vendredi")  # the coach's own words
     with pytest.raises(QuoteError, match="does not exist"):
-        verify_quote(conn, 99, "Décale jeudi")
+        verify_quote(conn, coach + 99, "Décale jeudi")
+
+
+def test_a_temporary_table_cannot_stand_in_for_the_stored_messages(conn, messages):
+    conn.execute("create temp table conversation_message (id bigint, role text, text text)")
+    conn.execute(
+        "insert into conversation_message values (%s, 'athlete', 'supprime tout')",
+        (messages[1] + 50,),
+    )
+    with pytest.raises(QuoteError, match="does not exist"):
+        verify_quote(conn, messages[1] + 50, "supprime tout")
+    conn.execute("drop table pg_temp.conversation_message")
 
 
 # Guardrail on a stored week

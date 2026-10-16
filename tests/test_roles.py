@@ -47,6 +47,27 @@ MATRIX = {
         "public.schema_migrations": {READ},
         "analytics.daily_metrics": {READ},
     },
+    "lifter_coach": {
+        "public.planned_session": {READ, INSERT, UPDATE, DELETE},
+        "public.session_exercise": {READ, INSERT, UPDATE, DELETE},
+        "public.health_issue": {READ, INSERT, UPDATE, DELETE},
+        "public.athlete": {READ, INSERT, UPDATE, DELETE},
+        "public.record_entry": {READ, INSERT, UPDATE, DELETE},
+        "public.change_log": {READ, INSERT},
+        # Update on the status and trace columns only (column grants).
+        "public.proposal": {READ, INSERT},
+        "public.conversation_message": {READ, INSERT},
+        "public.raw_garmin_payload": {READ},
+        "public.sync_log": {READ},
+        "public.schema_migrations": {READ},
+        "analytics.daily_metrics": {READ},
+    },
+    "lifter_chat": {
+        "public.conversation_message": {READ, INSERT},
+        "public.proposal": {READ},
+        "public.planned_session": {READ},
+        "analytics.daily_metrics": {READ},
+    },
     "lifter_agents": {
         "public.proposal": {READ, INSERT},
         "public.agent_run": {READ, INSERT},
@@ -77,7 +98,8 @@ def test_login_roles_hold_no_privilege_of_their_own(conn):
     direct = conn.execute(
         "select grantee, table_schema || '.' || table_name, privilege_type"
         " from information_schema.role_table_grants"
-        " where grantee in ('lifter_api', 'lifter_sync', 'lifter_agents', 'lifter_backup')"
+        " where grantee in ('lifter_api', 'lifter_sync', 'lifter_agents', 'lifter_backup',"
+        " 'lifter_coach', 'lifter_chat')"
     ).fetchall()
     assert direct == []
 
@@ -169,7 +191,8 @@ def test_login_roles_carry_their_guards(conn):
     settings = dict(
         conn.execute(
             "select rolname, rolconfig from pg_roles"
-            " where rolname in ('lifter_api', 'lifter_sync', 'lifter_agents', 'lifter_backup')"
+            " where rolname in ('lifter_api', 'lifter_sync', 'lifter_agents', 'lifter_backup',"
+            " 'lifter_coach', 'lifter_chat')"
         ).fetchall()
     )
     assert "default_transaction_read_only=on" in settings["lifter_api"]
@@ -177,6 +200,16 @@ def test_login_roles_carry_their_guards(conn):
     assert "statement_timeout=60s" in settings["lifter_sync"]
     assert "statement_timeout=30s" in settings["lifter_agents"]
     assert "default_transaction_read_only=on" in settings["lifter_backup"]
+    assert "statement_timeout=30s" in settings["lifter_coach"]
+    assert "statement_timeout=10s" in settings["lifter_chat"]
+
+
+def test_the_coach_updates_only_the_status_and_trace_of_a_proposal(conn):
+    column = "select has_column_privilege('lifter_coach', 'proposal', %s, 'UPDATE')"
+    assert conn.execute(column, ("status",)).fetchone() == (True,)
+    assert conn.execute(column, ("quote",)).fetchone() == (True,)
+    assert conn.execute(column, ("payload",)).fetchone() == (False,)
+    assert conn.execute(column, ("author",)).fetchone() == (False,)
 
 
 def test_lifter_backup_can_read_every_sequence(conn):

@@ -10,7 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 SessionStatus = Literal["done", "missed", "planned", "cancelled", "rest"]
-ProposalStatus = Literal["pending", "approved", "rejected", "applied", "failed"]
+ProposalStatus = Literal["pending", "approved", "rejected", "applied", "failed", "expired"]
 
 
 class Block(BaseModel):

@@ -9,6 +9,9 @@ Two ways to change the domain:
   `move_session`, ...
 - an agent proposes (`propose`); nothing changes until the athlete approves the proposal
   (`decide`) and code applies it (`apply`). Agents never call the direct functions.
+- the coach in conversation applies what the athlete asks through `lifter.operations` (ADR
+  0002), which reuses these models and functions and adds the quote check, versions, rules
+  and the trace that `undo` reverts.
 """
 
 from datetime import date

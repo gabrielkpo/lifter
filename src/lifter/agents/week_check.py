@@ -3,22 +3,24 @@
 ADR 0002, Decision 3: an operation that changes the programme is checked before commit, on the
 week as it would be. `violations_for_week` is registered as the catalogue's programme check at
 start-up (`operations.set_programme_check`, so the domain does not import the agents); the
-catalogue calls it inside the operation's transaction, before and after applying it, and refuses the change only for the violations it
-**introduces** (`introduced`): a week that already broke a rule (an old draft, imported data)
-must not block every unrelated change.
+catalogue calls it inside the operation's transaction, before and after applying it, and
+refuses the change only for the violations it **introduces** (`introduced`): a week that
+already broke a rule (an old draft, imported data) must not block every unrelated change, nor
+the move of the session at fault.
 
 The stored week is turned into a `WeekPlan` (its sessions, their parts and planned lines) and
 checked with the same guardrail as the week planner's plans. Checks that only make sense for a
 model's answer are left out: cited numbers (no text here) and cancellations.
 """
 
+from collections import Counter
 from datetime import date
 
 import psycopg
 
 from lifter.agents.context import PlanningContext, build_context
 from lifter.agents.guardrail import Violation, check
-from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
+from lifter.agents.plan import PlanSession, WeekPlan, plan_part
 
 MODEL_ONLY_CHECKS = ("sources", "cancellations")
 OPEN = ("planned", "missed")
@@ -34,30 +36,7 @@ def plan_from_context(ctx: PlanningContext) -> WeekPlan:
             title=s.title,
             kind=s.kind,
             rationale="As stored.",
-            parts=[
-                PlanPart(
-                    kind=part.kind,
-                    format=part.format,
-                    duration_minutes=part.duration_minutes,
-                    rounds=part.rounds,
-                    interval_seconds=part.interval_seconds,
-                    target_seconds=part.target_seconds,
-                    target_rounds=part.target_rounds,
-                    lines=[
-                        PlanLine(
-                            exercise=line.exercise,
-                            sets=line.sets,
-                            quantity=line.quantity,
-                            unit=line.unit,
-                            load_kg=line.load_kg,
-                            load_kg_max=line.load_kg_max,
-                            rir=line.rir,
-                        )
-                        for line in part.planned
-                    ],
-                )
-                for part in s.parts
-            ],
+            parts=[plan_part(part, part.planned) for part in s.parts],
         )
         for s in stored
     ]
@@ -78,6 +57,15 @@ def violations_for_week(
 
 
 def introduced(before: list[Violation], after: list[Violation]) -> list[Violation]:
-    """Violations present after the change and not before it."""
-    seen = {(v.check, v.day, v.message) for v in before}
-    return [v for v in after if (v.check, v.day, v.message) not in seen]
+    """Violations present after the change and not before it, counted by check and message:
+    the day is left out, so moving the session at fault introduces nothing, and a second
+    identical violation counts as new."""
+    left = Counter((v.check, v.message) for v in before)
+    new = []
+    for v in after:
+        key = (v.check, v.message)
+        if left[key]:
+            left[key] -= 1
+        else:
+            new.append(v)
+    return new

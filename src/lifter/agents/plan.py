@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from lifter.agents.context import LineInfo, PartInfo
 from lifter.domain import LineIn, MetconFormat, PartIn, PartKind, SessionIn, StrictModel
 
 PositiveInt = Annotated[int, Field(gt=0)]
@@ -31,6 +32,33 @@ class PlanPart(StrictModel):
     target_seconds: PositiveInt | None = None
     target_rounds: PositiveNumber | None = None
     lines: list[PlanLine] = []
+
+
+def plan_line(line: LineInfo) -> PlanLine:
+    """A stored line as a prescribed one."""
+    return PlanLine(
+        exercise=line.exercise,
+        sets=line.sets,
+        quantity=line.quantity,
+        unit=line.unit,
+        load_kg=line.load_kg,
+        load_kg_max=line.load_kg_max,
+        rir=line.rir,
+    )
+
+
+def plan_part(part: PartInfo, lines: list[LineInfo]) -> PlanPart:
+    """A stored part, with the given lines (planned or done), as a prescribed one."""
+    return PlanPart(
+        kind=part.kind,
+        format=part.format,
+        duration_minutes=part.duration_minutes,
+        rounds=part.rounds,
+        interval_seconds=part.interval_seconds,
+        target_seconds=part.target_seconds,
+        target_rounds=part.target_rounds,
+        lines=[plan_line(line) for line in lines],
+    )
 
 
 class PlanSession(StrictModel):

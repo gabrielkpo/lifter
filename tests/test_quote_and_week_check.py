@@ -102,7 +102,7 @@ def week_id(conn, number):
     return conn.execute("select id from training_week where number = %s", (number,)).fetchone()[0]
 
 
-def add_planned_line(conn, title, exercise, **line):
+def add_planned_line(conn, title, exercise, position=99, **line):
     part = conn.execute(
         "select sp.id from session_part sp join planned_session p on p.id = sp.session_id"
         " where p.title = %s and sp.kind = 'strength' order by sp.position limit 1",
@@ -110,9 +110,10 @@ def add_planned_line(conn, title, exercise, **line):
     ).fetchone()[0]
     conn.execute(
         "insert into session_exercise (part_id, origin, position, exercise_id, sets, quantity,"
-        " load_kg, rir) select %s, 'planned', 99, id, %s, %s, %s, %s from exercise where name = %s",
+        " load_kg, rir) select %s, 'planned', %s, id, %s, %s, %s, %s from exercise where name = %s",
         (
             part,
+            position,
             line.get("sets"),
             line.get("quantity"),
             line.get("load_kg"),
@@ -159,3 +160,26 @@ def test_cancelled_sessions_are_not_checked(conn, program):
 def test_an_unknown_week_is_refused(conn, program):
     with pytest.raises(PlanningError):
         violations_for_week(conn, 999)
+
+
+def test_moving_the_session_at_fault_introduces_nothing(conn, program):
+    week = week_id(conn, 1)
+    add_planned_line(conn, "Legs + Metcon", "Back squat", sets=3, quantity=5, load_kg=60, rir=2)
+    before = violations_for_week(conn, week)
+    sid = conn.execute("select id from planned_session where title = 'Legs + Metcon'").fetchone()
+    day = conn.execute("select day + 1 from planned_session where id = %s", sid).fetchone()[0]
+    domain.move_session(conn, domain.MoveSession(session_id=sid[0], new_day=day))
+    after = violations_for_week(conn, week)
+
+    assert [v.day for v in before] != [v.day for v in after]
+    assert introduced(before, after) == []
+
+
+def test_a_second_identical_violation_is_introduced(conn, program):
+    week = week_id(conn, 1)
+    add_planned_line(conn, "Legs + Metcon", "Back squat", sets=3, quantity=5, load_kg=60, rir=2)
+    before = violations_for_week(conn, week)
+    add_planned_line(conn, "Legs + Metcon", "Back squat", 98, sets=2, quantity=5, load_kg=60, rir=2)
+    after = violations_for_week(conn, week)
+
+    assert [v.check for v in introduced(before, after)] == ["forbid_flag"]

@@ -2,20 +2,20 @@
 
 import Link from "next/link";
 import ApiStatus from "@/components/ApiStatus";
+import PlanningTabs from "@/components/PlanningTabs";
 import TopBar from "@/components/TopBar";
 import { useApi } from "@/lib/api";
-import { label, num, shortDate, today } from "@/lib/format";
-import type { Goal, Program, Week } from "@/lib/types";
+import { label, shortDate, today } from "@/lib/format";
+import type { Program } from "@/lib/types";
 
-/** The long term: the cycle's blocks counted in strength sessions, the weeks, the goals. */
+/** The long term: the cycles and their blocks, counted in strength sessions. */
 export default function PlanningPage() {
   const program = useApi<Program>("/program");
-  const weeks = useApi<Week[]>("/weeks");
-  const goals = useApi<Goal[]>("/goals");
 
   return (
     <>
       <TopBar title="Planning" />
+      <PlanningTabs />
       {program.status !== "ok" ? (
         <ApiStatus state={program} />
       ) : program.data.cycles.length === 0 ? (
@@ -54,62 +54,7 @@ export default function PlanningPage() {
                 </Link>
               );
             })}
-            {weeks.status === "ok" && (
-              <ul className="list">
-                {weeks.data
-                  .filter((w) => w.cycle_id === cycle.id)
-                  .map((w) => (
-                    <li key={w.id} style={{ fontSize: 16 }}>
-                      <Link href={`/planning/weeks/${w.id}`} className="row" style={{ width: "100%" }}>
-                      <span>
-                        <strong>Week {w.number}</strong> · {label(w.phase)}
-                        <br />
-                        <span className="small">{shortDate(w.start_date)}</span>
-                      </span>
-                      <span className="small">
-                        {w.done}/{w.sessions} done ›
-                      </span>
-                      </Link>
-                    </li>
-                  ))}
-              </ul>
-            )}
           </section>
-        ))
-      )}
-
-      <h2 className="section-title">Goals</h2>
-      {goals.status !== "ok" ? (
-        <ApiStatus state={goals} />
-      ) : goals.data.length === 0 ? (
-        <p className="empty">No goal yet.</p>
-      ) : (
-        goals.data.map((g) => (
-          <article key={g.id} className="card">
-            <div className="row">
-              <h3>{g.title}</h3>
-              <span className="badge" data-status={g.status === "achieved" ? "done" : undefined}>
-                {g.status}
-              </span>
-            </div>
-            <p className="small">
-              {g.baseline_value !== null
-                ? `${num(g.baseline_value)} ${g.unit ?? ""}`
-                : (g.baseline_text ?? "–")}{" "}
-              →{" "}
-              <strong style={{ color: "var(--text)" }}>
-                {g.target_value !== null ? `${num(g.target_value)} ${g.unit ?? ""}` : g.target_text}
-              </strong>
-              {g.target_date && ` by ${shortDate(g.target_date)}`}
-            </p>
-            {g.milestones.length > 0 && (
-              <p className="small" style={{ marginTop: 6 }}>
-                {g.milestones
-                  .map((m) => `${shortDate(m.day)}: ${m.value !== null ? num(m.value) : m.value_text}`)
-                  .join(" · ")}
-              </p>
-            )}
-          </article>
         ))
       )}
     </>

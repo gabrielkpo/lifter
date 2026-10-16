@@ -1,4 +1,4 @@
-import { num, shortDate } from "@/lib/format";
+import { num, parseDay, shortDate } from "@/lib/format";
 
 export type TimePoint = { day: string; value: number; note?: string };
 
@@ -8,7 +8,7 @@ export default function TimeChart({ points, unit }: { points: TimePoint[]; unit:
   const W = 320;
   const H = 120;
   const pad = { top: 14, right: 14, bottom: 22, left: 34 };
-  const time = (day: string) => new Date(`${day}T00:00:00`).getTime();
+  const time = (day: string) => parseDay(day).getTime();
   const t0 = time(points[0].day);
   const t1 = time(points[points.length - 1].day);
   const values = points.map((p) => p.value);

@@ -5,13 +5,15 @@ import { useParams } from "next/navigation";
 import ApiStatus from "@/components/ApiStatus";
 import { BackIcon } from "@/components/icons";
 import SessionView from "@/components/SessionView";
-import { useApi } from "@/lib/api";
+import { NOT_FOUND, useApi } from "@/lib/api";
 import type { SessionDetail } from "@/lib/types";
 
 /** A session on its own page (linked from the calendar and the health tab). */
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
-  const state = useApi<SessionDetail>(/^\d+$/.test(id) ? `/sessions/${id}` : null);
+  const valid = /^\d+$/.test(id);
+  const fetched = useApi<SessionDetail>(valid ? `/sessions/${id}` : null);
+  const state = valid ? fetched : NOT_FOUND;
 
   return (
     <>

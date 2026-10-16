@@ -51,7 +51,32 @@ export class ApiError extends Error {
   }
 }
 
-/** Fetch `path` once per change of `path`; null skips the call. */
+/** An invalid address (a page id that is not a number): shown like a 404, without a call. */
+export const NOT_FOUND: ApiState<never> = {
+  status: "error",
+  message: errorMessage(404),
+  notFound: true,
+};
+
+/** What the athlete reads for each kind of failure (app/api/[...path]/route.ts sets them). */
+function errorMessage(status: number | null): string {
+  switch (status) {
+    case null:
+      return "No connection.";
+    case 404:
+      return "Not found.";
+    case 422:
+      return "This address is not valid.";
+    case 503:
+      return "The Lifter API refused the app's request: its token or settings need a look.";
+    case 504:
+      return "Cannot reach the Lifter API right now.";
+    default:
+      return "The Lifter API failed. Try again in a moment.";
+  }
+}
+
+/** Fetch `path` once per change of `path`; null waits (no call yet, still loading). */
 export function useApi<T>(path: string | null): ApiState<T> {
   const [state, setState] = useState<{ path: string | null; value: ApiState<T> }>({
     path,
@@ -65,14 +90,11 @@ export function useApi<T>(path: string | null): ApiState<T> {
       .then((data) => setState({ path, value: { status: "ok", data } }))
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        const message =
-          error instanceof ApiError && error.status === 502
-            ? "Cannot reach the Lifter API right now."
-            : error instanceof ApiError
-              ? error.message
-              : "No connection.";
-        const notFound = error instanceof ApiError && error.status === 404;
-        setState({ path, value: { status: "error", message, notFound } });
+        const status = error instanceof ApiError ? error.status : null;
+        setState({
+          path,
+          value: { status: "error", message: errorMessage(status), notFound: status === 404 },
+        });
       });
     return () => controller.abort();
   }, [path]);

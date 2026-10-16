@@ -16,6 +16,7 @@ const ENDPOINTS = new Set([
   "health",
   "goals",
   "profile",
+  "status",
   "bests",
   "history",
   "proposals",
@@ -40,9 +41,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       cache: "no-store",
     });
   } catch {
-    return NextResponse.json({ detail: "Lifter API unreachable" }, { status: 502 });
+    return NextResponse.json({ detail: "Lifter API unreachable" }, { status: 504 });
   }
-  // Errors other than "not found" and "invalid input" are not passed through in detail.
+  // Errors other than "not found" and "invalid input" are not passed through in detail, but
+  // a refusal (wrong token or protection bypass) stays distinct from a failure.
+  if (upstream.status === 401 || upstream.status === 403) {
+    return NextResponse.json({ detail: "Lifter API refused the request" }, { status: 503 });
+  }
   if (!upstream.ok && upstream.status !== 404 && upstream.status !== 422) {
     return NextResponse.json({ detail: "Lifter API error" }, { status: 502 });
   }

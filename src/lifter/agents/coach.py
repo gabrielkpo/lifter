@@ -52,14 +52,27 @@ with apply_change, quoting the athlete's own words, then report what changed and
 (this week only, or from week N). Never ask "shall I apply it?" for an explicit instruction.
 - A choice among your suggestions ("ok for 12"): accept_suggestion with their words.
 - A question ("why RIR 3?"): answer it. Change nothing.
-- A session report ("done, bench 4x8 at 65, RIR 1, knee fine"): log it (log_session).
-- A pain or limitation ("my wrist hurts"): record it (add_health_issue).
-- "undo" or "annule": undo the last change you applied (operation undo, its change_id).
+- A session report ("done, bench 4x8 at 65, RIR 1, knee fine"): log it, apply_change with \
+operation log_session.
+- A pain or limitation ("my wrist hurts"): record it, apply_change with operation \
+add_health_issue.
+- "undo" or "annule": undo the last change you applied, apply_change with operation undo and \
+its change_id, from recent_changes_in_this_conversation in the snapshot.
 - Your own ideas: suggest_change, never apply_change; say which suggestion id to answer with.
 
-Before an update or a delete, read the row (read_rows) for its id and version, and check the \
-payload with operation_schema when unsure. If a tool refuses (quote, rule, stale row, payload), \
-say so plainly and why; never claim a change that a tool did not confirm.
+Operations are not tools: every change is apply_change (or suggest_change) with the \
+operation's name. Ask operation_schema for its payload before the first call of an operation.
+
+Finding what the athlete means: sessions, their parts, ids and versions are in the snapshot. A \
+session to move, change or cancel is an upcoming one (upcoming: true) unless the athlete names a \
+past day; a session report is about a past or today's session. Two sessions can share a title \
+in different weeks: take the one in the week of the date the athlete gives, and on a Sunday \
+"this week" means the week starting tomorrow. Exercises keep their exact names from \
+the snapshot's exercise_bank. Read a row (read_rows) only for what the snapshot does not hold.
+
+If a tool refuses (quote, rule, stale row, payload), tell the athlete what it said, in plain \
+words but without changing its meaning. Never claim a change that a tool did not confirm, and \
+never report a refusal that no tool returned in this turn.
 
 Method: a training session is warmup, then weightlifting or gymnastics while fresh, then \
 strength, then the metcon. RIR is the instruction, the load only a guide. A metcon has a target, \
@@ -110,16 +123,34 @@ def _rows(conn: psycopg.Connection, query: str, params: tuple = ()) -> list[dict
     return conn.cursor(row_factory=dict_row).execute(query, params).fetchall()
 
 
-def snapshot(conn: psycopg.Connection, today: date) -> dict:
-    """What the coach knows before calling any tool, built by code."""
+def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None = None) -> dict:
+    """What the coach knows before calling any tool, built by code: the sessions of the
+    current and next training weeks with their week number, parts and ids, the exercise bank's
+    names, open health issues, pending suggestions, and the last changes applied in this
+    conversation (their change ids, which undo takes)."""
     monday = today - timedelta(days=today.weekday())
     sessions = _rows(
         conn,
-        "select p.id, p.version, p.day, p.title, p.kind, s.status, p.week_id"
+        "select p.id, p.version, p.day, to_char(p.day, 'FMDay') as weekday, p.title, p.kind,"
+        " s.status, w.number as week"
         " from planned_session p join planned_session_status s on s.planned_session_id = p.id"
+        " left join training_week w on w.id = p.week_id"
         " where p.day between %s and %s order by p.day, p.id",
         (monday, monday + timedelta(days=13)),
     )
+    parts = _rows(
+        conn,
+        "select id, version, session_id, position, kind, title from session_part"
+        " where session_id = any(%s) order by session_id, position",
+        ([s["id"] for s in sessions],),
+    )
+    for session in sessions:
+        session["upcoming"] = session["day"] >= today
+        session["parts"] = [
+            {k: v for k, v in part.items() if k != "session_id"}
+            for part in parts
+            if part["session_id"] == session["id"]
+        ]
     health = _rows(
         conn,
         "select id, version, body_part, side, kind, description, guidance, since, status"
@@ -130,11 +161,24 @@ def snapshot(conn: psycopg.Connection, today: date) -> dict:
         "select id, kind as operation, rationale from proposal where status = 'pending'"
         " order by id",
     )
+    bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    changes = _rows(
+        conn,
+        "select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
+        " p.undone_by is not null as undone"
+        " from change_log c join proposal p on p.id = c.proposal_id"
+        " join public.conversation_message m on m.id = p.message_id"
+        " where m.conversation_id = %s order by c.id desc limit 5",
+        (conversation_id,),
+    )
     return {
         "today": today,
+        "today_weekday": today.strftime("%A"),
         "sessions_this_week_and_next": sessions,
+        "exercise_bank": bank,
         "health_issues": health,
         "pending_suggestions": suggestions,
+        "recent_changes_in_this_conversation": changes,
     }
 
 
@@ -184,7 +228,7 @@ def respond(
     register_rule_check()
     started_at = datetime.now(UTC)
     started = time.monotonic()
-    state_of_mind = snapshot(conn, today)
+    state_of_mind = snapshot(conn, today, conversation_id)
     ctx = ToolContext(conn=conn, message_id=message_id, conversation_id=conversation_id)
     tools = coach_tools(ctx)
     bound = model.bind_tools(tools)

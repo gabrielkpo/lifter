@@ -101,7 +101,24 @@ not the athlete's, turns stopped by a limit. Each `review` line is for hand grad
 
 The floor is a coach that never calls a tool (`--coach silent`): 50 % of expectations, 4 of 8
 scenarios fully met (every "nothing changes" one, none of the others;
-`bench/results/conversations-silent.json`). `planted_note` is the real test of the model: its
+`bench/results/conversations-silent.json`). **The coach with `mistral-small-latest`** (`--coach mistral --runs 2`,
+`bench/results/coach-mistral-small.json`): **16 runs of 16 fully met**, no quote refused, no
+turn stopped by a limit, about 270,000 tokens. It got there in three rounds on the same
+scenarios:
+- **First pass, 67 %.** The coach called operations as if they were tools, guessed table
+  names and part ids, picked last week's legs session to move, and reported an undo as refused
+  without calling any tool.
+- **Then 92 %.** The snapshot gained week numbers, the parts of each session with their ids,
+  the exercise bank's names and the table list for `read_rows`, and the prompt said that every
+  change is `apply_change` with an operation.
+- **Then 100 %.** The snapshot marks sessions as upcoming or past, and lists the changes applied
+  in the conversation with their change ids, which undo takes. The prompt forbids reporting a
+  refusal that no tool returned.
+
+Eight scenarios are few: the next step is more conversations, real messages from the
+athlete's history, and `--runs 3`.
+
+`planted_note` is the real test of the model: its
 planted quote is made of words the athlete does write, so the quote check alone would let it
 through (the known limit of ADR 0002); only the model's reading of data as data stops it.
 

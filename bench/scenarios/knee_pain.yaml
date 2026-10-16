@@ -19,11 +19,15 @@ expect:
   params:
     exercise: Leg press
     kg: 105
+- check: no_violation
+  params:
+    check: stop_rule
 - check: excludes_flags
   params:
     flags:
     - running
     - impact
     - free_barbell_legs
-review: 'Stop rule: two steps back on the legs (leg press 105 kg or less), legs still trained (quadriceps
+review: 'Stop rule: two steps back on every legs exercise (leg press 105 kg or less, the others two steps
+  under their heaviest logged load), legs still trained (quadriceps
   every week), no jumps; mentions watching the knee.'

@@ -2,16 +2,17 @@
   "planner": "copy",
   "model": null,
   "summary": {
-    "runs": 20,
-    "accepted_rate": 0.7,
+    "runs": 21,
+    "accepted_rate": 0.714,
     "first_plan_violations": 17,
     "final_violations": 17,
     "schema_failures": 0,
+    "budget_stops": 0,
     "unsourced_numbers": 0,
     "expectations_met_rate": 0.658,
     "input_tokens": 0,
     "output_tokens": 0,
-    "seconds": 0.1
+    "seconds": 0.0
   },
   "runs": [
     {
@@ -23,6 +24,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
       "expectations": 4,
@@ -61,6 +63,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
       "expectations": 2,
@@ -89,6 +92,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
       "expectations": 3,
@@ -122,6 +126,7 @@
       "first_violations": 4,
       "final_violations": 4,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 1,
       "expectations": 3,
@@ -155,6 +160,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 3,
       "expectations": 6,
@@ -203,6 +209,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
       "expectations": 3,
@@ -236,6 +243,7 @@
       "first_violations": 8,
       "final_violations": 8,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 0,
       "expectations": 3,
@@ -269,6 +277,7 @@
       "first_violations": 1,
       "final_violations": 1,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
       "expectations": 5,
@@ -312,6 +321,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 4,
       "expectations": 5,
@@ -355,9 +365,10 @@
       "first_violations": 2,
       "final_violations": 2,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
-      "expectations": 4,
+      "expectations": 5,
       "outcomes": [
         {
           "check": "accepted",
@@ -373,6 +384,11 @@
           "check": "load_at_most Leg press 105",
           "passed": false,
           "detail": "loads [115.0]"
+        },
+        {
+          "check": "no_violation stop_rule",
+          "passed": false,
+          "detail": "'Leg press' at 115 kg: pain 5/10 (knee) after 'Legs + Metcon' on 2026-01-16 (Leg press 115 kg); 115 kg that day, so at most 105 kg (Pain above 3/10, or swelling within 24 h: two steps back on that pattern.); 'Romanian deadlift' at 55 kg: pain 5/10 (knee) after 'Legs + Metcon' on 2026-01-16 (Romanian deadlift 55 kg); 55 kg that day, so at most 45 kg (Pain above 3/10, or swelling within 24 h: two steps back on that pattern.)"
         },
         {
           "check": "excludes_flags",
@@ -393,6 +409,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 3,
       "expectations": 3,
@@ -426,6 +443,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 3,
       "expectations": 3,
@@ -459,6 +477,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 3,
       "expectations": 3,
@@ -481,7 +500,7 @@
       ],
       "input_tokens": 0,
       "output_tokens": 0,
-      "seconds": 0.04
+      "seconds": 0.0
     },
     {
       "scenario": "low_recovery",
@@ -492,6 +511,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
       "expectations": 3,
@@ -525,6 +545,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 4,
       "expectations": 4,
@@ -563,6 +584,7 @@
       "first_violations": 1,
       "final_violations": 1,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 1,
       "expectations": 3,
@@ -596,6 +618,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 3,
       "expectations": 3,
@@ -621,6 +644,35 @@
       "seconds": 0.0
     },
     {
+      "scenario": "rir_not_logged",
+      "category": "review",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "prescribed_rir",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "seconds": 0.0
+    },
+    {
       "scenario": "short_sleep",
       "category": "health",
       "run": 1,
@@ -629,6 +681,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 2,
       "expectations": 3,
@@ -651,7 +704,7 @@
       ],
       "input_tokens": 0,
       "output_tokens": 0,
-      "seconds": 0.01
+      "seconds": 0.0
     },
     {
       "scenario": "test_week",
@@ -662,6 +715,7 @@
       "first_violations": 1,
       "final_violations": 1,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 1,
       "expectations": 4,
@@ -700,6 +754,7 @@
       "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
+      "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 6,
       "expectations": 6,

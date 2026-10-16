@@ -53,6 +53,7 @@ class Setup(StrictModel):
     phase: Phase | None = None
     keep_drafts: bool = False
     recovery: Recovery = "normal"
+    rir_not_logged: list[int] = []  # weeks whose done lines carry no RIR (the athlete skipped it)
 
 
 class Expectation(StrictModel):
@@ -198,6 +199,14 @@ def apply_setup(conn: psycopg.Connection, scenario: Scenario) -> None:
             _skip(conn, _session_id(conn, ref))
         for change in setup.log:
             _log(conn, change)
+        for week in setup.rir_not_logged:
+            conn.execute(
+                "update session_exercise e set rir = null from session_part sp,"
+                " planned_session p, training_week w where e.part_id = sp.id"
+                " and sp.session_id = p.id and p.week_id = w.id and w.number = %s"
+                " and e.origin = 'done'",
+                (week,),
+            )
         for fb in setup.feedback:
             session_id = _session_id(conn, fb)
             day = conn.execute(

@@ -250,12 +250,14 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         # The athlete can only choose a suggestion shown before their message: one made during
         # this turn (by a model misled by planted text, say) is never applied with it.
         shown = conn.execute(
-            "select p.created_at < m.created_at from proposal p, conversation_message m"
-            " where p.id = %s and m.id = %s",
-            (suggestion_id, ctx.message_id),
+            "select p.created_at < (select created_at from conversation_message where id = %s)"
+            " from proposal p where p.id = %s",
+            (ctx.message_id, suggestion_id),
         ).fetchone()
         if shown is None:
             return _refused(f"suggestion {suggestion_id} does not exist")
+        if shown[0] is None:
+            return _refused(f"message {ctx.message_id} does not exist")
         if not shown[0]:
             return _refused(
                 f"suggestion {suggestion_id} was made after the athlete's message: they have not"

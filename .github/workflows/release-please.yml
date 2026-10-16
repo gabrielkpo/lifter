@@ -12,8 +12,11 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        id: release
         with:
           # A PR opened with GITHUB_TOKEN triggers no workflow, so the required checks
           # would never run on the release PR. RELEASE_PLEASE_TOKEN is a fine-grained
@@ -22,3 +25,13 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # Production follows the versions: a merged release pull request (a new vX.Y.Z) deploys,
+  # a plain merge does not (deploy.yml).
+  deploy:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit

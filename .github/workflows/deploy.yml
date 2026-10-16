@@ -1,0 +1,83 @@
+name: Deploy
+# Production follows the versions, not every merge: merging release-please's pull request
+# publishes vX.Y.Z and calls this workflow (release-please.yml). It also runs by hand
+# ("Run workflow") to redeploy the current main, e.g. after a failed deployment.
+# Order: the database first (new code may need its tables), then the API, then the app (the
+# app must never call an endpoint the API does not have yet), then a check of the live API.
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+# One deployment at a time; a second one waits instead of racing on the database.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    # Secrets of the "production" environment, readable from main and version tags only.
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Install
+        run: uv sync --locked --group dev
+      # Neon keeps 6 hours of history (instant restore) and the Mac backs it up daily; no dump
+      # here: the repository is public and an artifact would hold the athlete's data.
+      - name: Migrate the hosted database
+        run: uv run lifter migrate
+        env:
+          DATABASE_URL: ${{ secrets.NEON_OWNER_URL }}
+      - name: Data tests on the hosted database
+        run: uv run lifter data-test
+        env:
+          DATABASE_URL: ${{ secrets.NEON_OWNER_URL }}
+
+  deploy-api:
+    needs: migrate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - name: Deploy the API (Vercel project lifter-api)
+        run: npx --yes vercel@62.1.0 deploy --prod --yes --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID_API }}
+
+  deploy-web:
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      # From the repository root: the project's own root directory (web/) is set on Vercel.
+      - name: Deploy the app (Vercel project lifter)
+        run: npx --yes vercel@62.1.0 deploy --prod --yes --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID_WEB }}
+
+  check:
+    needs: deploy-web
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # The live API answers its token through Vercel's protection: /status and /profile.
+      - name: Check the live API
+        run: |
+          for path in status profile; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer $LIFTER_API_TOKEN" \
+              -H "x-vercel-protection-bypass: $LIFTER_API_BYPASS" \
+              "$LIFTER_API_URL/$path")
+            echo "/$path: $code"
+            test "$code" = 200
+          done
+        env:
+          LIFTER_API_URL: ${{ vars.LIFTER_API_URL }}
+          LIFTER_API_TOKEN: ${{ secrets.LIFTER_API_TOKEN }}
+          LIFTER_API_BYPASS: ${{ secrets.LIFTER_API_BYPASS }}

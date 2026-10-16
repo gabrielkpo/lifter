@@ -221,6 +221,58 @@ def test_active_goals_come_first(api, conn):
     assert [g["status"] for g in api.get("/goals").json()] == ["active", "abandoned", "achieved"]
 
 
+def test_the_profile_is_empty_until_the_athlete_is_described(api):
+    assert api.get("/profile").json() == {"athlete": None, "health_issues": [], "rules": []}
+
+
+def test_the_profile_shows_the_athlete_their_issues_active_first_and_their_rules(api, conn):
+    # A synthetic athlete: real values only ever live in the database.
+    # Thirty years and a few days ago, whatever today is (29 February included).
+    today = date.today()
+    born = (
+        date(today.year - 30, 1, 1)
+        if today >= date(today.year, 1, 2)
+        else date(today.year - 31, 12, 1)
+    )
+    conn.execute(
+        "insert into athlete (first_name, birth_date, sex, height_cm, weight_kg, level,"
+        " training_places) values ('Sam', %s, 'female', 168, 64.5, 'intermediate',"
+        " array['Gym A', 'Club B'])",
+        (born,),
+    )
+    conn.execute(
+        "insert into health_issue (body_part, kind, description, status, resolved_on, since)"
+        " values ('ankle', 'injury', 'Sprain', 'resolved', '2026-01-20', '2026-01-02'),"
+        " ('shoulder', 'limitation', 'Limited external rotation', 'monitoring', null, null),"
+        " ('wrist', 'pain', 'Pain in the front rack', 'active', null, '2026-03-01')"
+    )
+    conn.execute(
+        "insert into athlete_rule (code, text, active) values"
+        " (null, 'Machines only for the legs', true), ('stop_rule', 'Stop above 3/10', true),"
+        " ('old', 'An inactive rule', false)"
+    )
+
+    body = api.get("/profile").json()
+
+    assert body["athlete"]["age"] == 30
+    assert body["athlete"]["weight_kg"] == 64.5
+    assert body["athlete"]["training_places"] == ["Gym A", "Club B"]
+    assert [(i["body_part"], i["status"]) for i in body["health_issues"]] == [
+        ("wrist", "active"),
+        ("shoulder", "monitoring"),
+        ("ankle", "resolved"),
+    ]
+    assert [r["text"] for r in body["rules"]] == ["Stop above 3/10", "Machines only for the legs"]
+
+
+def test_a_resolved_issue_needs_its_date(conn):
+    with pytest.raises(psycopg.errors.CheckViolation):
+        conn.execute(
+            "insert into health_issue (body_part, kind, description, status)"
+            " values ('knee', 'pain', 'x', 'resolved')"
+        )
+
+
 def test_bests_list_the_best_load_per_exercise_and_reps(api, program):
     bests = api.get("/bests").json()
 

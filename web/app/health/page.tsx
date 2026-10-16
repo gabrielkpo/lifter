@@ -66,7 +66,7 @@ export default function HealthPage() {
       </section>
 
       {alerts.length > 0 && (
-        <section className="card accent">
+        <section className="card">
           <h2>Alerts</h2>
           {alerts.map((a) => (
             <p key={a.alert} className="row">

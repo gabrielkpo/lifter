@@ -8,12 +8,38 @@ export type ApiState<T> =
   | { status: "error"; message: string; notFound: boolean }
   | { status: "ok"; data: T };
 
+// Calls in flight, so the launch screen knows when the first page has its data.
+let inFlight = 0;
+let started = 0;
+const listeners = new Set<() => void>();
+
+/** Calls in flight and calls started since launch; `listener` runs on every change. */
+export function apiActivity(): { inFlight: number; started: number } {
+  return { inFlight, started };
+}
+
+export function onApiActivity(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function track(delta: 1 | -1) {
+  inFlight += delta;
+  if (delta === 1) started += 1;
+  listeners.forEach((listener) => listener());
+}
+
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, { signal, cache: "no-store" });
-  if (!response.ok) {
-    throw new ApiError(response.status, `${response.status} ${response.statusText}`);
+  track(1);
+  try {
+    const response = await fetch(`${API_URL}${path}`, { signal, cache: "no-store" });
+    if (!response.ok) {
+      throw new ApiError(response.status, `${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as T;
+  } finally {
+    track(-1);
   }
-  return (await response.json()) as T;
 }
 
 export class ApiError extends Error {

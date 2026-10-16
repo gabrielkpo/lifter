@@ -26,8 +26,8 @@ def status(conn, week, title):
     ).fetchone()[0]
 
 
-def test_twenty_scenarios_with_known_checks(scenarios):
-    assert len(scenarios) == 20
+def test_every_scenario_has_known_checks(scenarios):
+    assert len(scenarios) == 21
     categories = {s.category for s in scenarios.values()}
     assert categories == {"phase", "review", "health", "calendar"}
 
@@ -108,7 +108,7 @@ def test_the_copy_baseline_on_every_scenario(conn, scenarios):
     assert "includes_metcon amrap" not in failed["intensification_week"]
 
     totals = summary(list(results.values()))
-    assert totals["runs"] == 20
+    assert totals["runs"] == 21
     assert totals["input_tokens"] == 0
     assert 0.5 < totals["expectations_met_rate"] < 0.8
 
@@ -265,3 +265,12 @@ def test_reset_refuses_a_database_that_is_not_a_bench_or_test_one(database_url):
     finally:
         admin.execute(f'drop database "{name}" with (force)')
         admin.close()
+
+
+def test_a_week_logged_without_rir_still_needs_one_in_the_plan(conn, scenarios):
+    apply_setup(conn, scenarios["rir_not_logged"])
+    ctx = build_context(conn, week_number=3, today=scenarios["rir_not_logged"].today)
+    done = [line.rir for s in ctx.previous_week.session_details for p in s.parts for line in p.done]
+    assert done and all(rir is None for rir in done)
+    (run,) = run_scenario(conn, scenarios["rir_not_logged"], CopyLastWeek, runs=1)
+    assert run.expectations_met == 2  # the copy takes the planned lines, which carry a RIR

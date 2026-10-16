@@ -1,6 +1,8 @@
 -- SQL functions the models call, created in the target schema before the models are built
 -- (on-run-start in dbt_project.yml).
 {% macro create_functions() %}
+create schema if not exists {{ target.schema }};
+
 -- least()/greatest() ignore NULL, so greatest(0, NULL) would be 0: guard explicitly.
 create or replace function {{ target.schema }}.clamp_0_100(x numeric) returns numeric
 language sql immutable

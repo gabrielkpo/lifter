@@ -22,6 +22,13 @@ import psycopg
 PROJECT_FILES = ("dbt_project.yml", "profiles.yml")
 PROJECT_DIRS = ("models", "macros", "tests")
 SCHEMA = "analytics"
+# Connection settings dbt's profile cannot carry, handed to libpq (which dbt-postgres uses) by
+# environment: a read-only `options`, channel binding and the CA file keep applying to dbt.
+LIBPQ_ENV = {
+    "options": "PGOPTIONS",
+    "channel_binding": "PGCHANNELBINDING",
+    "sslrootcert": "PGSSLROOTCERT",
+}
 
 
 class TransformError(Exception):
@@ -60,6 +67,7 @@ def _profile_env(conn: psycopg.Connection, schema: str):
         "LIFTER_DBT_SCHEMA": schema,
         "LIFTER_DBT_SSLMODE": params.get("sslmode", "prefer"),
     }
+    values |= {env: params[key] for key, env in LIBPQ_ENV.items() if key in params}
     saved = {key: os.environ.get(key) for key in values}
     os.environ.update(values)
     try:
@@ -73,7 +81,13 @@ def _profile_env(conn: psycopg.Connection, schema: str):
 
 
 def _dbt(conn: psycopg.Connection, schema: str, *args: str) -> None:
-    from dbt.cli.main import dbtRunner
+    try:
+        from dbt.cli.main import dbtRunner
+    except ImportError as exc:
+        raise TransformError(
+            "dbt is not installed: install lifter with its `transform` extra"
+            " (uv sync in a clone, or uv tool install 'lifter[transform] @ git+...')"
+        ) from exc
 
     root = project_dir()
     with tempfile.TemporaryDirectory(prefix="lifter-dbt-") as work, _profile_env(conn, schema):

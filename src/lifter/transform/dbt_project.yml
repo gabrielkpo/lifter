@@ -10,9 +10,9 @@ model-paths: ["models"]
 macro-paths: ["macros"]
 test-paths: ["tests"]
 
+# Only when building: `lifter data-test` (dbt test, source freshness) must stay read-only.
 on-run-start:
-  - "create schema if not exists {{ target.schema }}"
-  - "{{ create_functions() }}"
+  - "{{ create_functions() if flags.WHICH == 'run' }}"
 
 models:
   lifter:

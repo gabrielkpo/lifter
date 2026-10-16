@@ -52,8 +52,8 @@ when a language model builds its plans on them.
 
 ## Costs
 
-- A dependency (dbt-core, dbt-postgres) for whoever migrates; the API and the scheduled sync
-  do not import it.
+- A dependency (dbt-core, dbt-postgres, the `transform` extra) for whoever migrates or runs
+  the data tests; the API and the scheduled sync do not import it.
 - A compile step: a few seconds per migration, once per test session.
 - A second place to learn: SQL now sits in `src/lifter/transform/models/` with YAML next to it.
 

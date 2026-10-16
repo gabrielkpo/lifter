@@ -72,13 +72,17 @@ def migrate(conn: psycopg.Connection) -> list[str]:
     exists = conn.execute(
         "select 1 from information_schema.schemata where schema_name = 'analytics'"
     ).fetchone()
-    views_rebuilt = _build_analytics(conn, force=not exists)
-    _apply_repeatable(conn, ROLES_FILE, force=views_rebuilt)
+    rebuilt = _build_analytics(conn, force=not exists)
+    _apply_repeatable(conn, ROLES_FILE, force=rebuilt is not None)
+    if rebuilt is not None:
+        # Recorded only once the grants are back: if roles.sql fails, the next migrate rebuilds
+        # the layer and applies the grants again instead of finding nothing to do.
+        _record_analytics(conn, rebuilt)
     return done
 
 
-def _build_analytics(conn: psycopg.Connection, force: bool = False) -> bool:
-    """Rebuild the analytics layer with dbt when its project changed; True when it ran."""
+def _build_analytics(conn: psycopg.Connection, force: bool = False) -> str | None:
+    """Rebuild the analytics layer with dbt when its project changed; its digest when it ran."""
     from lifter import transform
 
     digest = transform.project_digest()
@@ -86,8 +90,12 @@ def _build_analytics(conn: psycopg.Connection, force: bool = False) -> bool:
         "select sha256 from public.schema_views where name = %s", (TRANSFORM_KEY,)
     ).fetchone()
     if row is not None and row[0] == digest and not force:
-        return False
+        return None
     transform.build(conn)
+    return digest
+
+
+def _record_analytics(conn: psycopg.Connection, digest: str) -> None:
     with conn.transaction():
         conn.execute("delete from public.schema_views where name = %s", (LEGACY_VIEWS_KEY,))
         conn.execute(
@@ -95,7 +103,6 @@ def _build_analytics(conn: psycopg.Connection, force: bool = False) -> bool:
             " on conflict (name) do update set sha256 = excluded.sha256, applied_at = now()",
             (TRANSFORM_KEY, digest),
         )
-    return True
 
 
 def _apply_repeatable(conn: psycopg.Connection, name: str, force: bool = False) -> bool:

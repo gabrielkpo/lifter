@@ -48,3 +48,35 @@ def test_the_layer_is_rebuilt_only_when_the_project_changes(conn):
         conn.execute("select applied_at from schema_views where name = 'dbt'").fetchone()
         == built_at
     )
+
+
+def test_the_data_tests_run_read_only(database_url):
+    # dbt opens its own connection: the URL's read-only option must reach it, and the data tests
+    # must need no write (the build-only hooks are skipped).
+    from psycopg.conninfo import make_conninfo
+
+    from lifter.db import connect
+
+    read_only = make_conninfo(database_url, options="-c default_transaction_read_only=on")
+    with connect(read_only) as conn:
+        transform.test(conn)
+        with pytest.raises(transform.TransformError, match="dbt run failed"):
+            transform._dbt(conn, "analytics_probe", "run")
+
+
+def test_a_failed_roles_step_rebuilds_the_layer_next_time(conn, monkeypatch):
+    from lifter import db
+
+    conn.execute("update schema_views set sha256 = 'old' where name = 'dbt'")
+
+    def failing_roles(conn, name, force=False):
+        raise RuntimeError("roles.sql failed")
+
+    monkeypatch.setattr(db, "_apply_repeatable", failing_roles)
+    with pytest.raises(RuntimeError):
+        db.migrate(conn)
+    # Not recorded: the next migrate rebuilds the layer and applies the grants again.
+    assert conn.execute("select sha256 from schema_views where name = 'dbt'").fetchone()[0] == "old"
+    monkeypatch.undo()
+    db.migrate(conn)
+    assert db.schema_problems(conn) == []

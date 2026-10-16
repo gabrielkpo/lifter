@@ -40,8 +40,14 @@ RECOVERY_COLUMNS = (
 
 
 def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
-    with connect(settings.database_url) as conn:
-        applied = migrate(conn)
+    from lifter.transform import TransformError
+
+    try:
+        with connect(settings.database_url) as conn:
+            applied = migrate(conn)
+    except TransformError as exc:
+        print(printable(f"migration failed: {exc}"))
+        return 1
     print("applied: " + (", ".join(applied) if applied else "nothing, schema up to date"))
     return 0
 

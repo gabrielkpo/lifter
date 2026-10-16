@@ -99,7 +99,12 @@ class OperationSchemaArgs(BaseModel):
 
 
 class ReadRowsArgs(BaseModel):
-    table: str = Field(description="A table the operations write (see the operation list)")
+    table: str = Field(
+        description="One of: "
+        + ", ".join(sorted(readable_tables()))
+        + " (a planned session is in planned_session, its parts in session_part, its lines in"
+        " session_exercise)"
+    )
     column: str | None = Field(
         default=None, description="Filter on this column (equality); none for the latest rows"
     )

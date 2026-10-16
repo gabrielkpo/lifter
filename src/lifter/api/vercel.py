@@ -1,4 +1,4 @@
-"""Entry point of the API on Vercel (pyproject.toml, [tool.vercel] entrypoint)."""
+"""The API app on Vercel, imported by the deployment's entry point (api/index.py)."""
 
 from lifter.api.hosted import create_app_from_env
 

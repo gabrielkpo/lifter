@@ -1,8 +1,9 @@
 """The API configured from the environment, the same way locally and when hosted on Vercel.
 
 Locally (`lifter-api`), the API needs no token and allows the local app origins. Hosted
-(the `VERCEL` variable is set), it refuses to start without LIFTER_API_TOKEN, answers the
-deployment's own host names and allows no browser origin: only the app's server calls it.
+(the `VERCEL` variable is set), it refuses to start without LIFTER_API_TOKEN or DATABASE_URL,
+answers the deployment's own host names and allows no browser origin: only the app's server
+calls it.
 """
 
 import os
@@ -31,6 +32,8 @@ def create_app_from_env(env: Mapping[str, str] | None = None) -> FastAPI:
     token = env.get("LIFTER_API_TOKEN") or None
     if hosted and not token:
         raise RuntimeError("LIFTER_API_TOKEN is required when the API is hosted")
+    if hosted and not env.get("DATABASE_URL"):
+        raise RuntimeError("DATABASE_URL is required when the API is hosted")
     hosts = [env[name] for name in VERCEL_HOST_VARIABLES if env.get(name)]
     hosts += split(env.get("LIFTER_API_HOSTS"))
     origins = split(env.get("LIFTER_APP_ORIGINS", "" if hosted else LOCAL_ORIGINS))

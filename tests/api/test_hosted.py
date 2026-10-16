@@ -24,6 +24,11 @@ def test_hosted_api_refuses_to_start_without_a_token(database_url):
         create_app_from_env(hosted_env(database_url, LIFTER_API_TOKEN=""))
 
 
+def test_hosted_api_refuses_to_start_without_a_database_url(database_url):
+    with pytest.raises(RuntimeError, match="DATABASE_URL"):
+        create_app_from_env(hosted_env(database_url, DATABASE_URL=""))
+
+
 def test_hosted_api_needs_the_token_on_every_request(conn, database_url):
     api = TestClient(
         create_app_from_env(hosted_env(database_url)), base_url="https://lifter-api.vercel.app"

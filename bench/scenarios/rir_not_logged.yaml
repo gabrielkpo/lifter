@@ -1,0 +1,12 @@
+# Synthetic bench scenario: the expected outcome is written before any run (docs/bench.md).
+name: rir_not_logged
+category: review
+description: 'Week 2 logged without any RIR: the athlete skipped it. The plan still prescribes one.'
+target_week: 3
+setup:
+  rir_not_logged: [2]
+expect:
+- check: accepted
+- check: prescribed_rir
+review: Every strength and weightlifting line of week 3 has a target RIR, although last week's log
+  has none; the plan does not copy the missing RIR, and may say the RIR should be logged.

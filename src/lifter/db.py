@@ -101,6 +101,8 @@ def schema_problems(conn: psycopg.Connection) -> list[str]:
     problems = [
         f"migration {name} not applied" for name, _ in migration_files() if name not in applied
     ]
+    if conn.execute("select to_regnamespace('analytics')").fetchone()[0] is None:
+        problems.append("the analytics views are missing")
     hashes = dict(conn.execute("select name, sha256 from public.schema_views").fetchall())
     for name in (VIEWS_FILE, ROLES_FILE):
         sql = resources.files("lifter.sql").joinpath(name).read_text()

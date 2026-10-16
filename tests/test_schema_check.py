@@ -30,6 +30,13 @@ def test_the_sync_role_refuses_a_stale_schema_without_touching_it(conn, database
     assert row.fetchone() == ("changed",)  # nothing was applied
 
 
+def test_a_missing_analytics_schema_is_a_problem(conn):
+    conn.execute("drop schema analytics cascade")
+    assert "the analytics views are missing" in schema_problems(conn)
+    ensure_schema(conn)  # the owner rebuilds it
+    assert schema_problems(conn) == []
+
+
 def test_the_owner_migrates_on_the_way(conn):
     stale_views(conn)
     ensure_schema(conn)

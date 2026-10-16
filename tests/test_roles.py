@@ -154,3 +154,17 @@ def test_grants_survive_the_views_being_recreated(conn):
     migrate(conn)
     assert privileges(conn, "lifter_sync", "analytics.stg_activity") == {READ}
     assert privileges(conn, "lifter_api", "analytics.daily_metrics") == {READ}
+
+
+def test_login_roles_carry_their_guards(conn):
+    # SET ROLE does not apply per-role settings: check them where Postgres stores them.
+    settings = dict(
+        conn.execute(
+            "select rolname, rolconfig from pg_roles"
+            " where rolname in ('lifter_api', 'lifter_sync', 'lifter_agents')"
+        ).fetchall()
+    )
+    assert "default_transaction_read_only=on" in settings["lifter_api"]
+    assert "statement_timeout=10s" in settings["lifter_api"]
+    assert "statement_timeout=60s" in settings["lifter_sync"]
+    assert "statement_timeout=30s" in settings["lifter_agents"]

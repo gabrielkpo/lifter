@@ -271,3 +271,17 @@ def test_the_coach_runs_with_the_lifter_coach_role_only(conn, program, database_
     assert conn.execute(
         "select agent, trigger, status from agent_run where id = %s", (reply.run_id,)
     ).fetchone() == ("coach", "app", "accepted")
+
+
+def test_only_the_athletes_latest_message_can_be_answered(conn, program):
+    from lifter.agents.coach import StaleMessage
+
+    first = say(conn, "Décale la séance jambes au 2026-03-06")
+    say(conn, "En fait non, ne change rien")
+    other = say(conn, "Salut", conversation="c2")
+    model = ScriptedChat(AIMessage("..."))
+    for message, conversation in ((first, "c1"), (other, "c1"), (99999, "c1")):
+        with pytest.raises(StaleMessage):
+            respond(conn, model, conversation_id=conversation, message_id=message, today=TODAY)
+    assert model.seen == []  # the model never ran
+    assert conn.execute("select count(*) from agent_run").fetchone() == (0,)

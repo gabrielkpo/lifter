@@ -91,6 +91,10 @@ def mistral_model(api_key: str, model: str, max_output_tokens: int = 6000) -> Ch
     )
 
 
+class StaleMessage(ValueError):
+    """The message to answer is not the athlete's latest in its conversation: nothing ran."""
+
+
 @dataclass
 class CoachReply:
     text: str
@@ -161,7 +165,21 @@ def respond(
     token_budget: int | None = None,
     max_steps: int = MAX_STEPS,
 ) -> CoachReply:
-    """Answer the athlete's message `message_id`, already stored in `conversation_message`."""
+    """Answer the athlete's message `message_id`, already stored in `conversation_message`.
+
+    Refused (StaleMessage) unless that message is the latest athlete message of
+    `conversation_id`: every quote is checked against it, so an older message, or one from
+    another conversation, must never justify a change."""
+    latest = conn.execute(
+        "select max(id) from public.conversation_message"
+        " where conversation_id = %s and role = 'athlete'",
+        (conversation_id,),
+    ).fetchone()[0]
+    if latest is None or latest != message_id:
+        raise StaleMessage(
+            f"message {message_id} is not the athlete's latest in conversation"
+            f" {conversation_id!r} (latest: {latest})"
+        )
     today = today or date.today()
     register_rule_check()
     started_at = datetime.now(UTC)

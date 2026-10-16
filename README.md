@@ -149,8 +149,8 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 - **Sent to a third party**: calls to the athlete's own MCP server, never exposed without
   authentication, and the agents' context to Mistral: the structured log, indicators and the
   programme's text (titles, intents, rules, goals, pain locations); no notes, deviations or
-  reviews by default,
-  never raw series nor activity names. See [docs/agents.md](docs/agents.md#what-is-sent-to-mistral).
+  reviews by default, never raw series nor activity names. See
+  [docs/agents.md](docs/agents.md#what-is-sent-to-mistral).
 - **Two instances**: the personal one; a public demo on synthetic athletes only.
 - **No medical advice**: unusual signals raise `critical` alerts that block intense plans and
   point to a health professional.

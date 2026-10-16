@@ -49,7 +49,14 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   the 21 scenarios: 71 % accepted, **66 % of expectations met**
   (`bench/results/copy-baseline.json`); it fails the deload, the return after it, the stop rule,
   low recovery, critical alerts and duplicates the drafts.
-- **Single agent** (`--planner mistral`): the week planner of step 3.
+- **Single agent** (`--planner mistral`): the week planner of step 3. First pass, one run per
+  scenario, `mistral-small-latest` (`bench/results/single-agent-mistral-small.json`): **81 %
+  accepted, 74 % of expectations met**, 45 first-plan violations, 4 answers that did not parse,
+  no unsourced number, about 360,000 tokens for the 21 scenarios. Above the floor, but not
+  stable yet: rerun alone, two of the four refused scenarios passed. Where it fails: keeping a
+  metcon or hard sets under a critical alert, raising loads by more than one step in the power
+  week, and forbidden exercises (back squat, box jump) that the guardrail refuses each time.
+  The measure that decides is `--runs 3`.
 - **Agent team** (step 7): kept only if it has **no constraint violation**, cites numbers **at
   least as accurately** as the single agent, and costs **at most 2×** its tokens; otherwise the
   README reports the negative result.

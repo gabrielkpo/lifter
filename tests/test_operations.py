@@ -7,11 +7,11 @@ from pathlib import Path
 
 import psycopg
 import pytest
-from lifter.quote import QuoteError
 
 from lifter import operations
 from lifter.operations import CATALOGUE, OperationError, RuleViolation, StaleRow, run, suggest
 from lifter.program import load_program, read_program
+from lifter.quote import QuoteError
 from test_roles import as_role
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -557,3 +557,23 @@ def test_a_record_needs_its_definition(conn, program):
             {"record": "Murph", "day": str(date(2026, 3, 1)), "value": 3000},
             "Murph en 50 minutes",
         )
+
+
+def test_the_real_guardrail_refuses_a_forbidden_movement(conn, program):
+    from lifter.agents.week_check import introduced, violations_for_week
+
+    operations.set_programme_check(violations_for_week, introduced)
+    part_id, part_version = conn.execute(
+        "select p.id, p.version from session_part p join planned_session s on s.id = p.session_id"
+        " where s.week_id is not null and p.kind = 'metcon' order by p.id limit 1"
+    ).fetchone()
+    with pytest.raises(RuleViolation):
+        do(
+            conn,
+            "add_line",
+            {"part_id": part_id, "exercise": "Run", "quantity": 400, "unit": "m"},
+            "ajoute 400 m de course dans le metcon",
+        )
+    assert conn.execute(
+        "select version from session_part where id = %s", (part_id,)
+    ).fetchone() == (part_version,)

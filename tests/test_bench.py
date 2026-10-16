@@ -245,20 +245,23 @@ def test_a_budget_stop_is_not_a_rule_violation(conn, scenarios):
 
 
 def test_reset_refuses_a_database_that_is_not_a_bench_or_test_one(database_url):
+    import uuid
+
     import psycopg
 
     from lifter.bench.runner import NotABenchDatabase
 
+    name = f"lifter_real_{uuid.uuid4().hex[:8]}"
     admin = psycopg.connect(database_url, autocommit=True)
-    admin.execute('create database "lifter_real_copy"')
+    admin.execute(f'create database "{name}"')
     try:
-        url = psycopg.conninfo.make_conninfo(database_url, dbname="lifter_real_copy")
+        url = psycopg.conninfo.make_conninfo(database_url, dbname=name)
         with psycopg.connect(url) as other:
             other.execute("create table keep_me (id int)")
             other.execute("insert into keep_me values (1)")
-            with pytest.raises(NotABenchDatabase, match="lifter_real_copy"):
+            with pytest.raises(NotABenchDatabase, match=name):
                 reset(other)
             assert other.execute("select count(*) from keep_me").fetchone() == (1,)
     finally:
-        admin.execute('drop database "lifter_real_copy" with (force)')
+        admin.execute(f'drop database "{name}" with (force)')
         admin.close()

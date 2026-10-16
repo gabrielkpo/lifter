@@ -78,7 +78,7 @@ def user_message(ctx: PlanningContext, feedback: list[str]) -> str:
 class MistralPlanner:
     """WeekPlan from a Mistral chat model, through LangChain's structured output."""
 
-    api_key: str
+    api_key: str = field(repr=False)  # never in a repr, a traceback's locals or a log line
     model: str
     language: str = "English"
     temperature: float = 0.2

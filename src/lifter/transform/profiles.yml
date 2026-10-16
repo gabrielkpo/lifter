@@ -8,7 +8,7 @@ lifter:
       host: "{{ env_var('LIFTER_DBT_HOST') }}"
       port: "{{ env_var('LIFTER_DBT_PORT') | as_number }}"
       user: "{{ env_var('LIFTER_DBT_USER') }}"
-      password: "{{ env_var('LIFTER_DBT_PASSWORD', '') }}"
+      password: "{{ env_var('DBT_ENV_SECRET_LIFTER_PASSWORD', '') }}"
       dbname: "{{ env_var('LIFTER_DBT_DBNAME') }}"
       schema: "{{ env_var('LIFTER_DBT_SCHEMA') }}"
       sslmode: "{{ env_var('LIFTER_DBT_SSLMODE', 'prefer') }}"

@@ -460,6 +460,39 @@ def test_the_cap_covers_the_whole_pattern_of_the_painful_session(conn, program):
     assert stop_rule_messages(plan, ctx) == []
 
 
+def test_a_light_pain_free_session_on_the_pattern_keeps_the_painful_exercise_capped(ctx):
+    from lifter.agents.context import Feedback, LineInfo
+
+    def fb(day, pain, exercise, load):
+        line = LineInfo(
+            exercise=exercise,
+            sets=3,
+            quantity=12,
+            unit="reps",
+            load_kg=load,
+            load_kg_max=None,
+            rir=3,
+        )
+        return Feedback(
+            day=day,
+            kind="session",
+            session_id=None,
+            session_title="Legs",
+            lines=[line],
+            rpe=None,
+            fatigue=None,
+            pain=pain,
+            pain_location="knee",
+        )
+
+    feedback = [fb(date(2026, 3, 6), 5, "Leg press", 105), fb(date(2026, 3, 7), 0, "Leg curl", 20)]
+    ctx = ctx.model_copy(update={"feedback": feedback, "rules": [*ctx.rules, STOP]})
+    plan = good_plan()
+    plan.sessions[1].parts[0].lines[0].load_kg = 110
+    (message,) = stop_rule_messages(plan, ctx)
+    assert "'Leg press' at 110 kg" in message and "at most 95 kg" in message
+
+
 def test_another_pattern_is_not_capped(conn, program):
     ctx = report_pain(conn, pain=5)
     plan = good_plan()

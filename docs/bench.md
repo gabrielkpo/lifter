@@ -54,10 +54,12 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   **82.5 % accepted, 79 % of expectations met**, 69 first-plan violations over 63 runs, 6
   answers that did not parse, 11 unsourced numbers (8 in a single refused run), about 1.05
   million tokens for the 63 runs. Above the floor on both measures; the stop rule (`knee_pain`
-  3/3, all expectations), the volume weeks and the skipped sessions are solid. Still weak: the
-  power week (0/3 accepted: low reps not kept, several load steps at once), a load kept after a
-  missed RIR (`bench_rir_missed`, 0/3), the intensification and test weeks (low reps, the AMRAP
-  benchmark), and the light first days after low recovery or short sleep (3/6).
+  3/3, all expectations), the skipped sessions and the volume peak (2/3 fully met) are solid.
+  Still weak: the power week (0/3 accepted, reps above 5 in one run, two answers that did not
+  parse), a load kept after a missed RIR (`bench_rir_missed`, 0/3), the deload week (accepted
+  3/3 but never fully met: volume against the previous week, metcon count), the
+  intensification and test weeks (low reps, the AMRAP benchmark), and the light first days
+  after low recovery or short sleep (3/6).
 - **The two review touch-ups** (the load step read from the progression rule's params, light
   first days on alerts that are not critical) against the run before them (ffde33e, same 63
   runs): the same 82.5 % accepted and 79 % of expectations, but **first-plan violations down

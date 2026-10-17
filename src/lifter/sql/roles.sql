@@ -7,7 +7,9 @@
 -- set outside the repository (Vercel and the Mac's environment). Matrix tested in
 -- tests/test_roles.py; any change here changes that test.
 --
---   lifter_read     read everything the app and the agents read (public, analytics)
+--   lifter_read     read everything the app and the agents read (public, analytics), except
+--                   the agents' audit, the conversation and the change log
+--   lifter_private  read those three as well: the backup only (pg_dump needs every table)
 --   lifter_ingest   the Garmin sync: write the raw layer only
 --   lifter_propose  the agents: record proposals and their runs, never decide nor apply
 --   lifter_write    the coach's write path (lifter.operations): the domain tables, the trace,
@@ -17,7 +19,7 @@
 --   lifter_api      = lifter_read, read-only transactions
 --   lifter_sync     = lifter_ingest
 --   lifter_agents   = lifter_read + lifter_propose
---   lifter_backup   = lifter_read (pg_dump of the hosted database, read-only transactions)
+--   lifter_backup   = lifter_read + lifter_private (pg_dump of the hosted database, read-only)
 --   lifter_coach    = lifter_read + lifter_propose + lifter_write (the hosted coach)
 --   lifter_chat     = lifter_read + lifter_converse (the conversation endpoint)
 
@@ -26,7 +28,8 @@ declare
     name text;
 begin
     foreach name in array array[
-        'lifter_read', 'lifter_ingest', 'lifter_propose', 'lifter_write', 'lifter_converse'
+        'lifter_read', 'lifter_private', 'lifter_ingest', 'lifter_propose', 'lifter_write',
+        'lifter_converse'
     ] loop
         if not exists (select from pg_roles where rolname = name) then
             execute format('create role %I nologin', name);
@@ -42,8 +45,8 @@ begin
     -- Nobody connects or creates objects by default: only the owner and the roles below.
     execute format('revoke all on database %I from public', current_database());
     execute format(
-        'grant connect on database %I to lifter_read, lifter_ingest, lifter_propose,'
-        ' lifter_write, lifter_converse',
+        'grant connect on database %I to lifter_read, lifter_private, lifter_ingest,'
+        ' lifter_propose, lifter_write, lifter_converse',
         current_database()
     );
 end
@@ -69,6 +72,15 @@ grant select on all sequences in schema public to lifter_read;
 alter default privileges grant select on tables to lifter_read;
 alter default privileges grant select on sequences to lifter_read;
 alter default privileges grant usage on schemas to lifter_read;
+-- Except what the models saw and said (agent_run, agent_step: context, plans, the guardrail's
+-- messages), the athlete's words (conversation_message) and every change with its rows before
+-- and after (change_log): health details in all four (ADR 0002, audit N5). The API reads none
+-- of them; each goes by name below to the roles that write or need it.
+revoke select on agent_run, agent_step, conversation_message, change_log from lifter_read;
+
+-- lifter_private: the backup dumps every table, these included.
+grant usage on schema public to lifter_private;
+grant select on agent_run, agent_step, conversation_message, change_log to lifter_private;
 
 -- lifter_ingest: what lifter.sync reads and writes, nothing else. The staging views run with
 -- their owner's rights, so reading them does not open the tables behind them.
@@ -86,6 +98,8 @@ grant select on schema_migrations, schema_views to lifter_ingest;
 -- lifter_propose: append proposals and the audit of the runs that made them.
 grant usage on schema public to lifter_propose;
 grant insert on proposal, agent_run, agent_step to lifter_propose;
+-- Their own runs: `insert ... returning id`, `lifter runs` and the bench read them back.
+grant select on agent_run, agent_step to lifter_propose;
 grant usage on sequence proposal_id_seq, agent_run_id_seq, agent_step_id_seq to lifter_propose;
 
 -- lifter_write: what lifter.operations writes, nothing else: the domain tables (insert, update,
@@ -105,12 +119,13 @@ grant select on change_log, proposal to lifter_write;
 grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by)
     on proposal to lifter_write;
 grant usage on sequence change_log_id_seq, proposal_id_seq to lifter_write;
-grant insert on conversation_message to lifter_write;
+-- The conversation it answers (history, the latest athlete message for operations.run).
+grant select, insert on conversation_message to lifter_write;
 grant usage on sequence conversation_message_id_seq to lifter_write;
 
 -- lifter_converse: the athlete's messages, stored before the model runs (row-level policy).
 grant usage on schema public to lifter_converse;
-grant insert on conversation_message to lifter_converse;
+grant select, insert on conversation_message to lifter_converse;
 grant usage on sequence conversation_message_id_seq to lifter_converse;
 
 -- Who may write which messages: the athlete's words come from the conversation endpoint only,
@@ -119,7 +134,8 @@ alter table conversation_message enable row level security;
 drop policy if exists read_messages on conversation_message;
 drop policy if exists coach_messages on conversation_message;
 drop policy if exists athlete_messages on conversation_message;
-create policy read_messages on conversation_message for select to lifter_read using (true);
+create policy read_messages on conversation_message for select
+    to lifter_write, lifter_converse, lifter_private using (true);
 create policy coach_messages on conversation_message for insert to lifter_write
     with check (role = 'coach');
 create policy athlete_messages on conversation_message for insert to lifter_converse
@@ -129,7 +145,7 @@ create policy athlete_messages on conversation_message for insert to lifter_conv
 grant lifter_read to lifter_api;
 grant lifter_ingest to lifter_sync;
 grant lifter_read, lifter_propose to lifter_agents;
-grant lifter_read to lifter_backup;
+grant lifter_read, lifter_private to lifter_backup;
 grant lifter_read, lifter_propose, lifter_write to lifter_coach;
 grant lifter_read, lifter_converse to lifter_chat;
 alter role lifter_api set default_transaction_read_only = on;

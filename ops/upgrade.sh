@@ -20,6 +20,6 @@ fi
 uv tool install --force "git+$REPO@$version"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-git clone --quiet --depth 1 --branch "$version" "$REPO" "$work/lifter"
+git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$version" "$REPO" "$work/lifter"
 bash "$work/lifter/ops/install.sh"
 echo "this Mac runs $version"

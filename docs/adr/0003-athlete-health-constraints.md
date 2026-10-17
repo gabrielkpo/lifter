@@ -58,9 +58,10 @@ before adding one.
 
 Demands describe the exercise, so the bank's description is shared. Anything the coach writes
 from one athlete's conversation, a new description or a correction ("the RDL hardly bends my
-knee"), is stored **for that athlete only**, as an override of the shared level; the shared description changes only through the bank's maintainer (the
-owner today), never from another athlete's conversation. One athlete's words, or text planted
-in their data, can never loosen another athlete's protection.
+knee"), is stored **for that athlete only**, as an override of the shared level; the shared
+description changes only through the bank's maintainer (the owner today), never from another
+athlete's conversation. One athlete's words, or text planted in their data, can never loosen
+another athlete's protection.
 
 The athlete-specific flags (`free_barbell_legs`) disappear: what they stood for becomes a
 constraint (Decision 2). Generic facts (`running`, `impact`) become demands.
@@ -131,7 +132,10 @@ suggestion never breaks one.
   the guardrail, the planner context and prompt, the coach prompt and snapshot, bench scenarios
   (a physio's instruction, a pain, a correction, an issue resolved, two athletes with different
   limits on the same bank).
-- **Owner**: tells the coach about his own body, as any athlete would; nothing to fill in by hand.
+- **Owner**: tells the coach about his own body, as any athlete would. As the bank's maintainer
+  today, he also decides when an athlete's description of an exercise becomes the shared one
+  (the coach can propose it, the profile page shows the differences); nothing else is filled in
+  by hand.
 
 ## Open question for the owner
 

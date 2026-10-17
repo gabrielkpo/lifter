@@ -50,14 +50,20 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   (`bench/results/copy-baseline.json`); it fails the deload, the return after it, the stop rule,
   low recovery, critical alerts and duplicates the drafts.
 - **Single agent** (`--planner mistral`): the week planner of step 3, `mistral-small-latest`,
-  3 runs per scenario (`bench/results/single-agent-mistral-small.json`): **82.5 % accepted,
-  79 % of expectations met**, 129 first-plan violations over 63 runs, 6 answers that did not
-  parse, 1 unsourced number, about 1.14 million tokens for the 63 runs. Above the floor on
-  both measures; the stop rule (`knee_pain` 3/3, all expectations) and the volume weeks are
-  solid. Still weak: the light first days after low recovery or short sleep (0/6), the
-  intensification and test weeks (low reps, the AMRAP benchmark, the bench single), a load
-  kept after a missed RIR (`bench_rir_missed`), and load jumps of several steps on the first
-  answer of the power week, which the guardrail sends back each time.
+  3 runs per scenario (`bench/results/single-agent-mistral-small.json`, measured on 27065d1):
+  **82.5 % accepted, 79 % of expectations met**, 69 first-plan violations over 63 runs, 6
+  answers that did not parse, 11 unsourced numbers (8 in a single refused run), about 1.05
+  million tokens for the 63 runs. Above the floor on both measures; the stop rule (`knee_pain`
+  3/3, all expectations), the volume weeks and the skipped sessions are solid. Still weak: the
+  power week (0/3 accepted: low reps not kept, several load steps at once), a load kept after a
+  missed RIR (`bench_rir_missed`, 0/3), the intensification and test weeks (low reps, the AMRAP
+  benchmark), and the light first days after low recovery or short sleep (3/6).
+- **The two review touch-ups** (the load step read from the progression rule's params, light
+  first days on alerts that are not critical) against the run before them (ffde33e, same 63
+  runs): the same 82.5 % accepted and 79 % of expectations, but **first-plan violations down
+  from 129 to 69** and the light first days from 0/6 to 3/6. The power week went from 2/3
+  accepted to 0/3 and unsourced numbers from 1 to 11; with 3 runs per scenario, part of that is
+  the model's spread.
 - **Agent team** (step 7): kept only if it has **no constraint violation**, cites numbers **at
   least as accurately** as the single agent, and costs **at most 2×** its tokens; otherwise the
   README reports the negative result.

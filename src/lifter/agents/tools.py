@@ -204,7 +204,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         ctx.changes.append(result)
         return _json(result)
 
-    def _attempt(call) -> str:
+    def _attempt(call, operation: str | None = None) -> str:
         try:
             return call()
         except operations.RuleViolation as exc:
@@ -222,7 +222,12 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                 f"{'.'.join(str(p) for p in e['loc']) or 'payload'}: {e['msg']}"
                 for e in exc.errors()
             )
-            return _refused(f"invalid payload: {problems}")
+            refusal = {"ok": False, "error": f"invalid payload: {problems}"}
+            op = operations.CATALOGUE.get(operation or "")
+            if op is not None:
+                # The schema with the refusal: the next try is a fix, not another guess
+                refusal["payload_schema"] = op.payload.model_json_schema()
+            return _json(refusal)
         except DomainError as exc:  # OperationError, StaleRow: refused, nothing written
             return _refused(str(exc))
 
@@ -244,7 +249,8 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                     author=AUTHOR,
                     rationale=rationale,
                 ),
-            )
+            ),
+            operation,
         )
 
     def suggest_change(operation: str, payload: dict[str, Any], rationale: str) -> str:
@@ -255,7 +261,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             ctx.suggestions.append(suggestion)
             return _json({"ok": True, "suggestion_id": suggestion})
 
-        return _attempt(call)
+        return _attempt(call, operation)
 
     def accept_suggestion(suggestion_id: int, quote: str) -> str:
         # The athlete can only choose a suggestion shown before their message: one made during

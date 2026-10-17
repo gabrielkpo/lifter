@@ -111,7 +111,8 @@ the guardrail on the weeks it touches; the change is traced and can be undone. W
 never supplies: the message the quote is checked against, the idempotency key
 (`message:<id>:write:<n>`, from the order of the write calls) and the author. A refused call
 returns its reason to the model (quote, payload, stale row, rule violated), which explains it to
-the athlete; nothing is written.
+the athlete; nothing is written. An invalid payload comes back with the operation's payload
+schema, so the model's next try is a fix rather than another guess.
 
 ## The coach in conversation (ADR 0002)
 
@@ -130,7 +131,8 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
   `operations.run` (ADR 0002, N1).
 - **What the coach sees**: a snapshot built by code: today and its weekday; this week's and next
   week's sessions with their week number, ids and versions, their parts with ids, and whether
-  they are upcoming (today or later, not done nor cancelled); the exercise bank's names; health
+  they are upcoming (today or later, not done nor cancelled); the exercise bank's names, the
+  exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
   issues not resolved; pending suggestions; the last five changes applied in this conversation
   with their change ids and whether undo can still take them (not undone, not an undo). Then
   the last 20 messages of the conversation, and the tools above. The prompt carries the behaviour of ADR 0002

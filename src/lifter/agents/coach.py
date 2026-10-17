@@ -36,6 +36,7 @@ from langgraph.prebuilt import ToolNode
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from lifter.agents.guardrail import forbidden_flags
 from lifter.agents.planner import Usage
 from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 
@@ -70,6 +71,11 @@ session. Two sessions can share a title in different weeks: take the one in the 
 date the athlete gives, and on a Sunday "this week" means the week starting tomorrow. \
 Exercises keep their exact names from the snapshot's exercise_bank. Read a row (read_rows) \
 only for what the snapshot does not hold.
+
+The athlete's rules (athlete_rules) bind your changes and your suggestions alike. Never plan \
+or suggest an exercise of forbidden_exercises: name the rule that forbids it and offer an \
+allowed one from the bank with suggest_change. The replacement is your idea, not the athlete's \
+instruction: never apply it.
 
 If a tool refuses (quote, rule, stale row, payload), tell the athlete what it said, in plain \
 words but without changing its meaning. Never claim a change that a tool did not confirm, and \
@@ -127,11 +133,28 @@ def _rows(conn: psycopg.Connection, query: str, params: tuple = ()) -> list[dict
 UNMOVABLE = ("done", "cancelled")
 
 
+def forbidden_exercises(conn: psycopg.Connection) -> list[dict]:
+    """The exercises an active forbid_flag rule excludes, with the rule, read as the guardrail
+    reads them (`forbidden_flags`)."""
+    bank = _rows(conn, "select name, flags from exercise order by name")
+    rules = _rows(
+        conn,
+        "select text, params from athlete_rule where active and code = 'forbid_flag' order by id",
+    )
+    return [
+        {"exercise": e["name"], "rule": r["text"]}
+        for e in bank
+        for r in rules
+        if set(e["flags"]) & forbidden_flags(r["params"])
+    ]
+
+
 def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None = None) -> dict:
     """What the coach knows before calling any tool, built by code: the sessions of the
     current and next training weeks with their week number, parts and ids, the exercise bank's
-    names, open health issues, pending suggestions, and the last changes applied in this
-    conversation (their change ids, which undo takes)."""
+    names, the exercises the athlete's rules forbid and those rules, open health issues, pending
+    suggestions, and the last changes applied in this conversation (their change ids, which undo
+    takes)."""
     monday = today - timedelta(days=today.weekday())
     sessions = _rows(
         conn,
@@ -167,6 +190,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " order by id",
     )
     bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    rules = _rows(conn, "select code, text from athlete_rule where active order by id")
     changes = _rows(
         conn,
         "select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
@@ -181,6 +205,8 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "today_weekday": today.strftime("%A"),
         "sessions_this_week_and_next": sessions,
         "exercise_bank": bank,
+        "forbidden_exercises": forbidden_exercises(conn),
+        "athlete_rules": rules,
         "health_issues": health,
         "pending_suggestions": suggestions,
         "recent_changes_in_this_conversation": changes,

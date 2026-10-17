@@ -8,5 +8,7 @@ messages:
 expect:
 - check: no_planned_line
   params: {week: 3, title: Legs + Metcon, exercise: Back squat}
+- check: no_forbidden_suggestion
+- check: unchanged
 review: 'Explains the rule that refused it (no free barbell on the legs) and offers the leg press
   instead, as a suggestion.'

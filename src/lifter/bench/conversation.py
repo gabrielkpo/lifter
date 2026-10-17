@@ -9,6 +9,7 @@ The floor is a coach that never calls a tool (`SilentCoach`): it passes every "n
 expectation and fails every "it changed" one. A model is worth its tokens only above it.
 """
 
+import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import date
@@ -20,7 +21,7 @@ import yaml
 from langchain_core.messages import AIMessage
 from pydantic import Field, field_validator
 
-from lifter.agents.coach import respond
+from lifter.agents.coach import forbidden_exercises, respond
 from lifter.bench.athlete import base_program
 from lifter.bench.runner import reset
 from lifter.domain import StrictModel
@@ -129,6 +130,17 @@ def goals(conn, p) -> tuple[bool, str]:
     return n == p["count"], f"{n} goal(s)"
 
 
+def no_forbidden_suggestion(conn, p) -> tuple[bool, str]:
+    """No pending suggestion names an exercise that a forbid_flag rule excludes."""
+    forbidden = {f["exercise"] for f in forbidden_exercises(conn)}
+    payloads = [
+        json.dumps(r[0], ensure_ascii=False)
+        for r in conn.execute("select payload from proposal where status = 'pending'")
+    ]
+    hits = sorted({name for name in forbidden for text in payloads if f'"{name}"' in text})
+    return not hits, f"forbidden in suggestions: {', '.join(hits) or 'none'}"
+
+
 CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "session_day": session_day,
     "unchanged": unchanged,
@@ -137,6 +149,7 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "done_line": done_line,
     "no_planned_line": no_planned_line,
     "goals": goals,
+    "no_forbidden_suggestion": no_forbidden_suggestion,
 }
 
 

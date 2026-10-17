@@ -148,6 +148,17 @@ def test_an_invalid_payload_is_explained_to_the_model(conn, program):
     )
     assert not result["ok"] and "invalid payload" in result["error"]
     assert "new_day" in result["error"] and "day" in result["error"]
+    # the schema comes with the refusal, so the next try can be right
+    assert "new_day" in result["payload_schema"]["properties"]
+
+
+def test_an_invalid_suggestion_comes_back_with_its_schema(conn, program):
+    _, tools = tools_for(conn, "Tu changerais quoi ?")
+    result = call(
+        tools, "suggest_change", operation="update_session", payload={"day": "x"}, rationale="r"
+    )
+    assert not result["ok"] and "invalid payload" in result["error"]
+    assert "expected_version" in result["payload_schema"]["properties"]
 
 
 def test_a_suggestion_waits_for_the_athletes_choice(conn, program):

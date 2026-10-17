@@ -24,7 +24,11 @@ MATRIX = {
         "public.raw_garmin_payload": {READ},
         "public.planned_session": {READ},
         "public.proposal": {READ},
-        "public.agent_run": {READ},
+        # Not the agents' audit, the conversation nor the change log (audit N5).
+        "public.agent_run": set(),
+        "public.agent_step": set(),
+        "public.conversation_message": set(),
+        "public.change_log": set(),
         "analytics.daily_metrics": {READ},
         "analytics.week_summary": {READ},
     },
@@ -46,6 +50,10 @@ MATRIX = {
         "public.raw_garmin_payload": {READ},
         "public.planned_session": {READ},
         "public.schema_migrations": {READ},
+        "public.agent_run": {READ},
+        "public.agent_step": {READ},
+        "public.conversation_message": {READ},
+        "public.change_log": {READ},
         "analytics.daily_metrics": {READ},
     },
     "lifter_coach": {
@@ -58,6 +66,7 @@ MATRIX = {
         # Update on the status and trace columns only (column grants).
         "public.proposal": {READ, INSERT},
         "public.conversation_message": {READ, INSERT},
+        "public.agent_run": {READ, INSERT},
         "public.raw_garmin_payload": {READ},
         "public.sync_log": {READ},
         "public.schema_migrations": {READ},
@@ -66,6 +75,8 @@ MATRIX = {
     "lifter_chat": {
         "public.conversation_message": {READ, INSERT},
         "public.proposal": {READ},
+        "public.agent_run": set(),
+        "public.change_log": set(),
         "public.planned_session": {READ},
         "analytics.daily_metrics": {READ},
     },
@@ -73,6 +84,8 @@ MATRIX = {
         "public.proposal": {READ, INSERT},
         "public.agent_run": {READ, INSERT},
         "public.agent_step": {READ, INSERT},
+        "public.conversation_message": set(),
+        "public.change_log": set(),
         "public.planned_session": {READ},
         "public.goal": {READ},
         "public.raw_garmin_payload": {READ},
@@ -221,6 +234,26 @@ def test_lifter_backup_can_read_every_sequence(conn):
         " and not has_sequence_privilege('lifter_backup', 'public.' || sequence_name, 'SELECT')"
     ).fetchall()
     assert missing == []
+
+
+def test_the_athletes_words_reach_only_the_roles_that_need_them(conn, database_url):
+    # Audit N5: the API does not read the conversation, the audit nor the change log; the
+    # endpoint and the coach read the conversation, and the backup reads every row of it.
+    with as_role(database_url, "lifter_chat") as chat:
+        said = chat.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values ('c', 'athlete', 'genou douloureux') returning id"
+        ).fetchone()[0]
+    for role in ("lifter_coach", "lifter_backup"):
+        with as_role(database_url, role) as reader:
+            row = reader.execute(
+                "select text from conversation_message where id = %s", (said,)
+            ).fetchone()
+            assert row == ("genou douloureux",), role
+    with as_role(database_url, "lifter_api") as api:
+        for table in ("conversation_message", "agent_run", "agent_step", "change_log"):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                api.execute(f"select count(*) from {table}")
 
 
 def test_the_backup_dumps_tables_under_row_level_security(conn):

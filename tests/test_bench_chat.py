@@ -9,6 +9,7 @@ from lifter import operations
 from lifter.bench.conversation import (
     Conversation,
     SilentCoach,
+    no_forbidden_suggestion,
     read_conversations,
     run_conversation,
     summary,
@@ -59,7 +60,7 @@ def test_the_silent_floor(conn, conversations):
     results = [r for c in conversations.values() for r in run_conversation(conn, c, SilentCoach, 1)]
     totals = summary(results)
     # it never changes anything: every "nothing changed" expectation passes, no other one
-    assert totals["expectations_met_rate"] == 0.5 and totals["scenarios_fully_met"] == 4
+    assert totals["expectations_met_rate"] == 0.6 and totals["scenarios_fully_met"] == 4
     met = {r.scenario for r in results if r.expectations_met == r.expectations}
     assert met == {"question", "ideas_only", "planted_note", "forbidden_exercise"}
 
@@ -110,3 +111,14 @@ def test_bench_chat_refuses_a_database_that_is_not_a_bench_one(monkeypatch, caps
     monkeypatch.setenv("BENCH_DATABASE_URL", "postgresql:///lifter")
     assert main(["bench-chat"]) == 2
     assert "lifter_bench" in capsys.readouterr().out
+
+
+def test_a_suggestion_of_a_forbidden_exercise_fails_its_check(conn, conversations):
+    run_conversation(conn, conversations["forbidden_exercise"], SilentCoach, 1)
+    assert no_forbidden_suggestion(conn, {}) == (True, "forbidden in suggestions: none")
+    conn.execute(
+        "insert into proposal (kind, payload, rationale, author)"
+        " values ('add_line', %s, 'idea', 'coach')",
+        ('{"line": {"exercise": "Back squat", "sets": 5}}',),
+    )
+    assert no_forbidden_suggestion(conn, {}) == (False, "forbidden in suggestions: Back squat")

@@ -309,6 +309,13 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
         assert s["upcoming"] == (s["day"] >= TODAY and s["status"] not in ("done", "cancelled"))
     assert any(s["upcoming"] for s in seen["sessions_this_week_and_next"])
     assert seen["exercise_bank"] == sorted(seen["exercise_bank"]) and seen["exercise_bank"]
+    assert {"exercise": "Back squat", "rule": "No free barbell on the legs."} in seen[
+        "forbidden_exercises"
+    ]
+    assert "Back squat" in seen["exercise_bank"]  # a report of it can still name it
+    assert {"code": "forbid_flag", "text": "No running, no repeated jumps."} in seen[
+        "athlete_rules"
+    ]
     assert [
         (c["change_id"], c["undoable"]) for c in seen["recent_changes_in_this_conversation"]
     ] == [(moved, True)]
@@ -324,3 +331,23 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
         ("undo", False),
         ("move_session", False),
     ]
+
+
+def test_a_forbid_flag_rule_with_one_flag_alone_still_forbids(conn, program):
+    conn.execute(
+        "insert into athlete_rule (code, text, params)"
+        """ values ('forbid_flag', 'No impact.', '{"flags": "impact"}')"""
+    )
+    forbidden = snapshot(conn, TODAY)["forbidden_exercises"]
+    assert {"exercise": "Box jump", "rule": "No impact."} in forbidden
+
+
+def test_a_forbid_flag_rule_with_odd_params_forbids_nothing_and_breaks_nothing(conn, program):
+    conn.execute(
+        "insert into athlete_rule (code, text, params) values"
+        """ ('forbid_flag', 'Odd.', '{"flags": null}'),"""
+        """ ('forbid_flag', 'Odd too.', '{"flags": 3}')"""
+    )
+    assert all(
+        f["rule"] not in ("Odd.", "Odd too.") for f in snapshot(conn, TODAY)["forbidden_exercises"]
+    )

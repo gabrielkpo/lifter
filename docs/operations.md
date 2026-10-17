@@ -71,6 +71,16 @@ never sync it to a cloud drive. A dump keeps the database as it was that day, so
 audit context purged at 90 days (see the sync job) lives on in the dumps for up to
 `LIFTER_BACKUP_KEEP_DAYS` more days.
 
+## Retention
+
+What the athlete said and what changed are kept without limit (owner's decision of 17/10,
+audit N11): the conversation (`conversation_message`), the quotes and rationales of the
+proposals, the change log with its rows before and after (`change_log`), and the health issues
+with the words that reported them. They are the history the coach and the athlete read back, and
+`undo` needs the change log. Only the agents' audit is purged: the context, plans and messages
+of a run go after 90 days, its metrics stay (see the sync job). None of these is readable by the
+API's role (`roles.sql`).
+
 ## Releases and deployment
 
 Production changes with versions, not with merges. Merges to `main` pile up in

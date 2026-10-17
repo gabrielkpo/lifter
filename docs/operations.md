@@ -24,7 +24,7 @@ server or the database is unreachable or refused the connection.
 
 **Failures.** Every failure raises a macOS notification. macOS only shows it when notifications
 are allowed for Script Editor (`osascript`) and no Focus mode hides them, so a failing sync can
-go unseen: the app also shows a banner on every page when the Garmin data is more than 36 hours
+go unseen: the app also shows a banner on every page when the last Garmin sync is more than 36 hours
 old, and `lifter data-test --freshness` fails past 72 hours.
 
 ## Set up
@@ -65,9 +65,10 @@ Environment variables of the jobs; any of them can go in the optional
 One dump per day, verified with `pg_restore --list`, kept `LIFTER_BACKUP_KEEP_DAYS` days, in a
 folder only this user can read; a dump left half-written by an interrupted run is deleted at the
 next run. **The dumps are not encrypted themselves**: they hold the whole database, health data
-included, and rely on FileVault. A copy that leaves the disk is a plain copy: exclude the folder
-from Time Machine (`tmutil addexclusion` on it) unless the Time Machine disk is encrypted, and
-never sync it to a cloud drive. A dump keeps the database as it was that day, so the agents'
+included, and rely on FileVault. A copy that leaves the disk is a plain copy: `ops/install.sh`
+excludes the folder from Time Machine (`tmutil addexclusion`, sticky), and it must never be
+synced to a cloud drive. `pg_dump` gets the password through its environment, not its command
+line, which any process can read. A dump keeps the database as it was that day, so the agents'
 audit context purged at 90 days (see the sync job) lives on in the dumps for up to
 `LIFTER_BACKUP_KEEP_DAYS` more days.
 
@@ -117,7 +118,7 @@ on Vercel. Until the database and the Mac's `lifter` command match, the sync sto
 `lifter data-test` runs the dbt data tests of the analytics layer (uniqueness, accepted values,
 relationships, Lifter's own rules) against a database, read-only (the build hooks are skipped and the connection's options, a
 read-only transaction included, reach dbt's own connection); `--freshness` also checks
-that Garmin data arrived in the last 36 hours (warning) or 72 hours (error). Contracts are
+that a Garmin sync stored or confirmed data in the last 36 hours (warning) or 72 hours (error). Contracts are
 checked when the layer is built.
 
 ## Restore

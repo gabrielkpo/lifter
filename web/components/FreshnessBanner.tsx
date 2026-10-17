@@ -26,7 +26,7 @@ export default function FreshnessBanner() {
   const age = hours < 48 ? `${Math.round(hours)} h` : `${Math.round(hours / 24)} days`;
   return (
     <p className="banner" role="status">
-      Garmin data is {age} old: the sync on the Mac may have stopped.
+      No Garmin sync for {age}: the sync on the Mac may have stopped.
     </p>
   );
 }

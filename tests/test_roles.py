@@ -256,6 +256,33 @@ def test_the_athletes_words_reach_only_the_roles_that_need_them(conn, database_u
                 api.execute(f"select count(*) from {table}")
 
 
+def test_the_coach_writes_every_table_of_the_catalogue_and_no_other(conn):
+    from lifter.operations import CATALOGUE
+
+    writable = {t for op in CATALOGUE.values() for t in op.writes}
+    for table in sorted(writable):
+        assert privileges(conn, "lifter_coach", f"public.{table}") == {
+            READ,
+            INSERT,
+            UPDATE,
+            DELETE,
+        }, table
+    for table in ("raw_garmin_payload", "sync_log", "agent_run", "change_log", "proposal"):
+        assert not privileges(conn, "lifter_coach", f"public.{table}") & {UPDATE, DELETE}, table
+
+
+def test_the_backup_sees_every_row_of_the_conversation(conn, database_url):
+    # pg_dump --enable-row-security leaves out, silently, the rows a policy hides: the backup's
+    # role must see as many rows as the owner.
+    conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c', 'athlete', 'a'), ('c', 'coach', 'b')"
+    )
+    owner = conn.execute("select count(*) from conversation_message").fetchone()
+    with as_role(database_url, "lifter_backup") as backup:
+        assert backup.execute("select count(*) from conversation_message").fetchone() == owner
+
+
 def test_the_backup_dumps_tables_under_row_level_security(conn):
     # pg_dump turns row security off by default and then refuses, for a role that does not own
     # them, the tables that have policies: the daily backup must dump with them on.

@@ -10,6 +10,14 @@ LIFTER_LOG="$LIFTER_LOG_DIR/backup.log"
 BACKUP_DIR="$LIFTER_BACKUP_DIR"
 
 load_env backup.env
+# The password goes to pg_dump through its environment, not its arguments, which any process
+# on the Mac can read (ps). postgresql://user:password@host/db?options, percent-decoded.
+if [[ "$DATABASE_URL" =~ ^(postgres(ql)?://)([^:@/]+):([^@]+)@(.+)$ ]]; then
+  password="${BASH_REMATCH[4]}"
+  PGPASSWORD="$(printf '%b' "${password//%/\\x}")"
+  export PGPASSWORD
+  DATABASE_URL="${BASH_REMATCH[1]}${BASH_REMATCH[3]}@${BASH_REMATCH[5]}"
+fi
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 # A run killed in the middle of pg_dump (sleep, shutdown) leaves a partial file: never kept.

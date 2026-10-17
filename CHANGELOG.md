@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2](https://github.com/gabrielkpo/lifter/compare/v0.1.1...v0.1.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **agents:** the coach sees the forbidden exercises and fixes an invalid payload at once ([#78](https://github.com/gabrielkpo/lifter/issues/78)) ([1fb54c2](https://github.com/gabrielkpo/lifter/commit/1fb54c2b6d51c776e761ff8391e20d5b25203291))
+* the agents' audit, the conversation and the change log are read only by the roles that need them ([#76](https://github.com/gabrielkpo/lifter/issues/76)) ([7c29179](https://github.com/gabrielkpo/lifter/commit/7c2917946936a3892eb416d7a260aeed1506bc3f))
+
+
+### Documentation
+
+* **bench:** the planner's two review touch-ups, measured on 3 runs ([#77](https://github.com/gabrielkpo/lifter/issues/77)) ([56bcdf8](https://github.com/gabrielkpo/lifter/commit/56bcdf800542c738031ed949fccd6588e1a08ed4))
+
 ## [0.1.1](https://github.com/gabrielkpo/lifter/compare/v0.1.0...v0.1.1) (2026-10-16)
 
 

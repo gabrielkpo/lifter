@@ -36,6 +36,7 @@ from langgraph.prebuilt import ToolNode
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from lifter.agents.guardrail import forbidden_flags
 from lifter.agents.planner import Usage
 from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 
@@ -132,6 +133,22 @@ def _rows(conn: psycopg.Connection, query: str, params: tuple = ()) -> list[dict
 UNMOVABLE = ("done", "cancelled")
 
 
+def forbidden_exercises(conn: psycopg.Connection) -> list[dict]:
+    """The exercises an active forbid_flag rule excludes, with the rule, read as the guardrail
+    reads them (`forbidden_flags`)."""
+    bank = _rows(conn, "select name, flags from exercise order by name")
+    rules = _rows(
+        conn,
+        "select text, params from athlete_rule where active and code = 'forbid_flag' order by id",
+    )
+    return [
+        {"exercise": e["name"], "rule": r["text"]}
+        for e in bank
+        for r in rules
+        if set(e["flags"]) & forbidden_flags(r["params"])
+    ]
+
+
 def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None = None) -> dict:
     """What the coach knows before calling any tool, built by code: the sessions of the
     current and next training weeks with their week number, parts and ids, the exercise bank's
@@ -172,15 +189,8 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "select id, kind as operation, rationale from proposal where status = 'pending'"
         " order by id",
     )
-    bank = _rows(conn, "select name, flags from exercise order by name")
-    rules = _rows(conn, "select code, text, params from athlete_rule where active order by id")
-    # What a forbid_flag rule excludes, worked out here as the guardrail does (rule_forbid_flag)
-    forbidden = [
-        {"exercise": e["name"], "rule": r["text"]}
-        for e in bank
-        for r in rules
-        if r["code"] == "forbid_flag" and set(e["flags"]) & set(r["params"].get("flags", []))
-    ]
+    bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    rules = _rows(conn, "select code, text from athlete_rule where active order by id")
     changes = _rows(
         conn,
         "select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
@@ -194,9 +204,9 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "today": today,
         "today_weekday": today.strftime("%A"),
         "sessions_this_week_and_next": sessions,
-        "exercise_bank": [e["name"] for e in bank],
-        "forbidden_exercises": forbidden,
-        "athlete_rules": [{"code": r["code"], "text": r["text"]} for r in rules],
+        "exercise_bank": bank,
+        "forbidden_exercises": forbidden_exercises(conn),
+        "athlete_rules": rules,
         "health_issues": health,
         "pending_suggestions": suggestions,
         "recent_changes_in_this_conversation": changes,

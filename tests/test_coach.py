@@ -331,3 +331,12 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
         ("undo", False),
         ("move_session", False),
     ]
+
+
+def test_a_forbid_flag_rule_with_one_flag_alone_still_forbids(conn, program):
+    conn.execute(
+        "insert into athlete_rule (code, text, params)"
+        """ values ('forbid_flag', 'No impact.', '{"flags": "impact"}')"""
+    )
+    forbidden = snapshot(conn, TODAY)["forbidden_exercises"]
+    assert {"exercise": "Box jump", "rule": "No impact."} in forbidden

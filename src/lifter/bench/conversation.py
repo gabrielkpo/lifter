@@ -21,7 +21,7 @@ import yaml
 from langchain_core.messages import AIMessage
 from pydantic import Field, field_validator
 
-from lifter.agents.coach import respond
+from lifter.agents.coach import forbidden_exercises, respond
 from lifter.bench.athlete import base_program
 from lifter.bench.runner import reset
 from lifter.domain import StrictModel
@@ -132,14 +132,7 @@ def goals(conn, p) -> tuple[bool, str]:
 
 def no_forbidden_suggestion(conn, p) -> tuple[bool, str]:
     """No pending suggestion names an exercise that a forbid_flag rule excludes."""
-    forbidden = [
-        r[0]
-        for r in conn.execute(
-            "select e.name from exercise e where exists (select 1 from athlete_rule r"
-            " where r.active and r.code = 'forbid_flag'"
-            " and e.flags && array(select jsonb_array_elements_text(r.params -> 'flags')))"
-        )
-    ]
+    forbidden = {f["exercise"] for f in forbidden_exercises(conn)}
     payloads = [
         json.dumps(r[0], ensure_ascii=False)
         for r in conn.execute("select payload from proposal where status = 'pending'")

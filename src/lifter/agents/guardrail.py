@@ -196,8 +196,14 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
 # Rules of the athlete (athlete_rule.code)
 
 
+def forbidden_flags(params: dict) -> set[str]:
+    """The flags a forbid_flag rule names: a list, or one flag written alone."""
+    flags = params.get("flags", [])
+    return {flags} if isinstance(flags, str) else set(flags)
+
+
 def rule_forbid_flag(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
-    flags = set(rule.params.get("flags", []))
+    flags = forbidden_flags(rule.params)
     flagged = {e.name: set(e.flags) & flags for e in ctx.exercises}
     for s in plan.sessions:
         for _, line in _lines(s):

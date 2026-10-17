@@ -340,3 +340,13 @@ def test_a_forbid_flag_rule_with_one_flag_alone_still_forbids(conn, program):
     )
     forbidden = snapshot(conn, TODAY)["forbidden_exercises"]
     assert {"exercise": "Box jump", "rule": "No impact."} in forbidden
+
+
+def test_a_forbid_flag_rule_with_odd_params_forbids_nothing_and_breaks_nothing(conn, program):
+    conn.execute(
+        "insert into athlete_rule (code, text, params) values"
+        """ ('forbid_flag', 'Odd.', '{"flags": null}'), ('forbid_flag', 'Odd too.', '{"flags": 3}')"""
+    )
+    assert all(
+        f["rule"] not in ("Odd.", "Odd too.") for f in snapshot(conn, TODAY)["forbidden_exercises"]
+    )

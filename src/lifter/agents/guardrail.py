@@ -197,9 +197,14 @@ def check_critical_alerts(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Viol
 
 
 def forbidden_flags(params: dict) -> set[str]:
-    """The flags a forbid_flag rule names: a list, or one flag written alone."""
-    flags = params.get("flags", [])
-    return {flags} if isinstance(flags, str) else set(flags)
+    """The flags a forbid_flag rule names: a list, or one flag written alone. Anything else
+    (null, a number) names none: rule params are not validated on write."""
+    flags = params.get("flags")
+    if isinstance(flags, str):
+        return {flags}
+    if isinstance(flags, list):
+        return {f for f in flags if isinstance(f, str)}
+    return set()
 
 
 def rule_forbid_flag(rule: Rule, plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:

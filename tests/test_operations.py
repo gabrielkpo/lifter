@@ -448,6 +448,41 @@ def test_a_bank_exercise_still_used_cannot_be_deleted(conn, program):
         )
 
 
+def test_a_moved_session_comes_back_with_undo(conn, program):
+    sid, version = conn.execute(
+        "select id, version from planned_session order by id limit 1"
+    ).fetchone()
+    before = snapshot(conn)
+    do(
+        conn,
+        "move_session",
+        {"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+        "décale la séance au vendredi",
+    )
+    do(conn, "undo", {"change_id": change_id(conn)}, "annule")
+    assert snapshot(conn) == before
+
+
+def test_undo_does_not_detach_what_was_added_under_since(conn, program):
+    # A session put in a week since would lose its week (on delete set null): refused.
+    cycle = conn.execute("select id from cycle order by id limit 1").fetchone()[0]
+    week = do(
+        conn,
+        "create_week",
+        {"cycle_id": cycle, "number": 40, "start_date": "2026-12-07", "phase": "volume"},
+        "ajoute une semaine 40",
+    )
+    created = change_id(conn)
+    do(
+        conn,
+        "create_session",
+        {"day": "2026-12-08", "title": "Extra", "week_id": week.entity_id},
+        "ajoute une séance mardi",
+    )
+    with pytest.raises(StaleRow, match="added since"):
+        do(conn, "undo", {"change_id": created}, "annule")
+
+
 def test_undo_is_refused_once_the_row_changed_again(conn, program):
     goal = conn.execute("select id, version from goal order by id limit 1").fetchone()
     do(
@@ -593,6 +628,40 @@ def test_a_pending_suggestion_given_a_quote_by_hand_is_no_trace(conn, database_u
                 coach.execute("insert into athlete_rule (text) values ('sneaky')")
 
 
+def test_the_coach_cannot_update_or_delete_without_a_trace(conn, database_url, program):
+    session = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    with as_role(database_url, "lifter_coach") as coach:
+        for sql in (
+            "update planned_session set title = 'sneaky' where id = %s",
+            "delete from planned_session where id = %s",
+        ):
+            with pytest.raises(psycopg.errors.RaiseException, match="without a trace"):
+                with coach.transaction():
+                    coach.execute(sql, (session,))
+
+
+def test_the_change_log_is_append_only_even_for_the_owner(conn, program):
+    do(conn, "add_rule", {"text": "Pas de saut"}, "pas de saut cette semaine")
+    for sql in ("update change_log set operation = 'x'", "delete from change_log"):
+        with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
+            with conn.transaction():
+                conn.execute(sql)
+
+
+def test_a_role_granted_the_coach_is_held_to_the_trace_too(conn, database_url, program):
+    # Membership through another role (a login role granted lifter_coach) does not escape it.
+    role = f"lifter_coach_alias_{conn.info.backend_pid}"
+    conn.execute(f"create role {role}")
+    conn.execute(f"grant lifter_coach to {role}")
+    try:
+        with as_role(database_url, role) as alias:
+            with pytest.raises(psycopg.errors.RaiseException, match="without a trace"):
+                with alias.transaction():
+                    alias.execute("insert into athlete_rule (text) values ('sneaky')")
+    finally:
+        conn.execute(f"drop role {role}")
+
+
 def test_switching_to_the_group_role_does_not_escape_the_trace(conn, database_url, program):
     with as_role(database_url, "lifter_coach") as coach:
         coach.execute("set role lifter_write")
@@ -603,13 +672,16 @@ def test_switching_to_the_group_role_does_not_escape_the_trace(conn, database_ur
 
 def test_undo_touches_only_the_catalogues_tables(conn, program):
     do(conn, "add_rule", {"text": "Pas de rameur"}, "pas de rameur dans les metcons")
-    conn.execute(
-        "update change_log set after = jsonb_set(after, '{0,table}', '\"schema_views\"')"
-        " where id = %s",
+    # A forged entry (the change log is append-only: a new row, not an edited one).
+    forged = conn.execute(
+        "insert into change_log (proposal_id, operation, entity, entity_id, before, after)"
+        " select proposal_id, operation, entity, entity_id, before,"
+        " jsonb_set(after, '{0,table}', '\"schema_views\"') from change_log where id = %s"
+        " returning id",
         (change_id(conn),),
-    )
+    ).fetchone()[0]
     with pytest.raises(OperationError, match="catalogue's tables"):
-        do(conn, "undo", {"change_id": change_id(conn)}, "annule")
+        do(conn, "undo", {"change_id": forged}, "annule")
 
 
 def test_the_coach_writes_through_the_catalogue(conn, database_url, program):

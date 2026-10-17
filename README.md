@@ -88,15 +88,15 @@ Each step lands as a reviewed pull request with green CI.
 |---|---|---|
 | 1 | Garmin sync, metrics, recovery and form | ✅ Done |
 | 2 | CrossFit domain: cycle, blocks, weeks, sessions in parts, exercise bank, goals, rules | ✅ Done |
-| 3 | Week planner agent from the command line, guardrail, audit log; release `v0.1.0` | 🔨 Built ([docs/agents.md](docs/agents.md)); first run on Mistral next |
-| 4 | App (API + PWA, hosted) and the coach in conversation ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)) | 🔨 App and hosting done ([docs/app.md](docs/app.md)); coach's write path next |
+| 3 | Week planner agent from the command line, guardrail, audit log; release `v0.1.0` | ✅ Done ([docs/agents.md](docs/agents.md)), tuned on the Mistral bench; `v0.1.0` and `v0.1.1` released |
+| 4 | App (API + PWA, hosted) and the coach in conversation ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)) | 🔨 App, hosting and the coach's write path done ([docs/app.md](docs/app.md), [docs/domain.md](docs/domain.md)); the Coach tab next |
 | 5 | Optional: push approved sessions to the Garmin calendar | Planned |
 | 6 | Long term (block transitions, test week), scheduled coach runs, notifications | Planned |
-| 7 | Evaluation bench: single agent vs agent team | 🔨 Bench and 20 scenarios built ([docs/bench.md](docs/bench.md)); comparison after the coach |
+| 7 | Evaluation bench: single agent vs agent team | 🔨 Bench and 21 scenarios built ([docs/bench.md](docs/bench.md)); comparison after the coach |
 | 8 | Public demo on synthetic athletes, next to the private instance | Planned |
 | 9 | Results write-up | Planned |
 
-**Evaluation plan**, written before any run: 20 scenarios with their expected outcome, a floor
+**Evaluation plan**, written before any run: 21 scenarios with their expected outcome, a floor
 to beat without a model, and a decision rule for the agent team ([docs/bench.md](docs/bench.md)).
 
 ## Run it

@@ -112,6 +112,13 @@ def create_app(
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
             return await call_next(request)
 
+    # Health data: no browser or proxy keeps a copy of an answer, errors included.
+    @app.middleware("http")
+    async def no_store(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     # Added last, so they run first: the host check, then CORS (a preflight has no token).
     app.add_middleware(
         CORSMiddleware,
@@ -254,7 +261,8 @@ def create_app(
 
     @app.get("/status")
     def status(conn: Conn) -> models.Status:
-        """When Garmin data last arrived, so the app can warn when the Mac's sync stopped."""
+        """When the Mac's sync last stored or confirmed a Garmin payload (each sync marks what
+        it fetched, changed or not), so the app can warn when the sync stopped."""
         return conn.execute(
             "select max(last_seen_at) as garmin_last_seen_at from raw_garmin_payload"
         ).fetchone()

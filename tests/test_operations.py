@@ -316,12 +316,74 @@ def test_a_change_that_breaks_a_rule_is_refused_and_nothing_is_written(conn, pro
     assert conn.execute("select count(*) from planned_session").fetchone()[0] == count + 1
 
 
+def running_sessions(c, week):
+    """A fake guardrail: each session called "Running" breaks the rule, if the rule is on."""
+    rule = c.execute("select count(*) from athlete_rule where active and text = 'Pas de course'")
+    n = c.execute(
+        "select count(*) from planned_session where week_id = %s and title = 'Running'", (week,)
+    ).fetchone()[0]
+    return ["running"] * n * min(1, rule.fetchone()[0])
+
+
+def new_items(before, after):
+    return after[len(before) :]
+
+
+def a_running_session(conn) -> tuple[int, int]:
+    """A "Running" session in a week that is not over (rules and the bank check those)."""
+    week = conn.execute("select id from training_week order by id limit 1").fetchone()[0]
+    conn.execute("update training_week set start_date = current_date where id = %s", (week,))
+    change = do(
+        conn,
+        "create_session",
+        {"day": str(date.today()), "title": "Running", "week_id": week},
+        "ajoute un footing aujourd'hui",
+    )
+    return week, change.entity_id
+
+
+def test_a_new_rule_flags_the_planned_sessions_it_breaks_without_being_refused(conn, program):
+    # Audit N9: the rules go through the guardrail too; what a new rule flags in sessions already
+    # planned is reported to the coach, which adapts them, rather than refusing the rule.
+    a_running_session(conn)
+    operations.set_programme_check(running_sessions, new_items)
+    change = do(conn, "add_rule", {"text": "Pas de course"}, "plus de course à pied pour moi")
+    assert change.violations == [{"message": "running"}]
+    assert conn.execute(
+        "select count(*) from athlete_rule where text = 'Pas de course'"
+    ).fetchone() == (1,)
+
+
+def test_an_undo_that_brings_back_a_forbidden_session_is_refused(conn, program):
+    # Audit N9: undo goes through the guardrail like any change of the programme.
+    _, session_id = a_running_session(conn)
+    do(conn, "add_rule", {"text": "Pas de course"}, "plus de course à pied pour moi")
+    version = conn.execute(
+        "select version from planned_session where id = %s", (session_id,)
+    ).fetchone()[0]
+    do(
+        conn,
+        "delete_session",
+        {"id": session_id, "expected_version": version},
+        "supprime le footing",
+    )
+    deleted = change_id(conn)
+    operations.set_programme_check(running_sessions, new_items)
+    with pytest.raises(RuleViolation):
+        do(conn, "undo", {"change_id": deleted}, "annule")
+    assert conn.execute(
+        "select count(*) from planned_session where id = %s", (session_id,)
+    ).fetchone() == (0,)
+
+
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):
     operations._programme_check = None
     with pytest.raises(OperationError, match="no rule check"):
         do(conn, "create_session", {"day": "2026-03-05", "title": "X"}, "ajoute une séance")
-    # What is not the programme still can.
-    do(conn, "add_rule", {"text": "Pas de rameur"}, "pas de rameur dans les metcons")
+    # The athlete's rules are part of it now (audit N9); what is not the programme still can.
+    with pytest.raises(OperationError, match="no rule check"):
+        do(conn, "add_rule", {"text": "Pas de rameur"}, "pas de rameur dans les metcons")
+    do(conn, "update_athlete", {"weight_kg": 80}, "je pèse 80 kilos")
 
 
 # Undo
@@ -485,8 +547,8 @@ def test_an_undo_is_done_once_and_never_undone(conn, program):
 
 
 def test_a_session_log_is_undone_in_one_step(conn, program):
-    session_id, part_id = conn.execute(
-        "select p.session_id, p.id from session_part p where p.kind = 'metcon'"
+    session_id, part_id, part_version = conn.execute(
+        "select p.session_id, p.id, p.version from session_part p where p.kind = 'metcon'"
         " order by p.id limit 1"
     ).fetchone()
     before = snapshot(conn)
@@ -495,7 +557,9 @@ def test_a_session_log_is_undone_in_one_step(conn, program):
         "log_session",
         {
             "session_id": session_id,
-            "parts": [{"part_id": part_id, "result_seconds": 600}],
+            "parts": [
+                {"part_id": part_id, "expected_version": part_version, "result_seconds": 600}
+            ],
             "feedback": {"rpe": 8, "pain": 0},
         },
         "fait en 10 minutes, rpe 8",
@@ -505,6 +569,34 @@ def test_a_session_log_is_undone_in_one_step(conn, program):
     ).fetchone() == (600,)
     do(conn, "undo", {"change_id": change_id(conn)}, "annule")
     assert snapshot(conn) == before
+
+
+def test_a_second_log_from_the_same_reading_is_refused(conn, program):
+    # Audit N10: a log overwrites nothing it did not read.
+    session_id, part_id, version = conn.execute(
+        "select p.session_id, p.id, p.version from session_part p where p.kind = 'metcon'"
+        " order by p.id limit 1"
+    ).fetchone()
+    part = {"part_id": part_id, "expected_version": version, "result_seconds": 600}
+    do(conn, "log_session", {"session_id": session_id, "parts": [part]}, "fait en 10 minutes")
+    with pytest.raises(StaleRow):
+        part = part | {"result_seconds": 720}
+        do(conn, "log_session", {"session_id": session_id, "parts": [part]}, "fait en 12 minutes")
+    assert conn.execute(
+        "select result_seconds from session_part where id = %s", (part_id,)
+    ).fetchone() == (600,)
+
+
+def test_parts_reordered_since_they_were_read_are_refused(conn, program):
+    session_id, parts = conn.execute(
+        "select session_id, array_agg(id order by position) from session_part"
+        " group by session_id having count(*) > 1 order by session_id limit 1"
+    ).fetchone()
+    reversed_ = list(reversed(parts))
+    payload = {"session_id": session_id, "part_ids": reversed_, "expected_order": parts}
+    do(conn, "reorder_parts", payload, "inverse les parties de la séance")
+    with pytest.raises(StaleRow):
+        do(conn, "reorder_parts", payload, "inverse les parties de la séance")
 
 
 # Suggestions

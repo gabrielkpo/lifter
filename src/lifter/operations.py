@@ -67,6 +67,9 @@ class Change(BaseModel):
     after: list[RowImage]
     # Set by `undo`: the proposal whose change was reverted.
     undoes: int | None = None
+    # A change of the athlete's rules is not refused for the sessions already planned that the
+    # new rules flag: they are reported here, for the coach to adapt them.
+    violations: list[dict[str, Any]] = []
 
 
 class OperationError(DomainError):
@@ -101,6 +104,8 @@ class Operation:
     # Changes what is prescribed: checked by the guardrail on `weeks(conn, payload)`.
     programme: bool = False
     weeks: Callable[[psycopg.Connection, Any], set[int]] | None = None
+    # The athlete's rules themselves: what the guardrail then flags is reported, not refused.
+    report: bool = False
     # "ok", "annule": one word is enough (the athlete's whole message).
     short_quote: bool = False
 
@@ -131,9 +136,19 @@ def _register(
     programme: bool = False,
     weeks: Callable | None = None,
     short_quote: bool = False,
+    report: bool = False,
 ):
     def wrap(fn):
-        CATALOGUE[name] = Operation(name, payload, writes, fn, programme, weeks, short_quote)
+        CATALOGUE[name] = Operation(
+            name,
+            payload,
+            writes,
+            fn,
+            programme=programme,
+            weeks=weeks,
+            short_quote=short_quote,
+            report=report,
+        )
         return fn
 
     return wrap
@@ -427,6 +442,92 @@ def _week_of_planned_line(conn, line_id: int) -> set[int]:
     return _week_of_part(conn, found[0]) if found and found[1] == "planned" else set()
 
 
+def _ids(conn, sql: str, params: tuple = ()) -> set[int]:
+    return {r[0] for r in conn.execute(sql, params).fetchall()}
+
+
+def _live_weeks(conn) -> set[int]:
+    """The weeks not over yet: what a change of the rules or of the bank can still affect."""
+    return _ids(conn, "select id from training_week where start_date + 6 >= current_date")
+
+
+def _weeks_of(conn, column: str, row_id: int) -> set[int]:
+    """The weeks of a cycle or a block (`column` is cycle_id or block_id, never a payload)."""
+    return _ids(conn, f"select id from training_week where {column} = %s", (row_id,))
+
+
+def _week_after(conn, cycle_id: int, number: int) -> set[int]:
+    """The week that follows `number` in its cycle: the guardrail reads the week before it."""
+    return _ids(
+        conn,
+        "select id from training_week where cycle_id = %s and number = %s",
+        (cycle_id, number + 1),
+    )
+
+
+def _weeks_around_week(conn, week_id: int) -> set[int]:
+    row = conn.execute(
+        "select cycle_id, number from training_week where id = %s", (week_id,)
+    ).fetchone()
+    return _week_after(conn, *row) if row else set()
+
+
+def _weeks_after_range(conn, column: str, row_id: int) -> set[int]:
+    """The weeks of a block or a cycle, and the one right after them (deleting them changes
+    the week before it)."""
+    row = conn.execute(
+        f"select cycle_id, max(number) from training_week where {column} = %s group by cycle_id",
+        (row_id,),
+    ).fetchone()
+    return _weeks_of(conn, column, row_id) | (_week_after(conn, *row) if row else set())
+
+
+def _weeks_using_exercise(conn, exercise_id: int) -> set[int]:
+    sessions = _ids(
+        conn,
+        "select distinct p.session_id from session_exercise l"
+        " join session_part p on p.id = l.part_id"
+        " where l.exercise_id = %s and l.origin = 'planned'",
+        (exercise_id,),
+    )
+    return set().union(*(_week_of_session(conn, s) for s in sessions)) if sessions else set()
+
+
+RULE_OPERATIONS = frozenset({"add_rule", "update_rule", "deactivate_rule"})
+
+
+def _weeks_of_change(conn, p) -> set[int]:
+    """The weeks an undo touches: those of the rows it restores or removes."""
+    row = conn.execute(
+        "select before, after from change_log where id = %s", (p.change_id,)
+    ).fetchone()
+    if row is None:
+        return set()
+    weeks: set[int] = set()
+    for image in [RowImage.model_validate(i) for i in row[0] + row[1]]:
+        data = image.row or {}
+        if image.table == "training_week":
+            weeks |= {image.id} | _weeks_around_week(conn, image.id)
+        elif image.table == "planned_session":
+            weeks |= {data["week_id"]} if data.get("week_id") else _week_of_session(conn, image.id)
+        elif image.table == "session_part":
+            weeks |= _week_of_session(conn, data["session_id"]) if data else set()
+        elif image.table == "session_exercise":
+            weeks |= _week_of_part(conn, data["part_id"]) if data else set()
+        elif image.table == "block":
+            weeks |= _weeks_of(conn, "block_id", image.id)
+        elif image.table == "cycle":
+            weeks |= _weeks_of(conn, "cycle_id", image.id)
+        elif image.table in ("athlete_rule", "exercise"):
+            weeks |= _live_weeks(conn)
+    return weeks
+
+
+def _undoes_a_rule(conn, change_id: int) -> bool:
+    row = conn.execute("select operation from change_log where id = %s", (change_id,)).fetchone()
+    return row is not None and row[0] in RULE_OPERATIONS
+
+
 # Programme: cycles, blocks, weeks
 
 
@@ -454,12 +555,24 @@ def create_cycle(conn, p: CreateCycle, ctx: Context) -> Change:
     )
 
 
-@_register("update_cycle", UpdateCycle, ("cycle",))
+@_register(
+    "update_cycle",
+    UpdateCycle,
+    ("cycle",),
+    programme=True,
+    weeks=lambda c, p: _weeks_of(c, "cycle_id", p.id),
+)
 def update_cycle(conn, p, ctx: Context) -> Change:
     return _named(_update(conn, "cycle", p.id, p.expected_version, p.changes()), "update_cycle")
 
 
-@_register("delete_cycle", DeleteCycle, ("cycle", "block", "training_week", "planned_session"))
+@_register(
+    "delete_cycle",
+    DeleteCycle,
+    ("cycle", "block", "training_week", "planned_session"),
+    programme=True,
+    weeks=lambda c, p: _weeks_of(c, "cycle_id", p.id),
+)
 def delete_cycle(conn, p, ctx: Context) -> Change:
     return _named(_delete(conn, "cycle", p.id, p.expected_version), "delete_cycle")
 
@@ -490,12 +603,24 @@ def create_block(conn, p: CreateBlock, ctx: Context) -> Change:
     )
 
 
-@_register("update_block", UpdateBlock, ("block",))
+@_register(
+    "update_block",
+    UpdateBlock,
+    ("block",),
+    programme=True,
+    weeks=lambda c, p: _weeks_of(c, "block_id", p.id),
+)
 def update_block(conn, p, ctx: Context) -> Change:
     return _named(_update(conn, "block", p.id, p.expected_version, p.changes()), "update_block")
 
 
-@_register("delete_block", DeleteBlock, ("block", "training_week", "planned_session"))
+@_register(
+    "delete_block",
+    DeleteBlock,
+    ("block", "training_week", "planned_session"),
+    programme=True,
+    weeks=lambda c, p: _weeks_after_range(c, "block_id", p.id),
+)
 def delete_block(conn, p, ctx: Context) -> Change:
     return _named(_delete(conn, "block", p.id, p.expected_version), "delete_block")
 
@@ -537,7 +662,13 @@ UpdateWeek = _partial(
 DeleteWeek = _delete_model("DeleteWeek", "Delete a week; its sessions stay, without a week.")
 
 
-@_register("create_week", CreateWeek, ("training_week",))
+@_register(
+    "create_week",
+    CreateWeek,
+    ("training_week",),
+    programme=True,
+    weeks=lambda c, p: _week_after(c, p.cycle_id, p.number),
+)
 def create_week(conn, p: CreateWeek, ctx: Context) -> Change:
     img = _insert(conn, "training_week", p.model_dump())
     return Change(
@@ -552,7 +683,13 @@ def update_week(conn, p, ctx: Context) -> Change:
     )
 
 
-@_register("delete_week", DeleteWeek, ("training_week", "planned_session"))
+@_register(
+    "delete_week",
+    DeleteWeek,
+    ("training_week", "planned_session"),
+    programme=True,
+    weeks=lambda c, p: _weeks_around_week(c, p.id),
+)
 def delete_week(conn, p, ctx: Context) -> Change:
     return _named(_delete(conn, "training_week", p.id, p.expected_version), "delete_week")
 
@@ -812,10 +949,12 @@ def delete_part(conn, p, ctx: Context) -> Change:
 
 
 class ReorderParts(StrictModel):
-    """Put the parts of a session in a new order: every part id of the session, once."""
+    """Put the parts of a session in a new order: every part id of the session, once.
+    `expected_order` is their order as read: refused if it changed since."""
 
     session_id: int
     part_ids: list[int] = Field(min_length=1)
+    expected_order: list[int] = Field(min_length=1)
 
 
 @_register(
@@ -832,6 +971,8 @@ def reorder_parts(conn, p: ReorderParts, ctx: Context) -> Change:
             "select id from session_part where session_id = %s order by position", (p.session_id,)
         ).fetchall()
     ]
+    if current != p.expected_order:
+        raise StaleRow(f"the parts of session {p.session_id} changed since: now {current}")
     if sorted(current) != sorted(p.part_ids) or len(set(p.part_ids)) != len(p.part_ids):
         raise OperationError(f"give every part of session {p.session_id} once: {current}")
     before = [_image(conn, "session_part", i) for i in current]
@@ -934,6 +1075,8 @@ def delete_line(conn, p, ctx: Context) -> Change:
 
 class LoggedPart(StrictModel):
     part_id: int
+    # The part's version as read: a log on a part changed since (another log) is refused.
+    expected_version: int
     done: list[LineIn] = []
     result_seconds: int | None = Field(default=None, gt=0)
     result_rounds: float | None = Field(default=None, ge=0)
@@ -967,6 +1110,7 @@ def log_session(conn, p: LogSession, ctx: Context) -> Change:
     for part in p.parts:
         if _session_of_part(conn, part.part_id) != p.session_id:
             raise OperationError(f"part {part.part_id} is not in session {p.session_id}")
+        row = _existing(conn, "session_part", part.part_id, part.expected_version)
         if part.done:
             old = conn.execute(
                 "select id from session_exercise where part_id = %s and origin = 'done'"
@@ -993,10 +1137,13 @@ def log_session(conn, p: LogSession, ctx: Context) -> Change:
         results = part.model_dump(
             include={"result_seconds", "result_rounds", "result_notes"}, exclude_none=True
         )
-        if results:
-            change = _update(conn, "session_part", part.part_id, None, results)
-            before += change.before
-            after += change.after
+        # The part is always updated, so its version moves with every log, done lines alone
+        # included: a second log made from the same reading is refused.
+        change = _update(
+            conn, "session_part", part.part_id, None, results or {"position": row["position"]}
+        )
+        before += change.before
+        after += change.after
     if p.feedback is not None:
         after.append(
             _insert(
@@ -1393,7 +1540,14 @@ class AddRule(RuleIn):
     knows makes it checked in code)."""
 
 
-@_register("add_rule", AddRule, ("athlete_rule",))
+@_register(
+    "add_rule",
+    AddRule,
+    ("athlete_rule",),
+    programme=True,
+    weeks=lambda c, p: _live_weeks(c),
+    report=True,
+)
 def add_rule(conn, p: AddRule, ctx: Context) -> Change:
     img = _insert(conn, "athlete_rule", p.model_dump())
     return Change(
@@ -1411,7 +1565,14 @@ class RuleFields(StrictModel):
 UpdateRule = _partial("UpdateRule", RuleFields, "Change a rule's text, parameters or activity.")
 
 
-@_register("update_rule", UpdateRule, ("athlete_rule",))
+@_register(
+    "update_rule",
+    UpdateRule,
+    ("athlete_rule",),
+    programme=True,
+    weeks=lambda c, p: _live_weeks(c),
+    report=True,
+)
 def update_rule(conn, p, ctx: Context) -> Change:
     return _named(
         _update(conn, "athlete_rule", p.id, p.expected_version, p.changes()), "update_rule"
@@ -1425,7 +1586,14 @@ class DeactivateRule(StrictModel):
     expected_version: int
 
 
-@_register("deactivate_rule", DeactivateRule, ("athlete_rule",))
+@_register(
+    "deactivate_rule",
+    DeactivateRule,
+    ("athlete_rule",),
+    programme=True,
+    weeks=lambda c, p: _live_weeks(c),
+    report=True,
+)
 def deactivate_rule(conn, p: DeactivateRule, ctx: Context) -> Change:
     return _named(
         _update(conn, "athlete_rule", p.id, p.expected_version, {"active": False}),
@@ -1453,7 +1621,13 @@ def add_exercise(conn, p: AddExercise, ctx: Context) -> Change:
 UpdateExercise = _partial("UpdateExercise", ExerciseIn, "Change a movement of the bank.")
 
 
-@_register("update_exercise", UpdateExercise, ("exercise",))
+@_register(
+    "update_exercise",
+    UpdateExercise,
+    ("exercise",),
+    programme=True,
+    weeks=lambda c, p: _weeks_using_exercise(c, p.id),
+)
 def update_exercise(conn, p, ctx: Context) -> Change:
     return _named(
         _update(conn, "exercise", p.id, p.expected_version, p.changes()), "update_exercise"
@@ -1522,7 +1696,7 @@ class Undo(StrictModel):
     change_id: int
 
 
-@_register("undo", Undo, (), short_quote=True)
+@_register("undo", Undo, (), short_quote=True, programme=True, weeks=_weeks_of_change)
 def undo(conn, p: Undo, ctx: Context) -> Change:
     row = conn.execute(
         "select c.proposal_id, c.operation, c.entity, c.entity_id, c.before, c.after,"
@@ -1545,6 +1719,12 @@ def undo(conn, p: Undo, ctx: Context) -> Change:
         after=[RowImage.model_validate(i) for i in after],
     )
     return revert(conn, original).model_copy(update={"undoes": proposal_id})
+
+
+def _violation(v: Any) -> dict[str, Any]:
+    if isinstance(v, BaseModel):
+        return v.model_dump(mode="json")
+    return {"message": getattr(v, "message", str(v))}
 
 
 # The entry point
@@ -1638,10 +1818,15 @@ def run(
 
         if weeks:
             new = []
-            for week in sorted(weeks):
+            for week in sorted(
+                _ids(conn, "select id from training_week where id = any(%s)", (list(weeks),))
+            ):
                 new += _programme_check[1](before_violations[week], _programme_check[0](conn, week))
-            if new:
+            report = op.report or (name == "undo" and _undoes_a_rule(conn, model.change_id))
+            if new and not report:
                 raise RuleViolation(new)
+            if new:
+                change = change.model_copy(update={"violations": [_violation(v) for v in new]})
 
         trace = {
             "quote": quote,

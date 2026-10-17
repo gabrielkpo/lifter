@@ -153,8 +153,13 @@ CI), applied by `run()` in one transaction: the message must be the athlete's la
 conversation (the one being answered: an older message, another conversation's or the coach's
 cannot authorise a change), the quote checked against it as stored (`conversation_message`),
 the payload validated, the row version checked
-(`expected_version`), the guardrail on the weeks it touches (only violations it introduces
-refuse it), then the trace: a `proposal` row (applied, with `quote`, `message_id`,
+(`expected_version`; a session log and a reordering of parts too), the guardrail on the weeks it
+touches (only violations it introduces refuse it). Every change of the programme goes through
+it: sessions, parts and lines, weeks, blocks and cycles (the week after a deleted one too, whose
+context changes), the exercise bank (the weeks using the exercise), an undo (the weeks of the
+rows it restores) and the athlete's rules (the weeks not over yet). A rule change is the one
+case not refused: what the new rules flag in sessions already planned comes back with the
+change (`violations`), for the coach to adapt them. Then the trace: a `proposal` row (applied, with `quote`, `message_id`,
 `idempotency_key`) and a `change_log` row (rows before and after). `undo` rebuilds the
 previous state from it, ids included, and is refused when those rows changed since. Every
 domain table has a `version` bumped on each update, and the database refuses a commit by the

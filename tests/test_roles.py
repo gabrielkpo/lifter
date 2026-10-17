@@ -81,7 +81,8 @@ MATRIX = {
         "analytics.daily_metrics": {READ},
     },
     "lifter_agents": {
-        "public.proposal": {READ, INSERT},
+        # Insert on its kind, payload, rationale and author only (column grants).
+        "public.proposal": {READ},
         "public.agent_run": {READ, INSERT},
         "public.agent_step": {READ, INSERT},
         "public.conversation_message": set(),
@@ -183,6 +184,22 @@ def test_lifter_agents_can_propose_but_not_decide(conn, database_url):
     assert conn.execute("select status from proposal where id = %s", (pid,)).fetchone() == (
         "pending",
     )
+
+
+def test_an_agent_proposes_only_a_pending_suggestion(database_url):
+    # Security review of #72: the agents' role cannot plant an applied proposal or backdate one.
+    with as_role(database_url, "lifter_agents") as agents:
+        agents.execute(
+            "insert into proposal (kind, payload, rationale, author)"
+            " values ('add_rule', '{}', 'why', 'planner')"
+        )
+        for column, value in (("status", "applied"), ("created_at", "2020-01-01")):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                agents.execute(
+                    f"insert into proposal (kind, payload, rationale, author, {column})"
+                    " values ('add_rule', '{}', 'why', 'planner', %s)",
+                    (value,),
+                )
 
 
 def test_lifter_api_only_reads(database_url):

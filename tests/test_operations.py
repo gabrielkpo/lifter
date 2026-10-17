@@ -53,6 +53,17 @@ def say(conn, text: str) -> int:
     ).fetchone()[0]
 
 
+def coach_says(conn, text: str, shown: list[int]) -> int:
+    """Store the coach's reply, which presents the suggestions `shown` (as respond() does)."""
+    message = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c1', 'coach', %s) returning id",
+        (text,),
+    ).fetchone()[0]
+    operations.present(conn, conversation_id="c1", coach_message_id=message, proposal_ids=shown)
+    return message
+
+
 _keys = iter(range(1, 1_000_000))
 
 
@@ -613,6 +624,7 @@ def test_a_suggestion_applies_only_when_the_athlete_picks_it(conn, program):
     assert conn.execute(
         "select count(*) from athlete_rule where text like 'Pas de rameur%'"
     ).fetchone() == (0,)
+    coach_says(conn, "Je propose de retirer le rameur des metcons, ok ?", [pid])
     run(
         conn,
         "",
@@ -639,6 +651,44 @@ def test_a_suggestion_applies_only_when_the_athlete_picks_it(conn, program):
             idempotency_key="pick-again",
             author="coach",
             proposal_id=pid,
+        )
+
+
+def test_ok_accepts_only_what_the_coachs_last_message_presented(conn, program):
+    # Audit N7 (owner's decision of 17/10): no lifetime, the conversation moving on ends it.
+    old = suggest(conn, "add_rule", {"text": "Pas de rameur"}, rationale="Far.", author="coach")
+    coach_says(conn, "Je propose de retirer le rameur, ok ?", [old])
+    say(conn, "parlons plutôt de ma séance de demain")
+    new = suggest(conn, "add_rule", {"text": "Pas de saut"}, rationale="Knee.", author="coach")
+    coach_says(conn, "Demain, pas de saut, ok ?", [new])
+    assert conn.execute("select status from proposal where id = %s", (old,)).fetchone() == (
+        "expired",
+    )
+    with pytest.raises(OperationError, match="expired"):
+        run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote="ok",
+            message_id=say(conn, "ok"),
+            idempotency_key="old",
+            author="coach",
+            proposal_id=old,
+        )
+    # A pending suggestion the last message did not show is refused too (the planner's, say).
+    shown_before = suggest(conn, "add_rule", {"text": "x"}, rationale="Not shown.", author="coach")
+    with pytest.raises(OperationError, match="not presented"):
+        run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote="ok",
+            message_id=say(conn, "ok"),
+            idempotency_key="unshown",
+            author="coach",
+            proposal_id=shown_before,
         )
 
 

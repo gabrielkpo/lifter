@@ -120,8 +120,8 @@ grant usage on sequence exercise_id_seq, cycle_id_seq, block_id_seq, training_we
 grant insert on change_log, proposal to lifter_write;
 -- Read by the trace check at commit (009), whichever of its roles the coach acts as.
 grant select on change_log, proposal to lifter_write;
-grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by)
-    on proposal to lifter_write;
+grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by,
+    presented_in) on proposal to lifter_write;
 grant usage on sequence change_log_id_seq, proposal_id_seq to lifter_write;
 -- The conversation it answers (history, the latest athlete message for operations.run).
 grant select, insert on conversation_message to lifter_write;

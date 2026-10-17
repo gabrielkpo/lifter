@@ -1776,22 +1776,25 @@ def run(
 
         if proposal_id is not None:
             found = conn.execute(
-                "select kind, payload, status, created_at from proposal where id = %s for update",
+                "select kind, payload, status, presented_in from proposal where id = %s for update",
                 (proposal_id,),
             ).fetchone()
             if found is None:
                 raise OperationError(f"suggestion {proposal_id} does not exist")
             if found[2] != "pending":
                 raise OperationError(f"suggestion {proposal_id} is {found[2]}, not pending")
-            # The athlete can only pick a suggestion they saw: one made after the message being
-            # answered (a model misled into suggesting and accepting in the same turn) is refused.
-            said = conn.execute(
-                "select created_at from conversation_message where id = %s", (message_id,)
-            ).fetchone()
-            if found[3] >= said[0]:
+            # The athlete can only pick what the coach's latest message showed them: not an older
+            # suggestion, nor one made during this turn (by a model misled into suggesting and
+            # accepting at once), which no message has presented yet (audit N7).
+            shown = conn.execute(
+                "select max(id) from conversation_message"
+                " where conversation_id = %s and role = 'coach' and id < %s",
+                (conversation_id, message_id),
+            ).fetchone()[0]
+            if found[3] is None or found[3] != shown:
                 raise OperationError(
-                    f"suggestion {proposal_id} was made after message {message_id}:"
-                    " the athlete has not seen it"
+                    f"suggestion {proposal_id} was not presented in the coach's last message:"
+                    " the athlete has not seen it there, present it again"
                 )
             name, payload = found[0], found[1]
         op = CATALOGUE.get(name)
@@ -1873,6 +1876,38 @@ def run(
                 "update proposal set undone_by = %s where id = %s", (applied_id, change.undoes)
             )
     return change
+
+
+def present(
+    conn: psycopg.Connection,
+    *,
+    conversation_id: str,
+    coach_message_id: int,
+    proposal_ids: list[int],
+) -> None:
+    """The coach's message `coach_message_id` showed these pending suggestions: only they can be
+    accepted with the athlete's next message. Any other pending suggestion shown earlier in this
+    conversation expires (no lifetime: the conversation moving on is what ends it). Called once
+    per coach message, with an empty list when it showed none."""
+    with conn.transaction():
+        said = conn.execute(
+            "select conversation_id, role from conversation_message where id = %s",
+            (coach_message_id,),
+        ).fetchone()
+        if said != (conversation_id, "coach"):
+            raise OperationError(
+                f"message {coach_message_id} is not the coach's in conversation {conversation_id!r}"
+            )
+        conn.execute(
+            "update proposal set status = 'expired', decided_at = now()"
+            " where status = 'pending' and not (id = any(%s)) and presented_in in"
+            " (select id from conversation_message where conversation_id = %s)",
+            (proposal_ids, conversation_id),
+        )
+        conn.execute(
+            "update proposal set presented_in = %s where status = 'pending' and id = any(%s)",
+            (coach_message_id, proposal_ids),
+        )
 
 
 def suggest(

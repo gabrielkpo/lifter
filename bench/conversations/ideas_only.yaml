@@ -7,4 +7,5 @@ messages:
 - Tu changerais quoi à ma semaine 3 si tu étais moi ?
 expect:
 - check: unchanged
+- check: no_forbidden_suggestion
 review: 'Gives ideas, possibly as pending suggestions with their ids; applies nothing.'

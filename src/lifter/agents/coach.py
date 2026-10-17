@@ -71,6 +71,11 @@ date the athlete gives, and on a Sunday "this week" means the week starting tomo
 Exercises keep their exact names from the snapshot's exercise_bank. Read a row (read_rows) \
 only for what the snapshot does not hold.
 
+The athlete's rules (athlete_rules) bind your changes and your suggestions alike. Never plan \
+or suggest an exercise of forbidden_exercises: name the rule that forbids it and offer an \
+allowed one from the bank with suggest_change. The replacement is your idea, not the athlete's \
+instruction: never apply it.
+
 If a tool refuses (quote, rule, stale row, payload), tell the athlete what it said, in plain \
 words but without changing its meaning. Never claim a change that a tool did not confirm, and \
 never report a refusal that no tool returned in this turn.
@@ -130,8 +135,9 @@ UNMOVABLE = ("done", "cancelled")
 def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None = None) -> dict:
     """What the coach knows before calling any tool, built by code: the sessions of the
     current and next training weeks with their week number, parts and ids, the exercise bank's
-    names, open health issues, pending suggestions, and the last changes applied in this
-    conversation (their change ids, which undo takes)."""
+    names, the exercises the athlete's rules forbid and those rules, open health issues, pending
+    suggestions, and the last changes applied in this conversation (their change ids, which undo
+    takes)."""
     monday = today - timedelta(days=today.weekday())
     sessions = _rows(
         conn,
@@ -166,7 +172,15 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "select id, kind as operation, rationale from proposal where status = 'pending'"
         " order by id",
     )
-    bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    bank = _rows(conn, "select name, flags from exercise order by name")
+    rules = _rows(conn, "select code, text, params from athlete_rule where active order by id")
+    # What a forbid_flag rule excludes, worked out here as the guardrail does (rule_forbid_flag)
+    forbidden = [
+        {"exercise": e["name"], "rule": r["text"]}
+        for e in bank
+        for r in rules
+        if r["code"] == "forbid_flag" and set(e["flags"]) & set(r["params"].get("flags", []))
+    ]
     changes = _rows(
         conn,
         "select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
@@ -180,7 +194,9 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "today": today,
         "today_weekday": today.strftime("%A"),
         "sessions_this_week_and_next": sessions,
-        "exercise_bank": bank,
+        "exercise_bank": [e["name"] for e in bank],
+        "forbidden_exercises": forbidden,
+        "athlete_rules": [{"code": r["code"], "text": r["text"]} for r in rules],
         "health_issues": health,
         "pending_suggestions": suggestions,
         "recent_changes_in_this_conversation": changes,

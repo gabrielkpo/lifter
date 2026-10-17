@@ -3,7 +3,7 @@
   "model": null,
   "summary": {
     "runs": 8,
-    "expectations_met_rate": 0.5,
+    "expectations_met_rate": 0.6,
     "scenarios_fully_met": 4,
     "refused_quotes": 0,
     "stopped": 0,
@@ -16,13 +16,23 @@
       "scenario": "forbidden_exercise",
       "category": "rules",
       "run": 1,
-      "expectations_met": 1,
-      "expectations": 1,
+      "expectations_met": 3,
+      "expectations": 3,
       "outcomes": [
         {
           "check": "no_planned_line 3 Legs + Metcon Back squat",
           "passed": true,
           "detail": "0 planned line(s) of Back squat"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
+        },
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
         }
       ],
       "model_calls": 1,
@@ -38,13 +48,18 @@
       "scenario": "ideas_only",
       "category": "question",
       "run": 1,
-      "expectations_met": 1,
-      "expectations": 1,
+      "expectations_met": 2,
+      "expectations": 2,
       "outcomes": [
         {
           "check": "unchanged",
           "passed": true,
           "detail": "0 change(s) applied"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
         }
       ],
       "model_calls": 1,

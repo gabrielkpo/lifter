@@ -8,13 +8,15 @@
 
 Lifter is meant for more than one athlete. What one athlete must avoid comes from their own
 body: a joint condition, a limited range of motion, a past injury. Another athlete has other
-limits, or none. The owner's rule: **nothing specific to an athlete is written in code**.
-The coach gathers it in conversation, records it on the athlete's profile, and the programme
-follows from it.
+limits, or none. The owner's rule: **nothing specific to an athlete is written in code**, and
+nothing about the body is decided in advance for everyone: not the list of what an exercise
+demands, not which body part limits which movement, not what to do after a pain. The coach
+gathers it in conversation, writes it to the athlete's profile in the database, and the
+programme follows from it.
 
-The coach never makes a diagnosis. When the athlete gives one ("my physio says patellar
-tendinopathy, no deep knee flexion under load for six weeks"), the coach records it and adapts
-the training to it.
+The coach never makes a diagnosis. When the athlete gives one, or a professional's instruction
+("my physio says patellar tendinopathy, no deep knee flexion under load for six weeks"), the
+coach records it and adapts the training to it.
 
 What exists today, after ADR 0002:
 
@@ -23,29 +25,40 @@ What exists today, after ADR 0002:
 | Rules (`athlete_rule`: forbid a flag, stop after pain, progression) | data, per athlete; the coach can add, change or deactivate one | yes |
 | How a rule type is checked (`guardrail.py`) | code | no, and that is right |
 | Exercise flags (`free_barbell_legs`, `impact`, `running`) | data, but chosen for one athlete's rules | **mixed**: `free_barbell_legs` only makes sense for one athlete |
-| The stop rule's scope: the **movement pattern** of the painful session (`legs`, `hinge`) | code | no, but too coarse: a knee pain after a legs session caps every `legs` exercise and none of the `hinge` ones, whatever the knee has |
+| The stop rule's scope: the **movement pattern** of the painful session (`legs`, `hinge`) | code | no, but decided for everyone and too coarse: a knee pain after a legs session caps every `legs` exercise and none of the `hinge` ones, whatever the knee has |
 | Health issues (`health_issue`: body part, side, kind, the athlete's words, guidance) | data, recorded by the coach | yes, but **the planner never reads them**: ADR 0002 says it does, the code does not |
 
-So a diagnosis given to the coach is stored and then ignored by the programme. And the only way
-to protect a joint is a flag invented for one athlete, or a pattern that is too broad and too
-narrow at once.
+So a diagnosis given to the coach is stored and then ignored by the programme, and the only
+ways to protect a joint are a flag invented for one athlete or a pattern fixed in code.
 
-## Decision 1: exercises are described by what they demand, the same for everyone
+## Principle: the code knows how to check, the data says what
 
-Each exercise of the bank gets **movement demands**: facts about the exercise, true for every
-athlete, never tied to anyone's rules. A first list, to be completed with the owner:
+The code holds only mechanisms that are the same for every athlete: store a demand, store a
+constraint, compare a planned exercise with the athlete's constraints, refuse what breaks one.
+Every fact about bodies and exercises is a row in the database, written in conversation and
+visible on the profile:
 
-| Demand | Levels | Examples |
+| Fact | Where | Written by |
 |---|---|---|
-| `knee_flexion` | none, partial, deep | RDL: partial; leg press: partial to deep; back squat: deep |
-| `ankle_dorsiflexion` | low, medium, high | deadlift: low; front squat: high |
-| `shoulder_overhead` | none, partial, full | bench press: none; push press: full; snatch: full |
-| `spinal_load` | low, medium, high | leg press: low; back squat: high |
-| `impact` | none, low, high | row: none; box jump: high; run: high |
-| `wrist_extension_loaded` | no, yes | front rack, push-up, dips: yes |
+| What an exercise demands ("the back squat flexes the knee deeply") | `exercise_demand` rows | the coach, from the conversation or when an exercise is added |
+| The names of demands ("knee flexion", "ankle dorsiflexion", "overhead") | free text in those rows, no list in code or in a `check` | the coach, as the athlete's words need them |
+| What an athlete must avoid, and why | `constraint` rows attached to a health issue | the coach, from what the athlete or their professional says |
+| How long it lasts | the constraint's end date, or the issue's status | the coach, from what the athlete says |
+| What a pain limits | the constraints the coach writes for that issue | the coach, from the athlete's words |
 
-The athlete-specific flags (`free_barbell_legs`) disappear: what they stood for is written as a
-constraint on demands (Decision 2). Generic facts (`running`, `impact`) become demands.
+## Decision 1: exercise demands are data, with an open vocabulary
+
+Each exercise can carry **demands**: a name and a level ("knee flexion: deep", "impact: high").
+They live in a table, not in code and not in a fixed list: when an athlete's issue concerns
+something no exercise is described by yet (grip, hip rotation), the coach adds that demand to
+the exercises concerned, and the athlete sees it on the profile.
+
+Demands describe the exercise, not the athlete, so they are shared by every athlete of the same
+bank. The coach writes them from what the athlete says or from the movement itself, and the
+athlete can correct them ("the RDL hardly bends my knee").
+
+The athlete-specific flags (`free_barbell_legs`) disappear: what they stood for becomes a
+constraint (Decision 2). Generic facts (`running`, `impact`) become demands.
 
 Transition: `forbid_flag` rules keep working (guardrail, the coach's `forbidden_exercises`) until
 every one of them is rewritten as a constraint; the guardrail checks both meanwhile, and
@@ -53,68 +66,70 @@ every one of them is rewritten as a constraint; the guardrail checks both meanwh
 
 ## Decision 2: a constraint is the athlete's, attached to a health issue
 
-A **constraint** says which demand to avoid or cap, for which athlete, because of which health
-issue, until when:
+A **constraint** names a demand, a limit (avoid it, or a level not to exceed, with or without
+load), the health issue it comes from, and when it ends. Examples of what a coach could write:
 
-- "no `knee_flexion` deep under load" (from a knee issue);
-- "`shoulder_overhead` partial at most" (from a shoulder range limit);
-- "`impact` none" (from an Achilles issue).
+- "knee flexion: partial at most under load, until 2026-12-01" (from a knee issue given with a
+  physio's instruction);
+- "overhead: avoid" (from a shoulder range limit the athlete describes).
 
-It is stored as data (`athlete_rule` with a generic code such as `limit_demand`, its params, and
-the health issue it comes from). The guardrail checks it in code against the exercises' demands,
-the same way for every athlete. When the issue is resolved, its constraints stop applying.
+The guardrail has one generic check: a planned exercise whose demands break an active
+constraint is refused, with the constraint's reason. When the issue is resolved or the end
+date passes, the constraint stops applying.
 
-With this, the RDL question answers itself: a knee issue limited to deep flexion does not touch
-the RDL (partial flexion), and nobody has to remember to exclude or include `hinge`.
+With this, the RDL question is answered by the athlete's own data: if the athlete's knee
+constraint is about deep flexion and the RDL's demand is partial flexion, the RDL stays.
 
-The stop rule stays generic (pain above the athlete's threshold after a session), but its scope
-becomes the **demands** that session loaded on the painful body part, not the whole pattern.
+The stop rule keeps its mechanism (a pain above the athlete's threshold after a session), but
+what it caps comes from the athlete's data: the constraints of the painful issue if the coach
+has written them, otherwise the exercise that hurt. No body part is mapped to movements in code.
 
-## Decision 3: the coach gathers, the athlete confirms
+## Decision 3: the coach gathers and writes, the athlete sees and corrects
 
 | The athlete says | What the coach does |
 |---|---|
-| A diagnosis or a professional's instruction ("physio: no deep squats for six weeks") | Records the health issue with the athlete's words; applies the constraint the instruction states, since it is the athlete's instruction (ADR 0002) |
-| A pain, without a diagnosis ("my knee hurts after squats") | Records the health issue (`monitoring`); the stop rule protects the next sessions; the coach **suggests** a constraint and suggests seeing a professional, and applies nothing on its own |
-| A range limit they know ("my hips are tight") | Records it; suggests the matching constraint |
-| "it's healed" | Resolves the issue; its constraints stop; the coach says what comes back into the programme |
+| A diagnosis or a professional's instruction ("physio: no deep squats for six weeks") | Records the health issue with the athlete's words and the constraints the instruction states, with their end date; reports what it wrote |
+| A pain ("my knee hurts after squats") | Records the health issue with the athlete's words and, from what the athlete describes, the constraints it implies; asks what it cannot know (how bad, which movements); suggests seeing a professional |
+| A limit they know ("my hips are tight in the squat") | Records it and the matching constraint |
+| A correction ("the RDL doesn't bother my knee") | Changes the constraint or the exercise's demand |
+| "it's healed" | Resolves the issue; its constraints stop; says what comes back into the programme |
 
-The coach never names a condition the athlete did not name, and never turns a pain into a
-diagnosis. A constraint it infers is always a suggestion, answered with "ok for N".
+Every write goes through `operations.run` (ADR 0002): quoted from the athlete's message,
+traced, undoable. The coach always says what it added to the profile, so the athlete can
+correct or undo it. It never names a condition the athlete did not name.
 
 ## Decision 4: the planner programmes from the profile
 
 The planner's context gains the active health issues (with the athlete's words and the
-guidance) and the active constraints. Its prompt says to adapt within them (choose the
-exercise whose demands fit, not just drop the session), and the guardrail refuses a plan that
-breaks a constraint. The coach's snapshot shows the same, so a suggestion never breaks one.
+guidance), the active constraints and the demands of the bank's exercises. Its prompt says to
+adapt within them (choose the exercise whose demands fit, not just drop the session), and the
+guardrail refuses a plan that breaks a constraint. The coach's snapshot shows the same, so a
+suggestion never breaks one.
 
 ## Who does what
 
-- **App session**: migration (exercise demands, the link from a rule to its health issue), the
-  operations that write them, the profile page showing issues and their constraints.
-- **Agents session**: the `limit_demand` check and the stop rule by demand in the guardrail,
-  the planner context and prompt, the coach prompt and snapshot, bench scenarios (a diagnosis
-  given, a pain without one, an issue resolved, two athletes with different limits).
-- **Owner**: the list of demands and their levels; the demands of the exercises in the bank;
-  which existing profile rules become constraints.
+- **App session**: migration (`exercise_demand`, `constraint` linked to `health_issue`), the
+  operations that write them, the profile page showing issues, constraints and demands.
+- **Agents session**: the generic constraint check and the stop rule from the athlete's data in
+  the guardrail, the planner context and prompt, the coach prompt and snapshot, bench scenarios
+  (a physio's instruction, a pain, a correction, an issue resolved, two athletes with different
+  limits on the same bank).
+- **Owner**: tells the coach about his own body, as any athlete would; nothing to fill in by hand.
 
 ## Open questions for the owner
 
-1. Is the first list of demands right? What is missing for CrossFit (hip flexion, grip,
-   rotation)?
-2. A constraint the athlete dictates from a professional: applied at once (proposed above), or
-   still confirmed?
-3. Should a pain without a diagnosis create a temporary constraint by itself (for example two
-   weeks), or only the stop rule?
-4. Which demands does a painful body part limit (a knee: `knee_flexion`, `impact`; a shoulder:
-   `shoulder_overhead`...)? The stop rule by demand needs this table. It is generic (anatomy, the
-   same for everyone) and data, not code, so it can be corrected without a release.
+1. The coach writes a constraint from a pain without waiting for a "yes", says what it wrote,
+   and the athlete corrects or undoes it (proposed above). Or should a constraint the coach
+   infers wait for the athlete's "ok"?
+2. Demands are shared by every athlete of a bank (they describe the exercise). Is that right, or
+   should an athlete be able to say "for me, this exercise loads my knee" without changing it for
+   others?
 
 ## Consequences
 
 - A second athlete starts with an empty profile and no inherited limits.
-- The guardrail stays deterministic: models gather and suggest, code checks.
+- The guardrail stays deterministic: models gather and write, code checks.
+- Nothing about bodies is in code: a new kind of limit needs a conversation, not a release.
 - Until this is built, a health issue recorded by the coach does not reach the planner. ADR 0002
   ("the planner reads it") and the `add_health_issue` docstring ("the planner respects the
   active ones") say otherwise; they are corrected with the first change that implements this

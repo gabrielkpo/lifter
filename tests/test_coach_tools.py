@@ -174,6 +174,7 @@ def test_a_suggestion_waits_for_the_athletes_choice(conn, program):
     assert suggested["ok"] and session(conn, "Legs + Metcon")[2] == day  # nothing applied
     pending = call(tools, "pending_suggestions")
     assert [p["id"] for p in pending] == [suggested["suggestion_id"]]
+    coach_replies(conn, "Je propose de la décaler à vendredi.", [suggested["suggestion_id"]])
 
     _, tools = tools_for(conn, f"ok pour la {suggested['suggestion_id']}")
     accepted = call(
@@ -226,5 +227,45 @@ def test_a_suggestion_made_during_the_turn_cannot_be_accepted_in_it(conn, progra
     accepted = call(
         tools, "accept_suggestion", suggestion_id=suggested["suggestion_id"], quote="ok merci"
     )
-    assert not accepted["ok"] and "made after the athlete's message" in accepted["error"]
+    assert not accepted["ok"] and "not presented" in accepted["error"]
     assert session(conn, "Legs + Metcon")[2] == day
+
+
+def coach_replies(conn, text: str, shown: list[int]) -> int:
+    """The coach's reply as respond() stores it, presenting `shown` (audit N7)."""
+    message = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c1', 'coach', %s) returning id",
+        (text,),
+    ).fetchone()[0]
+    operations.present(conn, conversation_id="c1", coach_message_id=message, proposal_ids=shown)
+    return message
+
+
+def test_an_older_suggestion_is_accepted_only_once_presented_again(conn, program):
+    # Listing is not presenting: the planner's suggestion becomes acceptable only when the coach
+    # puts it back in front of the athlete (present_suggestions), and expires when it does not.
+    sid, version, _ = session(conn, "Legs + Metcon")
+    planner = operations.suggest(
+        conn,
+        "move_session",
+        {"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+        rationale="Planned by the planner.",
+        author="planner",
+    )
+    ctx, tools = tools_for(conn, "Quelles suggestions sont en attente ?")
+    call(tools, "pending_suggestions")
+    assert ctx.shown() == []
+    coach_replies(conn, "Une suggestion du planificateur attend.", ctx.shown())
+    _, tools = tools_for(conn, f"ok pour la {planner}")
+    refused = call(tools, "accept_suggestion", suggestion_id=planner, quote=f"ok pour la {planner}")
+    assert not refused["ok"] and "not presented" in refused["error"]
+
+    ctx, tools = tools_for(conn, "montre-la moi")
+    assert call(tools, "present_suggestions", suggestion_ids=[planner])["ok"]
+    coach_replies(conn, f"La {planner} : décaler la séance jambes à vendredi.", ctx.shown())
+    _, tools = tools_for(conn, f"ok pour la {planner}")
+    accepted = call(
+        tools, "accept_suggestion", suggestion_id=planner, quote=f"ok pour la {planner}"
+    )
+    assert accepted["ok"] and session(conn, "Legs + Metcon")[2] == "2026-03-06"

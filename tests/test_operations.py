@@ -214,6 +214,44 @@ def test_a_retry_with_the_same_key_changes_nothing_more(conn, program):
     assert issue == ("agent", "j'ai mal au poignet droit")
 
 
+def test_a_retry_racing_the_first_call_applies_nothing_twice(conn, database_url, program):
+    # The same request sent twice at once: the second waits on the first's key, then is refused
+    # cleanly (retrying it then returns the first one's change).
+    import threading
+
+    from lifter.db import connect
+
+    message = say(conn, "pas de saut cette semaine")
+    args = {
+        "conversation_id": "c1",
+        "quote": "pas de saut cette semaine",
+        "message_id": message,
+        "idempotency_key": "race",
+        "author": "coach",
+    }
+    outcome: list = []
+    with connect(database_url) as first, connect(database_url) as second:
+        with first.transaction():
+            run(first, "add_rule", {"text": "Pas de saut"}, **args)
+
+            def retry():
+                try:
+                    outcome.append(run(second, "add_rule", {"text": "Pas de saut"}, **args))
+                except OperationError as exc:
+                    outcome.append(exc)
+
+            thread = threading.Thread(target=retry)
+            thread.start()
+            thread.join(0.5)  # blocked on the first call's key until it commits
+            assert thread.is_alive()
+        thread.join(10)
+    assert isinstance(outcome[0], OperationError) and "another call" in str(outcome[0])
+    assert conn.execute(
+        "select count(*) from athlete_rule where text = 'Pas de saut'"
+    ).fetchone() == (1,)
+    assert run(conn, "add_rule", {"text": "Pas de saut"}, **args).operation == "add_rule"
+
+
 def test_the_profile_is_created_then_changed_at_its_version(conn, program):
     do(conn, "update_athlete", {"weight_kg": 80}, "je pèse 80 kilos")
     with pytest.raises(StaleRow):

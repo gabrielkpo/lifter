@@ -1730,6 +1730,138 @@ def _violation(v: Any) -> dict[str, Any]:
 # The entry point
 
 
+def _replayed(conn, key: str, name: str, proposal_id: int | None) -> Change | None:
+    """The change a retry with the same idempotency key already made, if any."""
+    done = conn.execute(
+        "select status, result, kind from proposal where idempotency_key = %s", (key,)
+    ).fetchone()
+    if done is None:
+        return None
+    if proposal_id is None and done[2] != name:
+        raise OperationError(f"key {key!r} was used for {done[2]}, not {name}")
+    if done[0] != "applied":
+        raise OperationError(f"this request was already made and ended {done[0]}")
+    return Change.model_validate(done[1])
+
+
+def _check_message(conn, conversation_id: str, message_id: int) -> None:
+    """Only the message being answered, the athlete's latest in the conversation, authorises."""
+    latest = conn.execute(
+        "select max(id) from conversation_message where conversation_id = %s and role = 'athlete'",
+        (conversation_id,),
+    ).fetchone()[0]
+    if latest is None or latest != message_id:
+        raise OperationError(
+            f"message {message_id} is not the athlete's latest message in conversation"
+            f" {conversation_id!r}: only the message being answered can authorise a change"
+        )
+
+
+def _picked(conn, proposal_id: int, conversation_id: str, message_id: int) -> tuple[str, Any]:
+    """The operation and payload of the suggestion the athlete picks, locked for this change."""
+    found = conn.execute(
+        "select kind, payload, status, presented_in from proposal where id = %s for update",
+        (proposal_id,),
+    ).fetchone()
+    if found is None:
+        raise OperationError(f"suggestion {proposal_id} does not exist")
+    if found[2] == "expired":
+        raise OperationError(
+            f"suggestion {proposal_id} expired: the coach's latest message did not present it;"
+            " present it again for the athlete to answer"
+        )
+    if found[2] != "pending":
+        raise OperationError(f"suggestion {proposal_id} is {found[2]}, not pending")
+    # The athlete can only pick what the coach's latest message showed them: not an older
+    # suggestion, nor one made during this turn (by a model misled into suggesting and
+    # accepting at once), which no message has presented yet (audit N7).
+    shown = conn.execute(
+        "select max(id) from conversation_message"
+        " where conversation_id = %s and role = 'coach' and id < %s",
+        (conversation_id, message_id),
+    ).fetchone()[0]
+    if found[3] is None or found[3] != shown:
+        raise OperationError(
+            f"suggestion {proposal_id} was not presented in the coach's last message:"
+            " the athlete has not seen it there, present it again"
+        )
+    return found[0], found[1]
+
+
+def _apply_checked(conn, op: Operation, model: Any, ctx: Context) -> Change:
+    """Apply `op`, then hold it to the guardrail on the weeks it touches: a change that
+    introduces a violation is refused, a change of the rules reports it (see Operation)."""
+    weeks: set[int] = set()
+    before: dict[int, list] = {}
+    if op.programme:
+        if _programme_check is None:
+            raise OperationError("no rule check registered: the programme cannot change")
+        weeks = {w for w in op.weeks(conn, model) if w is not None} if op.weeks else set()
+        before = {w: _programme_check[0](conn, w) for w in weeks}
+    try:
+        change = op.apply(conn, model, ctx).model_copy(update={"operation": op.name})
+    except psycopg.errors.IntegrityError as exc:
+        raise OperationError(f"refused by the database: {exc.diag.message_primary}") from None
+    if not weeks:
+        return change
+    new = []
+    # A week the change deleted has nothing left to check.
+    for week in sorted(
+        _ids(conn, "select id from training_week where id = any(%s)", (list(weeks),))
+    ):
+        new += _programme_check[1](before[week], _programme_check[0](conn, week))
+    report = op.report or (op.name == "undo" and _undoes_a_rule(conn, model.change_id))
+    if new and not report:
+        raise RuleViolation(new)
+    if new:
+        change = change.model_copy(update={"violations": [_violation(v) for v in new]})
+    return change
+
+
+def _record(conn, change: Change, model: Any, *, trace: dict, proposal_id: int | None) -> None:
+    """The trace: the proposal (the picked suggestion, or a new applied one) and the change log
+    row `undo` rebuilds from; the database refuses the coach's commit without them."""
+    trace = trace | {"result": Jsonb(change.model_dump(mode="json"))}
+    try:
+        if proposal_id is not None:
+            conn.execute(
+                "update proposal set status = 'applied', decided_at = now(), applied_at = now(),"
+                " quote = %(quote)s, message_id = %(message_id)s,"
+                " idempotency_key = %(idempotency_key)s, result = %(result)s where id = %(id)s",
+                trace | {"id": proposal_id},
+            )
+            applied_id = proposal_id
+        else:
+            applied_id = conn.execute(
+                "insert into proposal (kind, payload, rationale, author, status, decided_at,"
+                " applied_at, quote, message_id, idempotency_key, result) values"
+                " (%(kind)s, %(payload)s, %(rationale)s, %(author)s, 'applied', now(), now(),"
+                " %(quote)s, %(message_id)s, %(idempotency_key)s, %(result)s) returning id",
+                trace | {"kind": change.operation, "payload": Jsonb(model.model_dump(mode="json"))},
+            ).fetchone()[0]
+    except psycopg.errors.UniqueViolation:
+        # The same request, retried while the first call was still running: that one wins.
+        raise OperationError(
+            "this request is being applied by another call: retry it to get its result"
+        ) from None
+    conn.execute(
+        "insert into change_log (proposal_id, operation, entity, entity_id, before, after)"
+        " values (%s, %s, %s, %s, %s, %s)",
+        (
+            applied_id,
+            change.operation,
+            change.entity,
+            change.entity_id,
+            Jsonb([i.model_dump(mode="json") for i in change.before]),
+            Jsonb([i.model_dump(mode="json") for i in change.after]),
+        ),
+    )
+    if change.undoes is not None:
+        conn.execute(
+            "update proposal set undone_by = %s where id = %s", (applied_id, change.undoes)
+        )
+
+
 def run(
     conn: psycopg.Connection,
     name: str,
@@ -1752,129 +1884,27 @@ def run(
     by the caller (the conversation endpoint: message id and tool-call index), never by a model.
     """
     with conn.transaction():
-        done = conn.execute(
-            "select status, result, kind from proposal where idempotency_key = %s",
-            (idempotency_key,),
-        ).fetchone()
-        if done is not None:
-            if proposal_id is None and done[2] != name:
-                raise OperationError(f"key {idempotency_key!r} was used for {done[2]}, not {name}")
-            if done[0] != "applied":
-                raise OperationError(f"this request was already made and ended {done[0]}")
-            return Change.model_validate(done[1])
-
-        latest = conn.execute(
-            "select max(id) from conversation_message"
-            " where conversation_id = %s and role = 'athlete'",
-            (conversation_id,),
-        ).fetchone()[0]
-        if latest is None or latest != message_id:
-            raise OperationError(
-                f"message {message_id} is not the athlete's latest message in conversation"
-                f" {conversation_id!r}: only the message being answered can authorise a change"
-            )
-
+        replayed = _replayed(conn, idempotency_key, name, proposal_id)
+        if replayed is not None:
+            return replayed
+        _check_message(conn, conversation_id, message_id)
         if proposal_id is not None:
-            found = conn.execute(
-                "select kind, payload, status, presented_in from proposal where id = %s for update",
-                (proposal_id,),
-            ).fetchone()
-            if found is None:
-                raise OperationError(f"suggestion {proposal_id} does not exist")
-            if found[2] != "pending":
-                raise OperationError(f"suggestion {proposal_id} is {found[2]}, not pending")
-            # The athlete can only pick what the coach's latest message showed them: not an older
-            # suggestion, nor one made during this turn (by a model misled into suggesting and
-            # accepting at once), which no message has presented yet (audit N7).
-            shown = conn.execute(
-                "select max(id) from conversation_message"
-                " where conversation_id = %s and role = 'coach' and id < %s",
-                (conversation_id, message_id),
-            ).fetchone()[0]
-            if found[3] is None or found[3] != shown:
-                raise OperationError(
-                    f"suggestion {proposal_id} was not presented in the coach's last message:"
-                    " the athlete has not seen it there, present it again"
-                )
-            name, payload = found[0], found[1]
+            name, payload = _picked(conn, proposal_id, conversation_id, message_id)
         op = CATALOGUE.get(name)
         if op is None:
             raise OperationError(f"unknown operation: {name}")
-
         verify_quote(conn, message_id, quote, short_ok=op.short_quote or proposal_id is not None)
         model = op.payload.model_validate(payload or {})
         source = "athlete" if author == "athlete" else "agent"
-        ctx = Context(source=source, quote=quote)
-
-        weeks: set[int] = set()
-        before_violations: dict[int, list] = {}
-        if op.programme:
-            if _programme_check is None:
-                raise OperationError("no rule check registered: the programme cannot change")
-            weeks = {w for w in op.weeks(conn, model) if w is not None} if op.weeks else set()
-            before_violations = {w: _programme_check[0](conn, w) for w in weeks}
-
-        try:
-            change = op.apply(conn, model, ctx).model_copy(update={"operation": name})
-        except psycopg.errors.IntegrityError as exc:
-            raise OperationError(f"refused by the database: {exc.diag.message_primary}") from None
-
-        if weeks:
-            new = []
-            for week in sorted(
-                _ids(conn, "select id from training_week where id = any(%s)", (list(weeks),))
-            ):
-                new += _programme_check[1](before_violations[week], _programme_check[0](conn, week))
-            report = op.report or (name == "undo" and _undoes_a_rule(conn, model.change_id))
-            if new and not report:
-                raise RuleViolation(new)
-            if new:
-                change = change.model_copy(update={"violations": [_violation(v) for v in new]})
-
+        change = _apply_checked(conn, op, model, Context(source=source, quote=quote))
         trace = {
             "quote": quote,
             "message_id": message_id,
             "idempotency_key": idempotency_key,
-            "result": Jsonb(change.model_dump(mode="json")),
+            "rationale": rationale or quote,
+            "author": author,
         }
-        if proposal_id is not None:
-            conn.execute(
-                "update proposal set status = 'applied', decided_at = now(), applied_at = now(),"
-                " quote = %(quote)s, message_id = %(message_id)s,"
-                " idempotency_key = %(idempotency_key)s, result = %(result)s where id = %(id)s",
-                trace | {"id": proposal_id},
-            )
-            applied_id = proposal_id
-        else:
-            applied_id = conn.execute(
-                "insert into proposal (kind, payload, rationale, author, status, decided_at,"
-                " applied_at, quote, message_id, idempotency_key, result) values"
-                " (%(kind)s, %(payload)s, %(rationale)s, %(author)s, 'applied', now(), now(),"
-                " %(quote)s, %(message_id)s, %(idempotency_key)s, %(result)s) returning id",
-                trace
-                | {
-                    "kind": name,
-                    "payload": Jsonb(model.model_dump(mode="json")),
-                    "rationale": rationale or quote,
-                    "author": author,
-                },
-            ).fetchone()[0]
-        conn.execute(
-            "insert into change_log (proposal_id, operation, entity, entity_id, before, after)"
-            " values (%s, %s, %s, %s, %s, %s)",
-            (
-                applied_id,
-                name,
-                change.entity,
-                change.entity_id,
-                Jsonb([i.model_dump(mode="json") for i in change.before]),
-                Jsonb([i.model_dump(mode="json") for i in change.after]),
-            ),
-        )
-        if change.undoes is not None:
-            conn.execute(
-                "update proposal set undone_by = %s where id = %s", (applied_id, change.undoes)
-            )
+        _record(conn, change, model, trace=trace, proposal_id=proposal_id)
     return change
 
 
@@ -1886,9 +1916,10 @@ def present(
     proposal_ids: list[int],
 ) -> None:
     """The coach's message `coach_message_id` showed these pending suggestions: only they can be
-    accepted with the athlete's next message. Any other pending suggestion shown earlier in this
-    conversation expires (no lifetime: the conversation moving on is what ends it). Called once
-    per coach message, with an empty list when it showed none."""
+    accepted with the athlete's next message (an expired one presented again is pending again).
+    Any other pending suggestion shown earlier in this conversation expires (no lifetime: the
+    conversation moving on is what ends it). Called once per coach message, in the transaction
+    that stores it, with an empty list when it showed none."""
     with conn.transaction():
         said = conn.execute(
             "select conversation_id, role from conversation_message where id = %s",
@@ -1904,8 +1935,10 @@ def present(
             " (select id from conversation_message where conversation_id = %s)",
             (proposal_ids, conversation_id),
         )
+        # Presented again, an expired suggestion is back in front of the athlete.
         conn.execute(
-            "update proposal set presented_in = %s where status = 'pending' and id = any(%s)",
+            "update proposal set presented_in = %s, status = 'pending', decided_at = null"
+            " where status in ('pending', 'expired') and id = any(%s)",
             (coach_message_id, proposal_ids),
         )
 

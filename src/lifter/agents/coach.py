@@ -36,6 +36,7 @@ from langgraph.prebuilt import ToolNode
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from lifter import operations
 from lifter.agents.guardrail import forbidden_flags
 from lifter.agents.planner import Usage
 from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
@@ -60,6 +61,9 @@ add_health_issue.
 - "undo" or "annule": undo the last change you applied, apply_change with operation undo and \
 the change_id of the latest undoable change in recent_changes_in_this_conversation.
 - Your own ideas: suggest_change, never apply_change; say which suggestion id to answer with.
+- An older suggestion (yours or the planner's) the athlete should answer now: \
+present_suggestions, and name it in your reply. Only what your reply presents can be accepted \
+with the athlete's next message; an expired suggestion comes back once you present it again.
 
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
@@ -184,10 +188,15 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "select id, version, body_part, side, kind, description, guidance, since, status"
         " from health_issue where status <> 'resolved' order by id",
     )
+    # Pending suggestions, and those that expired in this conversation (present them again to
+    # make them acceptable); presented_in says which coach message last showed each.
     suggestions = _rows(
         conn,
-        "select id, kind as operation, rationale from proposal where status = 'pending'"
+        "select id, kind as operation, rationale, status, presented_in from proposal"
+        " where status = 'pending' or (status = 'expired' and presented_in in"
+        " (select id from public.conversation_message where conversation_id = %s))"
         " order by id",
+        (conversation_id,),
     )
     bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
     rules = _rows(conn, "select code, text from athlete_rule where active order by id")
@@ -322,6 +331,7 @@ def respond(
                     conn,
                     conversation_id,
                     f"(I hit an error after applying: {done}. Ask me to undo if needed.)",
+                    shown=[],  # the athlete saw none of this turn's suggestions
                 )
             if trigger:
                 run.record(f"{type(exc).__name__}: {exc}")
@@ -336,9 +346,10 @@ def respond(
         text = (text + "\n\n" if text else "") + (
             f"(I stopped before finishing: {stopped[0]}. Applied so far: {done}.)"
         )
+    run.context["presented"] = ctx.shown()
     reply = CoachReply(
         text=text,
-        message_id=_store_reply(conn, conversation_id, text or "(no reply)"),
+        message_id=_store_reply(conn, conversation_id, text or "(no reply)", shown=ctx.shown()),
         changes=ctx.changes,
         suggestions=ctx.suggestions,
         usage=usage,
@@ -349,12 +360,21 @@ def respond(
     return reply
 
 
-def _store_reply(conn: psycopg.Connection, conversation_id: str, text: str) -> int:
-    return conn.execute(
-        "insert into conversation_message (conversation_id, role, text)"
-        " values (%s, 'coach', %s) returning id",
-        (conversation_id, text),
-    ).fetchone()[0]
+def _store_reply(
+    conn: psycopg.Connection, conversation_id: str, text: str, *, shown: list[int]
+) -> int:
+    """The coach's message, and the suggestions it presents (audit N7), in one transaction: what
+    it did not present expires, so the athlete's next message can only accept what they saw."""
+    with conn.transaction():
+        message_id = conn.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values (%s, 'coach', %s) returning id",
+            (conversation_id, text),
+        ).fetchone()[0]
+        operations.present(
+            conn, conversation_id=conversation_id, coach_message_id=message_id, proposal_ids=shown
+        )
+    return message_id
 
 
 @dataclass

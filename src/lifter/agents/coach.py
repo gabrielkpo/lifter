@@ -333,6 +333,7 @@ def respond(
                     f"(I hit an error after applying: {done}. Ask me to undo if needed.)",
                     shown=[],  # the athlete saw none of this turn's suggestions
                 )
+            run.context["presented"] = []
             if trigger:
                 run.record(f"{type(exc).__name__}: {exc}")
         except psycopg.Error as audit_error:

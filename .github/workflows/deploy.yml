@@ -9,6 +9,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# The jobs below hold the production secrets: their actions are pinned by commit, like
+# release-please's, so a moved tag cannot run other code with them (Dependabot bumps the pins).
 # One deployment at a time; a second one waits instead of racing on the database.
 concurrency:
   group: deploy-production
@@ -20,8 +22,16 @@ jobs:
     # writes its own deployments there).
     environment: deploy
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      # Production is deployed from main only. The environment's branch rule already refuses
+      # another ref; this fails the run in the open too, rather than skipping it in green.
+      - name: From main only
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Deploy runs from main only, not $GITHUB_REF"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
       - name: Install
         run: uv sync --locked --group dev
       # Neon keeps 6 hours of history (instant restore) and the Mac backs it up daily; no dump
@@ -40,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: deploy
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Deploy the API (Vercel project lifter-api)
         run: npx --yes vercel@62.1.0 deploy --prod --yes --token "$VERCEL_TOKEN"
         env:
@@ -53,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: deploy
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       # From the repository root: the project's own root directory (web/) is set on Vercel.
       - name: Deploy the app (Vercel project lifter)
         run: npx --yes vercel@62.1.0 deploy --prod --yes --token "$VERCEL_TOKEN"

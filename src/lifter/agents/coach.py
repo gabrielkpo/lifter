@@ -325,6 +325,7 @@ def respond(
         final = graph.compile().invoke({"messages": messages})["messages"]
     except Exception as exc:
         try:
+            run.context["presented"] = []  # a crashed turn presents nothing
             if ctx.changes:  # the data changed: the athlete must hear it, even from a crash
                 done = ", ".join(c["operation"] for c in ctx.changes)
                 _store_reply(
@@ -333,7 +334,6 @@ def respond(
                     f"(I hit an error after applying: {done}. Ask me to undo if needed.)",
                     shown=[],  # the athlete saw none of this turn's suggestions
                 )
-            run.context["presented"] = []
             if trigger:
                 run.record(f"{type(exc).__name__}: {exc}")
         except psycopg.Error as audit_error:

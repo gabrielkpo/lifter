@@ -132,12 +132,16 @@ inherit them and hold nothing of their own. Passwords never live in the reposito
 
 | Login role | Inherits | Can | Cannot |
 |---|---|---|---|
-| `lifter_api` | `lifter_read` | read every table and view (read-only transactions, 10 s per statement) | write anything |
+| `lifter_api` | `lifter_read` | read the tables and views (read-only transactions, 10 s per statement) | write anything; read the agents' audit (`agent_run`, `agent_step`), the conversation or the change log |
 | `lifter_sync` | `lifter_ingest` | read and write the raw Garmin layer (`raw_garmin_payload`, `sync_log`, `activity_tombstone`), read the staging views it reconciles with | read or write the program, the log, goals, proposals or metrics |
-| `lifter_agents` | `lifter_read`, `lifter_propose` | read everything, insert proposals and the audit of their runs | decide or apply a proposal, change the program |
-| `lifter_backup` | `lifter_read` | read everything, sequences included (`pg_dump`), read-only transactions, one connection | write anything |
+| `lifter_agents` | `lifter_read`, `lifter_propose` | read what `lifter_read` reads, insert proposals and the audit of their runs and read that audit back | decide or apply a proposal, change the program; read the conversation or the change log |
+| `lifter_backup` | `lifter_read`, `lifter_private` | read everything, the audit, the conversation and the change log included, sequences too (`pg_dump`), read-only transactions, one connection | write anything |
+| `lifter_coach` | `lifter_read`, `lifter_propose`, `lifter_write` | the agents' rights, plus the write path (`lifter.operations`): the domain tables, the trace, its own messages; read the conversation and the change log | write without a trace (009), rewrite an applied trace (011), write a message as the athlete |
+| `lifter_chat` | `lifter_read`, `lifter_converse` | store and read the athlete's messages | write a message as the coach, read the audit or the change log |
 
-No role may create objects; only the owner runs migrations. `tests/test_roles.py` checks the
+The agents' audit, the conversation and the change log hold health details (what the model saw,
+the athlete's words, rows before and after): `lifter_read` does not cover them, each goes by name
+to the roles that need it. No role may create objects; only the owner runs migrations. `tests/test_roles.py` checks the
 whole matrix and runs a sync as `lifter_sync` and a proposal as `lifter_agents`.
 
 

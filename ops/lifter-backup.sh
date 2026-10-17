@@ -19,7 +19,7 @@ file="$BACKUP_DIR/lifter-$(date '+%Y%m%d-%H%M%S').dump"
 log "backup: start"
 # --enable-row-security: conversation_message has row-level policies (009); without it pg_dump
 # refuses the table for a role that does not own it. lifter_backup reads every row through
-# lifter_read's policy, so the dump is complete.
+# lifter_private (roles.sql), which the read policy covers, so the dump is complete.
 if "$PG_BIN/pg_dump" --format=custom --no-owner --no-privileges --enable-row-security \
   --file="$file.partial" \
   "$DATABASE_URL" 2>>"$LIFTER_LOG" && "$PG_BIN/pg_restore" --list "$file.partial" >/dev/null; then

@@ -17,14 +17,19 @@ concurrency:
   cancel-in-progress: false
 jobs:
   migrate:
-    # Production is deployed from main only. The environment's branch rule already refuses
-    # another ref; this says so here too, and stops a run by hand from a branch before it starts.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Secrets of the "deploy" environment, readable from main only (not "Production": Vercel
     # writes its own deployments there).
     environment: deploy
     steps:
+      # Production is deployed from main only. The environment's branch rule already refuses
+      # another ref; this fails the run in the open too, rather than skipping it in green.
+      - name: From main only
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Deploy runs from main only, not $GITHUB_REF"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
       - name: Install

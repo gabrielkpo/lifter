@@ -52,9 +52,9 @@ Each exercise can carry **demands**: a demand and a level ("knee flexion: deep",
 high"). The demands themselves are rows of a `demand` table, not a list in code: when an
 athlete's issue concerns something no exercise is described by yet (grip, hip rotation), the
 coach adds that demand and describes the exercises concerned for that athlete, and the athlete
-sees it on the profile. Exercise demands and constraints both point to a `demand` row, so a constraint can
-never name a demand that the exercises spell differently; the coach reuses an existing demand
-before adding one.
+sees it on the profile. Exercise demands and constraints both point to a `demand` row, so a
+constraint can never name a demand that the exercises spell differently; the coach reuses an
+existing demand before adding one.
 
 Demands describe the exercise, so the bank's description is shared. Anything the coach writes
 from one athlete's conversation, a new description or a correction ("the RDL hardly bends my

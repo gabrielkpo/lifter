@@ -40,7 +40,7 @@ visible on the profile:
 
 | Fact | Where | Written by |
 |---|---|---|
-| What an exercise demands ("the back squat flexes the knee deeply") | `exercise_demand` rows, plus the athlete's own corrections | the coach, from the conversation or when an exercise is added |
+| What an exercise demands ("the back squat flexes the knee deeply") | `exercise_demand` rows (shared), plus each athlete's own descriptions | shared: the bank's maintainer; the athlete's: the coach, from the conversation |
 | The names of demands ("knee flexion", "ankle dorsiflexion", "overhead") | a `demand` table: rows, no list in code or in a `check` | the coach, as the athlete's words need them |
 | What an athlete must avoid, and why | `constraint` rows attached to a health issue | the coach, from what the athlete or their professional says |
 | How long it lasts | the constraint's end date, or the issue's status | the coach, from what the athlete says |
@@ -51,14 +51,14 @@ visible on the profile:
 Each exercise can carry **demands**: a demand and a level ("knee flexion: deep", "impact:
 high"). The demands themselves are rows of a `demand` table, not a list in code: when an
 athlete's issue concerns something no exercise is described by yet (grip, hip rotation), the
-coach adds that demand and describes the exercises concerned, and the athlete sees it on the
-profile. Exercise demands and constraints both point to a `demand` row, so a constraint can
+coach adds that demand and describes the exercises concerned for that athlete, and the athlete
+sees it on the profile. Exercise demands and constraints both point to a `demand` row, so a constraint can
 never name a demand that the exercises spell differently; the coach reuses an existing demand
 before adding one.
 
-Demands describe the exercise, so the bank's description is shared. A correction from one
-athlete ("the RDL hardly bends my knee") is stored **for that athlete only**, as an override
-of the shared level; the shared description changes only through the bank's maintainer (the
+Demands describe the exercise, so the bank's description is shared. Anything the coach writes
+from one athlete's conversation, a new description or a correction ("the RDL hardly bends my
+knee"), is stored **for that athlete only**, as an override of the shared level; the shared description changes only through the bank's maintainer (the
 owner today), never from another athlete's conversation. One athlete's words, or text planted
 in their data, can never loosen another athlete's protection.
 
@@ -99,7 +99,7 @@ for a session, not for one exercise). No body part is mapped to movements in cod
 | A diagnosis or a professional's instruction ("physio: no deep squats for six weeks") | Records the health issue with the athlete's words and the constraints the instruction states, with their end date; reports what it wrote |
 | A pain ("my knee hurts after squats") | Records the health issue with the athlete's words and, from what the athlete describes, the constraints it implies; asks what it cannot know (how bad, which movements); suggests seeing a professional |
 | A limit they know ("my hips are tight in the squat") | Records it and the matching constraint |
-| A correction ("the RDL doesn't bother my knee") | Changes the constraint or the exercise's demand |
+| A correction ("the RDL doesn't bother my knee") | Changes the constraint, or records the athlete's own level for the exercise (never the shared one) |
 | "it's healed" | Resolves the issue; its constraints stop; says what comes back into the programme |
 
 Every write goes through `operations.run` (ADR 0002): quoted from the athlete's message,

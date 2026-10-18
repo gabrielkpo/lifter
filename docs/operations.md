@@ -14,7 +14,9 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 
 The sync needs the Garmin MCP server up on `127.0.0.1:8080` (a Docker container: Docker
 Desktop must start at login), and the restore test needs the local Postgres server. A job
-missed while the Mac sleeps runs at wake-up. Logs are in `~/Library/Logs/lifter/`, readable by
+missed while the Mac sleeps runs at wake-up. Each job runs under `caffeinate`: one started by a
+dark wake on battery used to be put back to sleep within seconds and lose its database
+connection; the Mac now stays awake until the job ends. Logs are in `~/Library/Logs/lifter/`, readable by
 this user only (they can hold full tracebacks).
 
 **Exit codes** of `lifter sync`, which the sync job reads (any code but 0 is a failure): `0`

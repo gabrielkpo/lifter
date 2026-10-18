@@ -100,6 +100,8 @@ grant usage on schema public to lifter_propose;
 -- A proposal only as a pending one: what, why and by whom. Its status, dates, key and result
 -- belong to the write path (lifter_write), so an agent cannot plant an "applied" row nor
 -- backdate a suggestion.
+-- The table-wide insert it held before is revoked first: a grant here never takes one away.
+revoke insert on proposal from lifter_propose;
 grant insert (kind, payload, rationale, author) on proposal to lifter_propose;
 grant insert on agent_run, agent_step to lifter_propose;
 -- Their own runs: `insert ... returning id`, `lifter runs` and the bench read them back.

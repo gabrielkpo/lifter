@@ -5,6 +5,7 @@
 # missed run or a late watch upload is caught up by the next one.
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
+stay_awake "$@"
 LIFTER_LOG="$LIFTER_LOG_DIR/sync.log"
 
 load_env sync.env

@@ -18,8 +18,9 @@ previous state exactly (ids included).
    applied proposal's trace cannot be rewritten afterwards (011_trace_integrity.sql).
 
 Updates are partial: only the fields given change, and an explicit null sets the column to
-null. The rule check is registered at start-up (`set_programme_check`), so the domain does not
-import the agents; without it, an operation on the programme is refused.
+null. The rule check is registered by the coach before it runs
+(`lifter.agents.tools.register_rule_check`, through `set_programme_check`), so the domain does
+not import the agents; without it, an operation on the programme is refused.
 """
 
 from collections.abc import Callable
@@ -317,11 +318,13 @@ def revert(conn: psycopg.Connection, change: Change) -> Change:
         if _row(conn, *key) is not None:
             raise StaleRow(f"{key[0]} {key[1]} exists again since this change")
     created = [i for i in change.after if before.get((i.table, i.id)) is None and i.row]
-    # Rows added since under a row this undo deletes would go with it silently: refuse.
+    # Rows added since under a row this undo deletes would go with it silently, or lose their
+    # link to it (on delete set null): refuse.
     for img in created:
         extra: list[RowImage] = []
-        _dependents(conn, img.table, [img.id], extra, [])
-        unknown = [e for e in extra if (e.table, e.id) not in after]
+        nulled: list[RowImage] = []
+        _dependents(conn, img.table, [img.id], extra, nulled)
+        unknown = [e for e in extra + nulled if (e.table, e.id) not in after]
         if unknown:
             raise StaleRow(f"{unknown[0].table} {unknown[0].id} was added since this change")
 

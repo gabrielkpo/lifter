@@ -182,7 +182,7 @@ uv run lifter run 12            # each attempt, its violations, tokens and secon
 |---|---|---|
 | `MISTRAL_API_KEY` | none | Required by `plan-week`; stays in `.env`, never logged |
 | `LIFTER_MODEL` | `mistral-small-latest` | Mistral API model name |
-| `LIFTER_COACH_LANGUAGE` | `English` | Language of the summary and rationales: a language name (letters, up to three words), refused otherwise since it is written into the system prompt |
+| `LIFTER_COACH_LANGUAGE` | `English` | Language of the summary and rationales: one of the supported languages, listed in `config.py` (any case), refused otherwise since it is written into the system prompt |
 | `LIFTER_LLM_CONTEXT` | `indicators` | What is sent to the model, below |
 | `LIFTER_RUN_TOKEN_BUDGET` | `60000` | Tokens (input + output) a planner run may use: no new attempt starts past it; the run ends refused, audited as `BudgetExceeded` |
 | `LIFTER_BENCH_TOKEN_BUDGET` | `1000000` | Tokens a bench pass may use: no new scenario starts past it, the results so far are kept |

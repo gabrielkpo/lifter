@@ -24,7 +24,7 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 | `GET /goals`, `/bests` | Goals with milestones, best logged loads |
 | `GET /history?exercise=` | The heaviest set per day of a movement (PR curves) |
 | `GET /profile` | The athlete (age, never the birth date), declared health issues, active rules |
-| `GET /status` | When Garmin data last arrived (the app's freshness banner) |
+| `GET /status` | When the Mac's sync last stored or confirmed a Garmin payload (the app's freshness banner) |
 | `GET /proposals?status=pending` | The agents' proposals |
 
 Run locally, the API listens on `127.0.0.1` only, opens its database connection read-only and
@@ -56,4 +56,6 @@ workflow then migrates the database, deploys the API, then the app, and checks t
 Locally nothing changes: `uv run lifter-api` needs no token and the app's server reads it at
 `http://127.0.0.1:8000` (`web/.env.example`). On Vercel, the app answers only its own host
 names (`VERCEL_URL`, `VERCEL_BRANCH_URL`, `VERCEL_PROJECT_PRODUCTION_URL`, plus
-`LIFTER_WEB_HOSTS`).
+`LIFTER_WEB_HOSTS`), and the API the same (its Vercel host names, plus `LIFTER_API_HOSTS`,
+comma-separated, for a domain of its own). Every API answer carries `Cache-Control: no-store`:
+no browser or proxy keeps a copy of the athlete's data.

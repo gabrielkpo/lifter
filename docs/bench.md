@@ -115,8 +115,9 @@ does nothing always meets), 4 of 8
 scenarios fully met (every "nothing changes" one, none of the others;
 `bench/results/conversations-silent.json`). **The coach with `mistral-small-latest`** (`--coach
 mistral --runs 3`, `bench/results/coach-mistral-small.json`): **24 runs of 24 fully met**, no
-quote refused, no turn stopped by a limit, about 420,000 tokens. It got there in five rounds on
-the same scenarios:
+quote refused, no turn stopped by a limit, about 395,000 tokens (measured on 876ab1c, with
+suggestions accepted only as presented, versioned logs, and the tool calls of one message run
+one at a time). It got there in five rounds on the same scenarios:
 - **First pass, 67 %.** The coach called operations as if they were tools, guessed table
   names and part ids, picked last week's legs session to move, and reported an undo as refused
   without calling any tool.

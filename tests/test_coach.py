@@ -5,6 +5,7 @@ the stored reply and the audit."""
 from datetime import date
 from pathlib import Path
 
+import psycopg
 import pytest
 from langchain_core.messages import AIMessage, SystemMessage
 
@@ -351,3 +352,58 @@ def test_a_forbid_flag_rule_with_odd_params_forbids_nothing_and_breaks_nothing(c
     assert all(
         f["rule"] not in ("Odd.", "Odd too.") for f in snapshot(conn, TODAY)["forbidden_exercises"]
     )
+
+
+def test_the_tool_calls_of_one_message_run_one_at_a_time_in_order(conn, program, monkeypatch):
+    import threading
+    import time as clock
+
+    active, seen, lock = [0], [], threading.Lock()
+    real_run = operations.run
+
+    def slow_run(*args, **kwargs):
+        with lock:
+            active[0] += 1
+            seen.append((active[0], kwargs["idempotency_key"]))
+        clock.sleep(0.05)
+        try:
+            return real_run(*args, **kwargs)
+        finally:
+            with lock:
+                active[0] -= 1
+
+    monkeypatch.setattr(operations, "run", slow_run)
+    sid, version, _ = session(conn, "Legs + Metcon")
+    message = say(conn, "Décale la séance jambes au 2026-03-06 et note mon poignet qui fait mal")
+    both = AIMessage(
+        "",
+        tool_calls=[
+            {
+                "name": "apply_change",
+                "id": "call_1",
+                "args": {
+                    "operation": "move_session",
+                    "payload": {
+                        "session_id": sid,
+                        "new_day": "2026-03-06",
+                        "expected_version": version,
+                    },
+                    "quote": "Décale la séance jambes au 2026-03-06",
+                },
+            },
+            {
+                "name": "apply_change",
+                "id": "call_2",
+                "args": {
+                    "operation": "add_health_issue",
+                    "payload": {"body_part": "wrist", "kind": "pain", "description": "hurts"},
+                    "quote": "note mon poignet qui fait mal",
+                },
+            },
+        ],
+    )
+    answer(conn, ScriptedChat(both, AIMessage("Fait.")), message)
+
+    assert [n for n, _ in seen] == [1, 1]  # never two at once
+    assert [key.rsplit(":", 1)[1] for _, key in seen] == ["1", "2"]  # in the model's order
+    assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE

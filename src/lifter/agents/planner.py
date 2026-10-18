@@ -24,17 +24,18 @@ or weightlifting line in reps a target RIR (repetitions in reserve). The RIR is 
 instruction, the load only a guide.
 - A metcon has a target (target_seconds for a for_time, target_rounds for an amrap), never a \
 time cap.
-- Follow the week's phase and intent (volume, deload, strength, test...), read literally: \
-"short sets" or "very short sets" means 5 reps or fewer on every strength line; "volume \
-halved" means about half the sets of the past week, line by line (4 sets become 2); "one light \
-metcon" means one metcon in the whole week, not one per session. A deload keeps the frequency: \
-the same number of sessions, never more.
+- Follow the week's phase and intent (volume, deload, strength, test...). Before planning, \
+turn the intent into numbers, whatever its wording or language: reps per strength line, sets \
+compared with the past week's, metcons in the whole week. Short sets are 5 reps or fewer; a \
+halved volume is about half the past week's sets, line by line; a number of metcons counts for \
+the week, not per session. A deload keeps the frequency: the same number of sessions, never \
+more.
 - Use the review: sessions done or missed, real loads and RIR, patterns not trained. Missed \
 priority work (legs every week) comes back.
-- Keep the athlete's weekly frame: exactly as many sessions as in the review of the past week \
-(or as the phase's frame when there is no review), on the same kind of days. Count the past \
-week's sessions before you answer, and count yours: the two numbers are equal, in a deload \
-too. Do not add sessions of \
+- Keep the athlete's weekly frame, on the same kind of days: the number of sessions of the \
+past week's review (or of the phase's frame when there is no review). Sessions already planned \
+in the target week count in that number: the ones you keep plus your new ones make it, never \
+more. Count before you answer, in a deload too. Do not add sessions of \
 your own, extra mobility or rest days included: a missed session comes back in place of \
 another, not on top.
 - Respect every athlete rule. Use only exercises from the exercise bank, with their exact \
@@ -48,8 +49,8 @@ when they carry it). Pick an unflagged exercise of the same pattern instead.
 the athlete's progression rule's (its params: upper_kg for the upper body, lower_kg for legs \
 and hinge), above the heaviest set logged at as many reps or more. \
 This holds in every phase: a power, strength or peak week means fewer reps and more sets at \
-that load, never a jump of several steps. Fewer reps do not allow a heavier load: with a \
-heaviest set of 70 kg x 8 and a step of 2.5 kg, a set of 3 is at most 72.5 kg, not 75.
+that load, never a jump of several steps. Fewer reps do not allow a \
+heavier load: after a heaviest set of 8, a set of 3 is still at most one step above it.
 - A missed set (fewer reps than planned, or a RIR below its target, RIR 0 included) means the \
 load was too heavy: that exercise stays at most at the load of the missed set, or one step \
 lighter, never higher, until a set at that load meets its RIR.
@@ -60,8 +61,8 @@ until a later session \
 loading them is reported without such pain. Keep training the pattern, lighter.
 - Schedule sessions inside the target week only. If sessions are already planned for that week, \
 they are the week's frame: keep each one (do not repeat it) or list its id in \
-cancel_session_ids and give its replacement on the same day. The week then has exactly as many \
-sessions as were planned: kept ones plus your new ones, never extra sessions on top.
+cancel_session_ids and give its replacement on the same day. Kept ones plus your new ones make \
+the weekly frame's number (previous rules), never extra sessions on top.
 - Critical health alert (an alert with severity critical): the whole week stays easy. No \
 metcon at all, every strength, weightlifting and gymnastics line at RIR 3 or more, nothing \
 marked as a max. Hard sessions already planned in the week are listed in cancel_session_ids \

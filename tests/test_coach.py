@@ -2,6 +2,8 @@
 these tests check everything around it: what it sees, what its tool calls change, the limits,
 the stored reply and the audit."""
 
+import threading
+import time
 from datetime import date
 from pathlib import Path
 
@@ -355,9 +357,6 @@ def test_a_forbid_flag_rule_with_odd_params_forbids_nothing_and_breaks_nothing(c
 
 
 def test_the_tool_calls_of_one_message_run_one_at_a_time_in_order(conn, program, monkeypatch):
-    import threading
-    import time as clock
-
     active, seen, lock = [0], [], threading.Lock()
     real_run = operations.run
 
@@ -365,7 +364,7 @@ def test_the_tool_calls_of_one_message_run_one_at_a_time_in_order(conn, program,
         with lock:
             active[0] += 1
             seen.append((active[0], kwargs["idempotency_key"]))
-        clock.sleep(0.05)
+        time.sleep(0.05)
         try:
             return real_run(*args, **kwargs)
         finally:

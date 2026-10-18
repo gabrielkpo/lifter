@@ -322,7 +322,10 @@ def respond(
         "snapshot": state_of_mind,
     }
     try:
-        final = graph.compile().invoke({"messages": messages})["messages"]
+        # max_concurrency 1: the tool calls of one message run one at a time, in the model's
+        # order. ToolNode would run them in parallel threads, and they share one connection, its
+        # transactions and the order of the idempotency keys (ctx.writes).
+        final = graph.compile().invoke({"messages": messages}, {"max_concurrency": 1})["messages"]
     except Exception as exc:
         try:
             run.context["presented"] = []  # a crashed turn presents nothing

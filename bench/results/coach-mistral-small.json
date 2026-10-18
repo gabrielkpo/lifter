@@ -7,9 +7,9 @@
     "scenarios_fully_met": 24,
     "refused_quotes": 0,
     "stopped": 0,
-    "model_calls": 72,
-    "input_tokens": 416969,
-    "output_tokens": 4244
+    "model_calls": 65,
+    "input_tokens": 390822,
+    "output_tokens": 3895
   },
   "runs": [
     {
@@ -36,12 +36,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 17374,
-      "output_tokens": 173,
+      "input_tokens": 17981,
+      "output_tokens": 160,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "I can't add \"Back squat\" because of your rules:\n- No free barbell on the legs.\n- The exercise \"Back squat\" requires a rep count (e.g., 5x5).\n\nWould you like to replace it with a leg exercise allowed by your rules, such as **Leg press 5x5 at 80 kg**?"
+        "I can\u2019t add \u201cBack squat\u201d because of your rule: **No free barbell on the legs**. I suggest replacing it with **Leg press 5x5 @ 100 kg** (RIR 3). Say \u201cok\u201d to accept."
       ]
     },
     {
@@ -68,12 +68,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 17374,
-      "output_tokens": 145,
+      "input_tokens": 18033,
+      "output_tokens": 205,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "I can\u2019t add Back squat because it is forbidden by your rule *\"No free barbell on the legs.\"* I suggest replacing it with **Leg press 5x5 @ 80 kg** (RIR 2)."
+        "I can\u2019t add **Back squat** because it is forbidden by your rule: *No free barbell on the legs*.\nWould you like to replace it with **Leg press 5x5 at 80 kg** instead?"
       ]
     },
     {
@@ -100,12 +100,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 17381,
+      "input_tokens": 17981,
       "output_tokens": 159,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "I cannot add \"Back squat\" because of your rule: **No free barbell on the legs**. I suggest replacing it with **Leg press 5x5 at 80 kg** (same load progression). Suggest id **1** to accept."
+        "\"Back squat\" is forbidden by your rule \"No free barbell on the legs.\" I suggest **Leg press 5x5 at 80 kg** instead. To accept, reply:\nok pour Leg press 5x5 \u00e0 80 kg"
       ]
     },
     {
@@ -127,12 +127,12 @@
         }
       ],
       "model_calls": 2,
-      "input_tokens": 12904,
-      "output_tokens": 192,
+      "input_tokens": 13304,
+      "output_tokens": 160,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Suggestion 1: Replace Thursday\u2019s **Weightlifting + Pull + Metcon** with **Weightlifting + Push + Metcon** to keep push volume even across the week and avoid overloading pull before the Bench press in Friday\u2019s strength.\nSuggestion 2: Move **Legs + Metcon** from Friday to Saturday, right after the Benchmark WOD, to give your legs a fresher day and avoid fatigue before the weekend WOD.\nSuggestion 3: Add a **mobility** session on Sunday to address any residual tightness from the missed week and prep for the next cycle.\n\nWhich one do you want to apply? (answer with 1, 2 or 3)"
+        "Suggestion 1\nMove Thursday\u2019s session to Saturday and rename Saturday\u2019s \u201cBenchmark WOD\u201d to \u201cBenchmark WOD \u2013 light\u201d. Then add a new \u201cLegs + Metcon\u201d on Sunday (week 3) with:\n- Strength: Leg press 4x5 @ 80 kg, RIR 2\n- Metcon: 3 rounds \u2013 12 Kettlebell swing 24 kg, 9 Push-ups, 15 Assault-bike cal\n\nAnswer **ok pour 1** to apply it."
       ]
     },
     {
@@ -153,13 +153,13 @@
           "detail": "forbidden in suggestions: none"
         }
       ],
-      "model_calls": 3,
-      "input_tokens": 17770,
-      "output_tokens": 355,
+      "model_calls": 2,
+      "input_tokens": 13304,
+      "output_tokens": 175,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Suggestions pour ta semaine 3 :\n1) **(id 1)** *\"Weightlifting + Push + Metcon (deload)\"* pour la session du **19/01** (lundi).\n2) **(id 2)** *\"Weightlifting + Pull + Metcon (deload)\"* pour la session du **22/01** (jeudi).\n3) **(id 3)** Annuler le *\"Benchmark WOD\"* du **24/01** (samedi).\n\nR\u00e9ponds avec **\"ok pour 1\"**, **\"ok pour 2\"**, etc. pour appliquer."
+        "Suggestion 1: Replace Thursday\u2019s **Weightlifting + Pull + Metcon** with **Legs + Metcon** (since legs are due this week and Thursday is free).\nSuggestion 2: Move **Benchmark WOD** from Saturday to Sunday to keep the weekend benchmark fresh.\nSuggestion 3: Add a **mobility** session on Wednesday to address recovery and balance volume.\n\nWhich one do you want to accept?\n- **12** for the legs swap on Thursday\n- **13** for moving the Benchmark WOD to Sunday\n- **14** for adding a mobility session on Wednesday"
       ]
     },
     {
@@ -181,12 +181,12 @@
         }
       ],
       "model_calls": 2,
-      "input_tokens": 12904,
-      "output_tokens": 181,
+      "input_tokens": 12813,
+      "output_tokens": 189,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Suggestion 1: Replace Thursday\u2019s **Weightlifting + Pull + Metcon** with **Weightlifting + Push + Metcon** to keep push volume even across the week and avoid overloading pull before the Benchmark WOD.\nSuggestion 2: Swap Friday\u2019s **Legs + Metcon** with Tuesday\u2019s **Cardio** so legs fall earlier in the week and cardio is fresh.\nSuggestion 3: Add a **mobility** session on Sunday to recover and prep for Monday.\n\nWhich one do you want to apply? (answer \"ok for 1\", \"ok for 2\", \"ok for 3\")"
+        "Suggestion 1\nMove Thursday\u2019s session to Friday and Friday\u2019s to Thursday, so legs are not on Friday after the Benchmark WOD. Add Strict press 4x5 @ 40 kg to the strength part of Thursday\u2019s session, and keep the metcon light.\n\nSuggestion 2\nCancel the Benchmark WOD of Saturday and replace it with a light Legs + Metcon session (no barbell in the metcon).\n\nSuggestion 3\nAdd Farmer carry 3x20 m to the Legs session of Friday.\n\nWhich one do you want to accept? (say \"ok pour 1\", \"ok pour 2\" or \"ok pour 3\")"
       ]
     },
     {
@@ -203,12 +203,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 18062,
-      "output_tokens": 207,
+      "input_tokens": 18901,
+      "output_tokens": 194,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done: Legs + Metcon on 2026-01-23.\nLeg press 4x12 @ 100 kg, RIR 2 logged."
+        "Done: Leg press 4x12 @ 100 kg RIR 2 logged for today\u2019s Legs + Metcon.\nGenou OK noted."
       ]
     },
     {
@@ -225,12 +225,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 18062,
-      "output_tokens": 210,
+      "input_tokens": 18901,
+      "output_tokens": 203,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done: Legs + Metcon on 2026-01-23, leg press 4x12 @ 100 kg RIR 2. Knee feels fine."
+        "Done for today (Legs + Metcon).\nLeg press 4\u00d712 @ 100 kg, RIR 2 logged in the strength part.\nFeedback: \u201cLe genou va bien.\u201d"
       ]
     },
     {
@@ -247,12 +247,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 18062,
-      "output_tokens": 196,
+      "input_tokens": 18901,
+      "output_tokens": 189,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done for today (Legs + Metcon).\nLeg press 4x12 @100 kg, RIR 2 logged."
+        "Done.\nLeg press 4\u00d712 @ 100 kg RIR 2 logged for today\u2019s Legs + Metcon."
       ]
     },
     {
@@ -274,12 +274,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 16988,
-      "output_tokens": 127,
+      "input_tokens": 17588,
+      "output_tokens": 125,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **23 janvier** au **22 janvier 2026** (semaine 3)."
+        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **23 janvier (vendredi)** au **22 janvier (jeudi)** cette semaine."
       ]
     },
     {
@@ -301,12 +301,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 16988,
-      "output_tokens": 132,
+      "input_tokens": 17588,
+      "output_tokens": 124,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier 2026** (semaine 3)."
+        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **23 janvier (vendredi)** au **22 janvier (jeudi)** cette semaine."
       ]
     },
     {
@@ -328,12 +328,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 16988,
-      "output_tokens": 133,
+      "input_tokens": 17584,
+      "output_tokens": 125,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier 2026** (semaine 3)."
+        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **23 janvier (vendredi)** au **22 janvier (jeudi)** cette semaine."
       ]
     },
     {
@@ -355,12 +355,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 5383,
-      "output_tokens": 82,
+      "input_tokens": 5583,
+      "output_tokens": 85,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait pr\u00e9vue le **2026-01-16** (vendredi de la semaine 2), mais elle est marqu\u00e9e comme **\"missed\"** (non faite) dans le planning. Aucun rapport de s\u00e9ance n'a \u00e9t\u00e9 enregistr\u00e9 pour ce jour.\n\nSi tu l'as faite un autre jour ou si tu veux que je v\u00e9rifie une autre date, dis-le-moi !"
+        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01/2026** (\"Legs + Metcon\"), mais elle est marqu\u00e9e comme **\"missed\"** (non faite) dans le planning. Aucun r\u00e9sultat n'a \u00e9t\u00e9 enregistr\u00e9 pour cette s\u00e9ance. Si tu l'as faite malgr\u00e9 tout, dis-moi ce que tu as fait (exercices, charges, RIR) et je l'enregistre."
       ]
     },
     {
@@ -381,13 +381,13 @@
           "detail": "2 goal(s)"
         }
       ],
-      "model_calls": 4,
-      "input_tokens": 22567,
-      "output_tokens": 151,
+      "model_calls": 1,
+      "input_tokens": 5583,
+      "output_tokens": 96,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Ta derni\u00e8re s\u00e9ance jambes (Friday 2026-01-16) n\u2019a pas \u00e9t\u00e9 faite (statut \"missed\"). Aucune ligne n\u2019a donc \u00e9t\u00e9 enregistr\u00e9e comme \"done\"."
+        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01/2026** (\"Legs + Metcon\"), mais elle est marqu\u00e9e comme **missed** dans le planning et n'a donc pas \u00e9t\u00e9 logu\u00e9e. Si tu l'as faite quand m\u00eame, dis-moi ce que tu as fait (exercices, charges, r\u00e9p\u00e9titions, ressenti) et je la logue pour toi. Sinon, on peut la reprogrammer ou l'annuler."
       ]
     },
     {
@@ -408,13 +408,13 @@
           "detail": "2 goal(s)"
         }
       ],
-      "model_calls": 4,
-      "input_tokens": 22567,
-      "output_tokens": 151,
+      "model_calls": 1,
+      "input_tokens": 5583,
+      "output_tokens": 98,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Ta derni\u00e8re s\u00e9ance jambes (16/01/2026) n\u2019\u00e9tait pas encore faite : elle \u00e9tait planifi\u00e9e mais marqu\u00e9e *missed*. Aucune ligne n\u2019a \u00e9t\u00e9 enregistr\u00e9e comme r\u00e9alis\u00e9e."
+        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01/2026** (\"Legs + Metcon\"), mais elle est marqu\u00e9e comme **\"missed\"** (non faite) dans le planning. Aucun rapport de s\u00e9ance n'a \u00e9t\u00e9 enregistr\u00e9 pour ce jour.\n\nSi tu l'as faite, dis-moi ce que tu as fait (exercices, charges, RIR) pour que je la logue. Sinon, on peut la reprogrammer ou l'annuler."
       ]
     },
     {
@@ -431,12 +431,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 5392,
-      "output_tokens": 86,
+      "input_tokens": 5592,
+      "output_tokens": 112,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Un RIR 2 sur le bench press cette semaine permet une progression contr\u00f4l\u00e9e (+2.5 kg) tout en gardant une marge pour la qualit\u00e9 et la r\u00e9cup\u00e9ration, surtout apr\u00e8s les sessions manqu\u00e9es. Le RIR 3 serait trop conservateur pour un mouvement d'upper body comme le bench press dans cette phase. Si tu pr\u00e9f\u00e8res un RIR 3, dis-le et j'ajuste."
+        "Un RIR 2 sur le bench press cette semaine permet de progresser en charge (+2.5 kg) tout en gardant une marge de s\u00e9curit\u00e9, car le bench press est un exercice d'**upper body** et la r\u00e8gle de progression impose **+2.5 kg** avec un RIR qui descend progressivement. Un RIR 3 serait trop conservateur pour cette phase, sauf si tu sens une fatigue accumul\u00e9e ou un signal d'alerte (douleur, swelling). Si c'est le cas, on peut ajuster."
       ]
     },
     {
@@ -453,12 +453,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 5392,
-      "output_tokens": 93,
+      "input_tokens": 5592,
+      "output_tokens": 97,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Un RIR 2 sur le bench press cette semaine permet de progresser en charge tout en gardant une marge de s\u00e9curit\u00e9 pour \u00e9viter la fatigue excessive avant le test de 1RM pr\u00e9vu plus tard. Le RIR 3 est typiquement utilis\u00e9 pour les exercices d'assistance ou en fin de cycle, mais ici, on privil\u00e9gie une approche plus contr\u00f4l\u00e9e pour pr\u00e9server les \u00e9paules et les triceps pour les prochaines s\u00e9ances lourdes."
+        "Un RIR 2 sur le bench press cette semaine permet de garder une marge de s\u00e9curit\u00e9 tout en stimulant la progression, surtout apr\u00e8s une p\u00e9riode de missed sessions. Le RIR 3 est typiquement utilis\u00e9 pour les exercices d'assistance ou en fin de cycle, mais pour un mouvement principal comme le bench press en d\u00e9but de semaine, un RIR 2 offre un bon \u00e9quilibre entre charge et r\u00e9cup\u00e9ration. Si tu veux ajuster, dis-le-moi."
       ]
     },
     {
@@ -475,12 +475,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 5392,
-      "output_tokens": 103,
+      "input_tokens": 5592,
+      "output_tokens": 147,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Un RIR 2 sur le bench press cette semaine permet de tester la charge avec une marge de s\u00e9curit\u00e9 r\u00e9duite, tout en respectant la progression \"RIR met on\" (+2.5 kg pour le haut du corps). Le RIR 3 est typiquement utilis\u00e9 pour les s\u00e9ries d'approche ou en d\u00e9but de cycle. Ici, c'est une semaine de reprise apr\u00e8s les sessions manqu\u00e9es, donc on privil\u00e9gie un RIR 2 pour valider la charge sans risque de surcharge."
+        "Un RIR 2 (Reps In Reserve 2) est utilis\u00e9 pour \u00e9quilibrer la charge et la fatigue cette semaine, car le bench press est programm\u00e9 apr\u00e8s un metcon dans la s\u00e9ance du **lundi 19/01**. Selon la r\u00e8gle *\"Weightlifting et skills while fresh, never after a metcon\"*, on \u00e9vite de fatiguer les muscles de pouss\u00e9e avant une s\u00e9ance lourde.\n\nUn RIR 3 serait trop conservateur ici, car la fatigue r\u00e9siduelle du metcon r\u00e9duirait d\u00e9j\u00e0 la performance. Le RIR 2 permet de progresser sans risquer la forme ou la surcharge. Si tu veux ajuster apr\u00e8s la s\u00e9ance, fais-le-moi savoir."
       ]
     },
     {
@@ -502,13 +502,13 @@
         }
       ],
       "model_calls": 6,
-      "input_tokens": 34384,
-      "output_tokens": 226,
+      "input_tokens": 35568,
+      "output_tokens": 210,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **23 janvier** au **22 janvier 2026** (ce jeudi).",
-        "La s\u00e9ance **Legs + Metcon** (id 14) est revenue au **vendredi 23 janvier 2026**."
+        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier 2026** (semaine 3).",
+        "La s\u00e9ance **Legs + Metcon** (id 14) est revenue au **vendredi 23 janvier 2026** (semaine 3)."
       ]
     },
     {
@@ -530,13 +530,13 @@
         }
       ],
       "model_calls": 5,
-      "input_tokens": 28438,
-      "output_tokens": 186,
+      "input_tokens": 29440,
+      "output_tokens": 189,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **23 janvier (vendredi)** au **22 janvier (jeudi)** cette semaine.",
-        "Annul\u00e9 : la s\u00e9ance **Legs + Metcon** (id 14) est revenue au **vendredi 23 janvier** cette semaine."
+        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **23 janvier** au **22 janvier 2026** (semaine 3).",
+        "Annul\u00e9 : la s\u00e9ance **Legs + Metcon** (id 14) est revenue au **vendredi 23 janvier 2026**."
       ]
     },
     {
@@ -558,7 +558,7 @@
         }
       ],
       "model_calls": 6,
-      "input_tokens": 34386,
+      "input_tokens": 35578,
       "output_tokens": 232,
       "refused_quotes": 0,
       "stopped": 0,
@@ -586,12 +586,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 17377,
-      "output_tokens": 220,
+      "input_tokens": 17982,
+      "output_tokens": 265,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "I recorded your left wrist pain (since yesterday, worse on dips).\nDips are removed from your plan until it\u2019s resolved."
+        "Ton poignet gauche est enregistr\u00e9 comme **douleur active** (\"wrist\", c\u00f4t\u00e9 gauche, depuis hier).\n\u00c9vite les appuis (dips, pompes, handstand) jusqu\u2019\u00e0 ce que \u00e7a aille mieux. Si \u00e7a persiste ou gonfle, consulte un pro. Dis-moi si tu veux adapter une s\u00e9ance."
       ]
     },
     {
@@ -613,12 +613,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 17494,
-      "output_tokens": 317,
+      "input_tokens": 17925,
+      "output_tokens": 178,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "J\u2019ai enregistr\u00e9 ton **poignet gauche** comme une **douleur active** (surtout en appui sur les dips).\nConseil : \u00e9vite les dips et tout exercice qui aggrave la douleur. Glace et repos relatif. Si \u00e7a persiste plus de 48h, consulte un professionnel."
+        "I recorded your left wrist pain. Avoid dips and any heavy wrist load until it feels better."
       ]
     },
     {
@@ -640,12 +640,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 17340,
-      "output_tokens": 187,
+      "input_tokens": 17925,
+      "output_tokens": 178,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "I recorded your left wrist pain. Avoid dips and any heavy wrist load until it improves."
+        "I recorded your left wrist pain. Avoid dips and any heavy wrist load until it feels better."
       ]
     }
   ]

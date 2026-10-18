@@ -97,7 +97,11 @@ grant select on schema_migrations, schema_views to lifter_ingest;
 
 -- lifter_propose: append proposals and the audit of the runs that made them.
 grant usage on schema public to lifter_propose;
-grant insert on proposal, agent_run, agent_step to lifter_propose;
+-- A proposal only as a pending one: what, why and by whom. Its status, dates, key and result
+-- belong to the write path (lifter_write), so an agent cannot plant an "applied" row nor
+-- backdate a suggestion.
+grant insert (kind, payload, rationale, author) on proposal to lifter_propose;
+grant insert on agent_run, agent_step to lifter_propose;
 -- Their own runs: `insert ... returning id`, `lifter runs` and the bench read them back.
 grant select on agent_run, agent_step to lifter_propose;
 grant usage on sequence proposal_id_seq, agent_run_id_seq, agent_step_id_seq to lifter_propose;
@@ -116,8 +120,8 @@ grant usage on sequence exercise_id_seq, cycle_id_seq, block_id_seq, training_we
 grant insert on change_log, proposal to lifter_write;
 -- Read by the trace check at commit (009), whichever of its roles the coach acts as.
 grant select on change_log, proposal to lifter_write;
-grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by)
-    on proposal to lifter_write;
+grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by,
+    presented_in) on proposal to lifter_write;
 grant usage on sequence change_log_id_seq, proposal_id_seq to lifter_write;
 -- The conversation it answers (history, the latest athlete message for operations.run).
 grant select, insert on conversation_message to lifter_write;

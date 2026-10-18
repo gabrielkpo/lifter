@@ -85,6 +85,12 @@ class ToolContext:
     writes: int = 0
     changes: list[dict] = field(default_factory=list)  # what was applied, for the reply
     suggestions: list[int] = field(default_factory=list)  # suggestions recorded this turn
+    # Older suggestions put back in front of the athlete this turn (present_suggestions): with
+    # those recorded this turn, the only ones the athlete's next message can accept.
+    presented: list[int] = field(default_factory=list)
+
+    def shown(self) -> list[int]:
+        return list(dict.fromkeys(self.suggestions + self.presented))
 
     def next_key(self) -> str:
         self.writes += 1
@@ -92,6 +98,12 @@ class ToolContext:
 
 
 # Arguments of each tool, as the model sees them
+
+
+class PresentSuggestionsArgs(BaseModel):
+    suggestion_ids: list[int] = Field(
+        min_length=1, description="Ids of older suggestions to show the athlete in your reply"
+    )
 
 
 class OperationSchemaArgs(BaseModel):
@@ -185,6 +197,20 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             ]
         )
 
+    def present_suggestions(suggestion_ids: list[int]) -> str:
+        found = {
+            r[0]
+            for r in conn.execute(
+                "select id from proposal where id = any(%s) and status in ('pending', 'expired')",
+                (suggestion_ids,),
+            ).fetchall()
+        }
+        missing = [i for i in suggestion_ids if i not in found]
+        if missing:
+            return _refused(f"no pending or expired suggestion {missing}")
+        ctx.presented += [i for i in suggestion_ids if i not in ctx.presented]
+        return _json({"ok": True, "presented": ctx.presented})
+
     def _applied(key: str, change: operations.Change) -> str:
         found = conn.execute(
             "select c.id, p.id from change_log c join proposal p on p.id = c.proposal_id"
@@ -264,22 +290,8 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         return _attempt(call, operation)
 
     def accept_suggestion(suggestion_id: int, quote: str) -> str:
-        # The athlete can only choose a suggestion shown before their message: one made during
-        # this turn (by a model misled by planted text, say) is never applied with it.
-        shown = conn.execute(
-            "select p.created_at < (select created_at from conversation_message where id = %s)"
-            " from proposal p where p.id = %s",
-            (ctx.message_id, suggestion_id),
-        ).fetchone()
-        if shown is None:
-            return _refused(f"suggestion {suggestion_id} does not exist")
-        if shown[0] is None:
-            return _refused(f"message {ctx.message_id} does not exist")
-        if not shown[0]:
-            return _refused(
-                f"suggestion {suggestion_id} was made after the athlete's message: they have not"
-                " seen it yet"
-            )
+        # Only what the coach's last message presented can be accepted: operations.run refuses
+        # the rest (one made during this turn, by a model misled by planted text, say).
         key = ctx.next_key()
         return _attempt(
             lambda: _applied(
@@ -318,6 +330,14 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             pending_suggestions,
             name="pending_suggestions",
             description="The suggestions waiting for the athlete's choice, with their ids.",
+        ),
+        StructuredTool.from_function(
+            present_suggestions,
+            name="present_suggestions",
+            description="Put older suggestions back in front of the athlete: name them in your "
+            "reply. Only what your reply presents (these and the ones you record now) can be "
+            "accepted with their next message; the others expire.",
+            args_schema=PresentSuggestionsArgs,
         ),
         StructuredTool.from_function(
             apply_change,

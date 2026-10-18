@@ -6,6 +6,7 @@
 # the free plan; this is the copy we control.
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
+stay_awake "$@"
 LIFTER_LOG="$LIFTER_LOG_DIR/backup.log"
 BACKUP_DIR="$LIFTER_BACKUP_DIR"
 

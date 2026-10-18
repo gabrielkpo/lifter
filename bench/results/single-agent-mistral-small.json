@@ -3,16 +3,16 @@
   "model": "mistral-small-latest",
   "summary": {
     "runs": 63,
-    "accepted_rate": 0.825,
-    "first_plan_violations": 69,
-    "final_violations": 30,
-    "schema_failures": 6,
+    "accepted_rate": 0.841,
+    "first_plan_violations": 82,
+    "final_violations": 18,
+    "schema_failures": 14,
     "budget_stops": 0,
-    "unsourced_numbers": 11,
-    "expectations_met_rate": 0.794,
-    "input_tokens": 749695,
-    "output_tokens": 300284,
-    "seconds": 1365.6
+    "unsourced_numbers": 8,
+    "expectations_met_rate": 0.816,
+    "input_tokens": 824604,
+    "output_tokens": 355309,
+    "seconds": 1722.8
   },
   "runs": [
     {
@@ -21,241 +21,42 @@
       "run": 1,
       "accepted": true,
       "attempts": 3,
-      "first_violations": 2,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 4,
-      "expectations": 4,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_least Bench press 65",
-          "passed": true,
-          "detail": "loads [67.5]"
-        },
-        {
-          "check": "strength_reps_at_most 6",
-          "passed": true,
-          "detail": "ok"
-        }
-      ],
-      "input_tokens": 17604,
-      "output_tokens": 6569,
-      "seconds": 30.24
-    },
-    {
-      "scenario": "after_deload",
-      "category": "phase",
-      "run": 2,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 4,
-      "expectations": 4,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_least Bench press 65",
-          "passed": true,
-          "detail": "loads [67.5]"
-        },
-        {
-          "check": "strength_reps_at_most 6",
-          "passed": true,
-          "detail": "ok"
-        }
-      ],
-      "input_tokens": 5806,
-      "output_tokens": 1885,
-      "seconds": 9.35
-    },
-    {
-      "scenario": "after_deload",
-      "category": "phase",
-      "run": 3,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 2,
-      "final_violations": 5,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 8,
-      "expectations_met": 1,
-      "expectations": 4,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": false,
-          "detail": "missing"
-        },
-        {
-          "check": "load_at_least Bench press 65",
-          "passed": false,
-          "detail": "loads none"
-        },
-        {
-          "check": "strength_reps_at_most 6",
-          "passed": true,
-          "detail": "ok"
-        }
-      ],
-      "input_tokens": 17639,
-      "output_tokens": 3923,
-      "seconds": 19.73
-    },
-    {
-      "scenario": "bench_rir_missed",
-      "category": "review",
-      "run": 1,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 1,
+      "first_violations": 3,
       "final_violations": 0,
       "schema_failures": 1,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 0,
-      "expectations": 2,
+      "expectations_met": 3,
+      "expectations": 4,
       "outcomes": [
         {
           "check": "accepted",
-          "passed": false,
-          "detail": "no plan"
-        },
-        {
-          "check": "load_at_most",
-          "passed": false,
-          "detail": "no plan"
-        }
-      ],
-      "input_tokens": 22929,
-      "output_tokens": 9322,
-      "seconds": 42.93
-    },
-    {
-      "scenario": "bench_rir_missed",
-      "category": "review",
-      "run": 2,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 1,
-      "final_violations": 1,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 0,
-      "expectations": 2,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
+          "passed": true,
           "detail": "3 attempt(s)"
         },
         {
-          "check": "load_at_most Bench press 62.5",
-          "passed": false,
-          "detail": "loads [65.0]"
-        }
-      ],
-      "input_tokens": 22905,
-      "output_tokens": 9213,
-      "seconds": 41.98
-    },
-    {
-      "scenario": "bench_rir_missed",
-      "category": "review",
-      "run": 3,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 1,
-      "final_violations": 2,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 1,
-      "expectations_met": 0,
-      "expectations": 2,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "load_at_most Bench press 62.5",
-          "passed": false,
-          "detail": "loads [65.0]"
-        }
-      ],
-      "input_tokens": 22928,
-      "output_tokens": 7649,
-      "seconds": 35.62
-    },
-    {
-      "scenario": "bench_too_easy",
-      "category": "review",
-      "run": 1,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 1,
-      "final_violations": 1,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 1,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
-          "detail": "3 attempt(s)"
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
         },
         {
           "check": "load_at_least Bench press 65",
           "passed": false,
-          "detail": "loads [62.5]"
+          "detail": "loads [55.0]"
         },
         {
-          "check": "load_at_most Bench press 65",
+          "check": "strength_reps_at_most 6",
           "passed": true,
-          "detail": "loads [62.5]"
+          "detail": "ok"
         }
       ],
-      "input_tokens": 22734,
-      "output_tokens": 8718,
-      "seconds": 40.25
+      "input_tokens": 18802,
+      "output_tokens": 6127,
+      "seconds": 31.79
     },
     {
-      "scenario": "bench_too_easy",
-      "category": "review",
+      "scenario": "after_deload",
+      "category": "phase",
       "run": 2,
       "accepted": true,
       "attempts": 2,
@@ -264,8 +65,8 @@
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
+      "expectations_met": 4,
+      "expectations": 4,
       "outcomes": [
         {
           "check": "accepted",
@@ -273,184 +74,43 @@
           "detail": "2 attempt(s)"
         },
         {
-          "check": "load_at_least Bench press 65",
+          "check": "has_pattern legs",
           "passed": true,
-          "detail": "loads [65.0]"
-        },
-        {
-          "check": "load_at_most Bench press 65",
-          "passed": true,
-          "detail": "loads [65.0]"
-        }
-      ],
-      "input_tokens": 15172,
-      "output_tokens": 6197,
-      "seconds": 29.47
-    },
-    {
-      "scenario": "bench_too_easy",
-      "category": "review",
-      "run": 3,
-      "accepted": true,
-      "attempts": 3,
-      "first_violations": 1,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "3 attempt(s)"
+          "detail": "found"
         },
         {
           "check": "load_at_least Bench press 65",
           "passed": true,
-          "detail": "loads [62.5, 65.0]"
+          "detail": "loads [67.5]"
         },
         {
-          "check": "load_at_most Bench press 65",
-          "passed": true,
-          "detail": "loads [62.5, 65.0]"
-        }
-      ],
-      "input_tokens": 22766,
-      "output_tokens": 9988,
-      "seconds": 45.88
-    },
-    {
-      "scenario": "critical_alert",
-      "category": "health",
-      "run": 1,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "no_metcon",
-          "passed": true,
-          "detail": "none"
-        },
-        {
-          "check": "rir_at_least 3",
+          "check": "strength_reps_at_most 6",
           "passed": true,
           "detail": "ok"
         }
       ],
-      "input_tokens": 7749,
-      "output_tokens": 1428,
-      "seconds": 6.85
+      "input_tokens": 12213,
+      "output_tokens": 2759,
+      "seconds": 14.49
     },
     {
-      "scenario": "critical_alert",
-      "category": "health",
-      "run": 2,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 4,
-      "final_violations": 4,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 0,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "no_metcon",
-          "passed": false,
-          "detail": "2026-01-19, 2026-01-21, 2026-01-23, 2026-01-25"
-        },
-        {
-          "check": "rir_at_least 3",
-          "passed": false,
-          "detail": "Barbell row RIR 2, Bench press RIR 2, Dips RIR 2, Leg curl RIR 2, Leg press RIR 2, Power clean RIR 2, Power snatch RIR 2, Romanian deadlift RIR 2, Snatch pull RIR 2, Strict press RIR 2, Strict pull-up RIR 2"
-        }
-      ],
-      "input_tokens": 23552,
-      "output_tokens": 6480,
-      "seconds": 30.5
-    },
-    {
-      "scenario": "critical_alert",
-      "category": "health",
-      "run": 3,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "no_metcon",
-          "passed": true,
-          "detail": "none"
-        },
-        {
-          "check": "rir_at_least 3",
-          "passed": true,
-          "detail": "ok"
-        }
-      ],
-      "input_tokens": 7749,
-      "output_tokens": 1300,
-      "seconds": 6.49
-    },
-    {
-      "scenario": "deload_week",
+      "scenario": "after_deload",
       "category": "phase",
-      "run": 1,
+      "run": 3,
       "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
+      "attempts": 2,
+      "first_violations": 4,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 6,
+      "expectations_met": 4,
+      "expectations": 4,
       "outcomes": [
         {
           "check": "accepted",
           "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "volume_vs_previous",
-          "passed": false,
-          "detail": "30 sets vs 46 (0.65, expected 0.3..0.6)"
-        },
-        {
-          "check": "rir_at_least 3",
-          "passed": true,
-          "detail": "ok"
+          "detail": "2 attempt(s)"
         },
         {
           "check": "has_pattern legs",
@@ -458,23 +118,52 @@
           "detail": "found"
         },
         {
-          "check": "max_metcons",
-          "passed": false,
-          "detail": "2 metcon(s)"
+          "check": "load_at_least Bench press 65",
+          "passed": true,
+          "detail": "loads [67.5]"
         },
         {
-          "check": "sessions",
-          "passed": false,
-          "detail": "7 sessions (expected 3..5)"
+          "check": "strength_reps_at_most 6",
+          "passed": true,
+          "detail": "ok"
         }
       ],
-      "input_tokens": 7549,
-      "output_tokens": 1743,
-      "seconds": 8.33
+      "input_tokens": 12395,
+      "output_tokens": 2548,
+      "seconds": 12.96
     },
     {
-      "scenario": "deload_week",
-      "category": "phase",
+      "scenario": "bench_rir_missed",
+      "category": "review",
+      "run": 1,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 0,
+      "final_violations": 1,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 1,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "load_at_most Bench press 62.5",
+          "passed": true,
+          "detail": "loads [60.0]"
+        }
+      ],
+      "input_tokens": 23765,
+      "output_tokens": 11013,
+      "seconds": 54.02
+    },
+    {
+      "scenario": "bench_rir_missed",
+      "category": "review",
       "run": 2,
       "accepted": true,
       "attempts": 1,
@@ -483,7 +172,269 @@
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 5,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "load_at_most Bench press 62.5",
+          "passed": true,
+          "detail": "loads [60.0]"
+        }
+      ],
+      "input_tokens": 7850,
+      "output_tokens": 3364,
+      "seconds": 15.6
+    },
+    {
+      "scenario": "bench_rir_missed",
+      "category": "review",
+      "run": 3,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "load_at_most Bench press 62.5",
+          "passed": true,
+          "detail": "loads [60.0]"
+        }
+      ],
+      "input_tokens": 7850,
+      "output_tokens": 3949,
+      "seconds": 18.82
+    },
+    {
+      "scenario": "bench_too_easy",
+      "category": "review",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "load_at_least Bench press 65",
+          "passed": true,
+          "detail": "loads [65.0]"
+        },
+        {
+          "check": "load_at_most Bench press 65",
+          "passed": true,
+          "detail": "loads [65.0]"
+        }
+      ],
+      "input_tokens": 7806,
+      "output_tokens": 3966,
+      "seconds": 19.98
+    },
+    {
+      "scenario": "bench_too_easy",
+      "category": "review",
+      "run": 2,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "load_at_least Bench press 65",
+          "passed": true,
+          "detail": "loads [65.0]"
+        },
+        {
+          "check": "load_at_most Bench press 65",
+          "passed": true,
+          "detail": "loads [65.0]"
+        }
+      ],
+      "input_tokens": 7806,
+      "output_tokens": 3726,
+      "seconds": 18.05
+    },
+    {
+      "scenario": "bench_too_easy",
+      "category": "review",
+      "run": 3,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "load_at_least Bench press 65",
+          "passed": true,
+          "detail": "loads [65.0]"
+        },
+        {
+          "check": "load_at_most Bench press 65",
+          "passed": true,
+          "detail": "loads [65.0]"
+        }
+      ],
+      "input_tokens": 7806,
+      "output_tokens": 3995,
+      "seconds": 18.67
+    },
+    {
+      "scenario": "critical_alert",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "no_metcon",
+          "passed": true,
+          "detail": "none"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 8009,
+      "output_tokens": 2512,
+      "seconds": 12.14
+    },
+    {
+      "scenario": "critical_alert",
+      "category": "health",
+      "run": 2,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "no_metcon",
+          "passed": true,
+          "detail": "none"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 8009,
+      "output_tokens": 3417,
+      "seconds": 16.36
+    },
+    {
+      "scenario": "critical_alert",
+      "category": "health",
+      "run": 3,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "no_metcon",
+          "passed": true,
+          "detail": "none"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 8009,
+      "output_tokens": 3075,
+      "seconds": 14.82
+    },
+    {
+      "scenario": "deload_week",
+      "category": "phase",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 6,
       "expectations": 6,
       "outcomes": [
         {
@@ -493,8 +444,8 @@
         },
         {
           "check": "volume_vs_previous",
-          "passed": false,
-          "detail": "35 sets vs 46 (0.76, expected 0.3..0.6)"
+          "passed": true,
+          "detail": "25 sets vs 46 (0.54, expected 0.3..0.6)"
         },
         {
           "check": "rir_at_least 3",
@@ -517,14 +468,14 @@
           "detail": "5 sessions (expected 3..5)"
         }
       ],
-      "input_tokens": 7549,
-      "output_tokens": 1463,
-      "seconds": 6.92
+      "input_tokens": 7809,
+      "output_tokens": 3515,
+      "seconds": 17.21
     },
     {
       "scenario": "deload_week",
       "category": "phase",
-      "run": 3,
+      "run": 2,
       "accepted": true,
       "attempts": 1,
       "first_violations": 0,
@@ -532,13 +483,62 @@
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 4,
+      "expectations_met": 6,
       "expectations": 6,
       "outcomes": [
         {
           "check": "accepted",
           "passed": true,
           "detail": "1 attempt(s)"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": true,
+          "detail": "23 sets vs 46 (0.50, expected 0.3..0.6)"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": true,
+          "detail": "ok"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "max_metcons",
+          "passed": true,
+          "detail": "1 metcon(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": true,
+          "detail": "5 sessions (expected 3..5)"
+        }
+      ],
+      "input_tokens": 7809,
+      "output_tokens": 3388,
+      "seconds": 16.3
+    },
+    {
+      "scenario": "deload_week",
+      "category": "phase",
+      "run": 3,
+      "accepted": true,
+      "attempts": 2,
+      "first_violations": 1,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 6,
+      "expectations": 6,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "2 attempt(s)"
         },
         {
           "check": "volume_vs_previous",
@@ -557,18 +557,18 @@
         },
         {
           "check": "max_metcons",
-          "passed": false,
-          "detail": "2 metcon(s)"
+          "passed": true,
+          "detail": "1 metcon(s)"
         },
         {
           "check": "sessions",
-          "passed": false,
-          "detail": "6 sessions (expected 3..5)"
+          "passed": true,
+          "detail": "5 sessions (expected 3..5)"
         }
       ],
-      "input_tokens": 7549,
-      "output_tokens": 1780,
-      "seconds": 8.69
+      "input_tokens": 15667,
+      "output_tokens": 6495,
+      "seconds": 31.23
     },
     {
       "scenario": "drafts_already_planned",
@@ -600,9 +600,9 @@
           "detail": "found"
         }
       ],
-      "input_tokens": 9649,
-      "output_tokens": 3930,
-      "seconds": 16.46
+      "input_tokens": 9909,
+      "output_tokens": 3323,
+      "seconds": 16.33
     },
     {
       "scenario": "drafts_already_planned",
@@ -615,13 +615,47 @@
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 2,
+      "expectations_met": 3,
       "expectations": 3,
       "outcomes": [
         {
           "check": "accepted",
           "passed": true,
           "detail": "1 attempt(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": true,
+          "detail": "5 sessions (expected 4..6)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        }
+      ],
+      "input_tokens": 9909,
+      "output_tokens": 2950,
+      "seconds": 13.55
+    },
+    {
+      "scenario": "drafts_already_planned",
+      "category": "calendar",
+      "run": 3,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 6,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 1,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
         },
         {
           "check": "sessions",
@@ -634,67 +668,33 @@
           "detail": "found"
         }
       ],
-      "input_tokens": 9649,
-      "output_tokens": 3148,
-      "seconds": 13.35
-    },
-    {
-      "scenario": "drafts_already_planned",
-      "category": "calendar",
-      "run": 3,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "sessions",
-          "passed": true,
-          "detail": "5 sessions (expected 4..6)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        }
-      ],
-      "input_tokens": 9649,
-      "output_tokens": 3617,
-      "seconds": 15.36
+      "input_tokens": 30119,
+      "output_tokens": 7565,
+      "seconds": 34.48
     },
     {
       "scenario": "drafts_with_critical_alert",
       "category": "calendar",
       "run": 1,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 3,
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 3,
+      "expectations_met": 1,
       "expectations": 3,
       "outcomes": [
         {
           "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
+          "passed": false,
+          "detail": "3 attempt(s)"
         },
         {
           "check": "no_metcon",
-          "passed": true,
-          "detail": "none"
+          "passed": false,
+          "detail": "2026-01-19, 2026-01-22, 2026-01-23"
         },
         {
           "check": "sessions",
@@ -702,9 +702,9 @@
           "detail": "5 sessions (expected 2..6)"
         }
       ],
-      "input_tokens": 9852,
-      "output_tokens": 1540,
-      "seconds": 7.38
+      "input_tokens": 30454,
+      "output_tokens": 7624,
+      "seconds": 35.32
     },
     {
       "scenario": "drafts_with_critical_alert",
@@ -733,12 +733,12 @@
         {
           "check": "sessions",
           "passed": true,
-          "detail": "6 sessions (expected 2..6)"
+          "detail": "5 sessions (expected 2..6)"
         }
       ],
-      "input_tokens": 9852,
-      "output_tokens": 1383,
-      "seconds": 6.65
+      "input_tokens": 10112,
+      "output_tokens": 2113,
+      "seconds": 10.44
     },
     {
       "scenario": "drafts_with_critical_alert",
@@ -770,107 +770,19 @@
           "detail": "5 sessions (expected 2..6)"
         }
       ],
-      "input_tokens": 9852,
-      "output_tokens": 1637,
-      "seconds": 7.38
+      "input_tokens": 10112,
+      "output_tokens": 2536,
+      "seconds": 12.87
     },
     {
       "scenario": "first_week",
       "category": "phase",
       "run": 1,
       "accepted": true,
-      "attempts": 1,
+      "attempts": 3,
       "first_violations": 0,
       "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 5,
-      "expectations": 5,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "sessions",
-          "passed": true,
-          "detail": "6 sessions (expected 4..6)"
-        },
-        {
-          "check": "rir_at_least 3",
-          "passed": true,
-          "detail": "ok"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "excludes_flags",
-          "passed": true,
-          "detail": "none"
-        }
-      ],
-      "input_tokens": 3777,
-      "output_tokens": 2059,
-      "seconds": 10.84
-    },
-    {
-      "scenario": "first_week",
-      "category": "phase",
-      "run": 2,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 5,
-      "expectations": 5,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "sessions",
-          "passed": true,
-          "detail": "6 sessions (expected 4..6)"
-        },
-        {
-          "check": "rir_at_least 3",
-          "passed": true,
-          "detail": "ok"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "excludes_flags",
-          "passed": true,
-          "detail": "none"
-        }
-      ],
-      "input_tokens": 3777,
-      "output_tokens": 2150,
-      "seconds": 9.8
-    },
-    {
-      "scenario": "first_week",
-      "category": "phase",
-      "run": 3,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
+      "schema_failures": 1,
       "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 4,
@@ -879,7 +791,51 @@
         {
           "check": "accepted",
           "passed": true,
-          "detail": "1 attempt(s)"
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": true,
+          "detail": "6 sessions (expected 4..6)"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": false,
+          "detail": "Barbell row RIR 2, Strict pull-up RIR 2"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "input_tokens": 12379,
+      "output_tokens": 11308,
+      "seconds": 53.68
+    },
+    {
+      "scenario": "first_week",
+      "category": "phase",
+      "run": 2,
+      "accepted": true,
+      "attempts": 2,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 4,
+      "expectations": 5,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "2 attempt(s)"
         },
         {
           "check": "sessions",
@@ -902,28 +858,72 @@
           "detail": "none"
         }
       ],
-      "input_tokens": 3777,
-      "output_tokens": 2236,
-      "seconds": 10.51
+      "input_tokens": 8416,
+      "output_tokens": 6123,
+      "seconds": 29.67
+    },
+    {
+      "scenario": "first_week",
+      "category": "phase",
+      "run": 3,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 3,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 5,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": false,
+          "detail": "7 sessions (expected 4..6)"
+        },
+        {
+          "check": "rir_at_least 3",
+          "passed": true,
+          "detail": "ok"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": false,
+          "detail": "Box jump"
+        }
+      ],
+      "input_tokens": 12203,
+      "output_tokens": 8097,
+      "seconds": 40.39
     },
     {
       "scenario": "intensification_week",
       "category": "phase",
       "run": 1,
-      "accepted": true,
-      "attempts": 1,
+      "accepted": false,
+      "attempts": 3,
       "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
+      "final_violations": 1,
+      "schema_failures": 1,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 3,
+      "expectations_met": 2,
       "expectations": 5,
       "outcomes": [
         {
           "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
+          "passed": false,
+          "detail": "3 attempt(s)"
         },
         {
           "check": "has_pattern legs",
@@ -938,7 +938,7 @@
         {
           "check": "strength_reps_at_most 6",
           "passed": false,
-          "detail": "Barbell row x8, Leg press x10"
+          "detail": "Barbell row x8"
         },
         {
           "check": "includes_metcon amrap",
@@ -946,9 +946,9 @@
           "detail": "missing"
         }
       ],
-      "input_tokens": 7630,
-      "output_tokens": 2073,
-      "seconds": 9.42
+      "input_tokens": 24118,
+      "output_tokens": 11980,
+      "seconds": 57.23
     },
     {
       "scenario": "intensification_week",
@@ -956,9 +956,9 @@
       "run": 2,
       "accepted": true,
       "attempts": 3,
-      "first_violations": 0,
+      "first_violations": 1,
       "final_violations": 0,
-      "schema_failures": 1,
+      "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 3,
@@ -982,7 +982,7 @@
         {
           "check": "strength_reps_at_most 6",
           "passed": false,
-          "detail": "Barbell row x8, Leg press x10, Strict press x8"
+          "detail": "Barbell row x8"
         },
         {
           "check": "includes_metcon amrap",
@@ -990,18 +990,150 @@
           "detail": "missing"
         }
       ],
-      "input_tokens": 23487,
-      "output_tokens": 8061,
-      "seconds": 35.48
+      "input_tokens": 24256,
+      "output_tokens": 12039,
+      "seconds": 56.37
     },
     {
       "scenario": "intensification_week",
       "category": "phase",
       "run": 3,
+      "accepted": true,
+      "attempts": 2,
+      "first_violations": 4,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 4,
+      "expectations": 5,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "2 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_least Bench press 70",
+          "passed": true,
+          "detail": "loads [72.5]"
+        },
+        {
+          "check": "strength_reps_at_most 6",
+          "passed": true,
+          "detail": "ok"
+        },
+        {
+          "check": "includes_metcon amrap",
+          "passed": false,
+          "detail": "missing"
+        }
+      ],
+      "input_tokens": 16044,
+      "output_tokens": 6241,
+      "seconds": 31.91
+    },
+    {
+      "scenario": "knee_pain",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 5,
+      "expectations": 5,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_most Leg press 105",
+          "passed": true,
+          "detail": "loads [105.0]"
+        },
+        {
+          "check": "no_violation stop_rule",
+          "passed": true,
+          "detail": "ok"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "input_tokens": 7956,
+      "output_tokens": 3724,
+      "seconds": 17.28
+    },
+    {
+      "scenario": "knee_pain",
+      "category": "health",
+      "run": 2,
       "accepted": false,
       "attempts": 3,
       "first_violations": 1,
-      "final_violations": 1,
+      "final_violations": 0,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 1,
+      "expectations_met": 0,
+      "expectations": 5,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "no plan"
+        },
+        {
+          "check": "has_pattern",
+          "passed": false,
+          "detail": "no plan"
+        },
+        {
+          "check": "load_at_most",
+          "passed": false,
+          "detail": "no plan"
+        },
+        {
+          "check": "no_violation",
+          "passed": false,
+          "detail": "no plan"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": false,
+          "detail": "no plan"
+        }
+      ],
+      "input_tokens": 24018,
+      "output_tokens": 9632,
+      "seconds": 45.94
+    },
+    {
+      "scenario": "knee_pain",
+      "category": "health",
+      "run": 3,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 2,
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 1,
@@ -1019,58 +1151,14 @@
           "detail": "found"
         },
         {
-          "check": "load_at_least Bench press 70",
-          "passed": true,
-          "detail": "loads [72.5]"
-        },
-        {
-          "check": "strength_reps_at_most 6",
+          "check": "load_at_most Leg press 105",
           "passed": false,
-          "detail": "Barbell row x8, Leg press x10"
+          "detail": "loads [110.0]"
         },
         {
-          "check": "includes_metcon amrap",
+          "check": "no_violation stop_rule",
           "passed": false,
-          "detail": "missing"
-        }
-      ],
-      "input_tokens": 23018,
-      "output_tokens": 8547,
-      "seconds": 37.57
-    },
-    {
-      "scenario": "knee_pain",
-      "category": "health",
-      "run": 1,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 5,
-      "expectations": 5,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_most Leg press 105",
-          "passed": true,
-          "detail": "loads [105.0]"
-        },
-        {
-          "check": "no_violation stop_rule",
-          "passed": true,
-          "detail": "ok"
+          "detail": "'Leg press' at 110 kg: pain 5/10 (knee) after 'Legs + Metcon' on 2026-01-16 (Leg press 115 kg); 115 kg that day, so at most 105 kg (Pain above 3/10, or swelling within 24 h: two steps back on that pattern.); 'Romanian deadlift' at 50 kg: pain 5/10 (knee) after 'Legs + Metcon' on 2026-01-16 (Romanian deadlift 55 kg); 55 kg that day, so at most 45 kg (Pain above 3/10, or swelling within 24 h: two steps back on that pattern.)"
         },
         {
           "check": "excludes_flags",
@@ -1078,139 +1166,17 @@
           "detail": "none"
         }
       ],
-      "input_tokens": 7696,
-      "output_tokens": 3693,
-      "seconds": 17.55
-    },
-    {
-      "scenario": "knee_pain",
-      "category": "health",
-      "run": 2,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 5,
-      "expectations": 5,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_most Leg press 105",
-          "passed": true,
-          "detail": "loads [95.0]"
-        },
-        {
-          "check": "no_violation stop_rule",
-          "passed": true,
-          "detail": "ok"
-        },
-        {
-          "check": "excludes_flags",
-          "passed": true,
-          "detail": "none"
-        }
-      ],
-      "input_tokens": 7696,
-      "output_tokens": 2991,
-      "seconds": 13.85
-    },
-    {
-      "scenario": "knee_pain",
-      "category": "health",
-      "run": 3,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 5,
-      "expectations": 5,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_most Leg press 105",
-          "passed": true,
-          "detail": "loads [95.0]"
-        },
-        {
-          "check": "no_violation stop_rule",
-          "passed": true,
-          "detail": "ok"
-        },
-        {
-          "check": "excludes_flags",
-          "passed": true,
-          "detail": "none"
-        }
-      ],
-      "input_tokens": 7696,
-      "output_tokens": 3723,
-      "seconds": 16.54
+      "input_tokens": 23989,
+      "output_tokens": 8703,
+      "seconds": 41.5
     },
     {
       "scenario": "legs_skipped",
       "category": "review",
       "run": 1,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_most Leg press 115",
-          "passed": true,
-          "detail": "loads [115.0]"
-        }
-      ],
-      "input_tokens": 7331,
-      "output_tokens": 3341,
-      "seconds": 15.27
-    },
-    {
-      "scenario": "legs_skipped",
-      "category": "review",
-      "run": 2,
       "accepted": true,
       "attempts": 2,
-      "first_violations": 2,
+      "first_violations": 5,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
@@ -1234,17 +1200,17 @@
           "detail": "loads [115.0]"
         }
       ],
-      "input_tokens": 14805,
-      "output_tokens": 4125,
-      "seconds": 18.77
+      "input_tokens": 15512,
+      "output_tokens": 6576,
+      "seconds": 31.33
     },
     {
       "scenario": "legs_skipped",
       "category": "review",
-      "run": 3,
+      "run": 2,
       "accepted": true,
-      "attempts": 2,
-      "first_violations": 1,
+      "attempts": 1,
+      "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
@@ -1255,7 +1221,7 @@
         {
           "check": "accepted",
           "passed": true,
-          "detail": "2 attempt(s)"
+          "detail": "1 attempt(s)"
         },
         {
           "check": "has_pattern legs",
@@ -1265,221 +1231,17 @@
         {
           "check": "load_at_most Leg press 115",
           "passed": true,
-          "detail": "loads [115.0]"
+          "detail": "loads [110.0]"
         }
       ],
-      "input_tokens": 14743,
-      "output_tokens": 5254,
-      "seconds": 22.9
+      "input_tokens": 7591,
+      "output_tokens": 3406,
+      "seconds": 16.87
     },
     {
-      "scenario": "light_pain_ignored",
-      "category": "health",
-      "run": 1,
-      "accepted": true,
-      "attempts": 2,
-      "first_violations": 2,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "2 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_least Leg press 115",
-          "passed": true,
-          "detail": "loads [120.0]"
-        }
-      ],
-      "input_tokens": 15465,
-      "output_tokens": 6448,
-      "seconds": 29.35
-    },
-    {
-      "scenario": "light_pain_ignored",
-      "category": "health",
-      "run": 2,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 2,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_least Leg press 115",
-          "passed": false,
-          "detail": "loads [105.0]"
-        }
-      ],
-      "input_tokens": 7696,
-      "output_tokens": 3524,
-      "seconds": 15.8
-    },
-    {
-      "scenario": "light_pain_ignored",
-      "category": "health",
+      "scenario": "legs_skipped",
+      "category": "review",
       "run": 3,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 2,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_least Leg press 115",
-          "passed": false,
-          "detail": "loads [105.0]"
-        }
-      ],
-      "input_tokens": 7696,
-      "output_tokens": 3590,
-      "seconds": 15.64
-    },
-    {
-      "scenario": "load_spike",
-      "category": "health",
-      "run": 1,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "volume_vs_previous",
-          "passed": true,
-          "detail": "46 sets vs 46 (1.00, expected None..1.0)"
-        }
-      ],
-      "input_tokens": 7666,
-      "output_tokens": 3245,
-      "seconds": 14.86
-    },
-    {
-      "scenario": "load_spike",
-      "category": "health",
-      "run": 2,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "volume_vs_previous",
-          "passed": true,
-          "detail": "46 sets vs 46 (1.00, expected None..1.0)"
-        }
-      ],
-      "input_tokens": 7666,
-      "output_tokens": 2096,
-      "seconds": 9.6
-    },
-    {
-      "scenario": "load_spike",
-      "category": "health",
-      "run": 3,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "volume_vs_previous",
-          "passed": true,
-          "detail": "46 sets vs 46 (1.00, expected None..1.0)"
-        }
-      ],
-      "input_tokens": 7666,
-      "output_tokens": 1925,
-      "seconds": 8.69
-    },
-    {
-      "scenario": "low_recovery",
-      "category": "health",
-      "run": 1,
       "accepted": true,
       "attempts": 2,
       "first_violations": 0,
@@ -1501,33 +1263,33 @@
           "detail": "found"
         },
         {
-          "check": "light_first_days 2",
+          "check": "load_at_most Leg press 115",
           "passed": true,
-          "detail": "ok"
+          "detail": "loads [110.0]"
         }
       ],
-      "input_tokens": 15845,
-      "output_tokens": 7806,
-      "seconds": 34.65
+      "input_tokens": 15280,
+      "output_tokens": 7598,
+      "seconds": 36.13
     },
     {
-      "scenario": "low_recovery",
+      "scenario": "light_pain_ignored",
       "category": "health",
-      "run": 2,
+      "run": 1,
       "accepted": true,
-      "attempts": 2,
-      "first_violations": 2,
+      "attempts": 1,
+      "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 2,
+      "expectations_met": 3,
       "expectations": 3,
       "outcomes": [
         {
           "check": "accepted",
           "passed": true,
-          "detail": "2 attempt(s)"
+          "detail": "1 attempt(s)"
         },
         {
           "check": "has_pattern legs",
@@ -1535,19 +1297,19 @@
           "detail": "found"
         },
         {
-          "check": "light_first_days 2",
-          "passed": false,
-          "detail": "2026-01-19 Weightlifting + Push + Metcon"
+          "check": "load_at_least Leg press 115",
+          "passed": true,
+          "detail": "loads [120.0]"
         }
       ],
-      "input_tokens": 15703,
-      "output_tokens": 6368,
-      "seconds": 30.46
+      "input_tokens": 7956,
+      "output_tokens": 3851,
+      "seconds": 18.36
     },
     {
-      "scenario": "low_recovery",
+      "scenario": "light_pain_ignored",
       "category": "health",
-      "run": 3,
+      "run": 2,
       "accepted": true,
       "attempts": 1,
       "first_violations": 0,
@@ -1569,14 +1331,252 @@
           "detail": "found"
         },
         {
-          "check": "light_first_days 2",
+          "check": "load_at_least Leg press 115",
           "passed": false,
-          "detail": "2026-01-19 Light Weightlifting + Push, 2026-01-20 Light Weightlifting + Pull"
+          "detail": "loads [105.0]"
         }
       ],
-      "input_tokens": 7781,
-      "output_tokens": 3810,
-      "seconds": 17.36
+      "input_tokens": 7956,
+      "output_tokens": 3310,
+      "seconds": 16.53
+    },
+    {
+      "scenario": "light_pain_ignored",
+      "category": "health",
+      "run": 3,
+      "accepted": true,
+      "attempts": 3,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 1,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_least Leg press 115",
+          "passed": false,
+          "detail": "loads [105.0]"
+        }
+      ],
+      "input_tokens": 24242,
+      "output_tokens": 8445,
+      "seconds": 40.46
+    },
+    {
+      "scenario": "load_spike",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": true,
+          "detail": "46 sets vs 46 (1.00, expected None..1.0)"
+        }
+      ],
+      "input_tokens": 7926,
+      "output_tokens": 3517,
+      "seconds": 16.93
+    },
+    {
+      "scenario": "load_spike",
+      "category": "health",
+      "run": 2,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": true,
+          "detail": "46 sets vs 46 (1.00, expected None..1.0)"
+        }
+      ],
+      "input_tokens": 7926,
+      "output_tokens": 3903,
+      "seconds": 19.0
+    },
+    {
+      "scenario": "load_spike",
+      "category": "health",
+      "run": 3,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 0,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 1,
+      "expectations_met": 0,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "no plan"
+        },
+        {
+          "check": "has_pattern",
+          "passed": false,
+          "detail": "no plan"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": false,
+          "detail": "no plan"
+        }
+      ],
+      "input_tokens": 23909,
+      "output_tokens": 9777,
+      "seconds": 48.86
+    },
+    {
+      "scenario": "low_recovery",
+      "category": "health",
+      "run": 1,
+      "accepted": true,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 1,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "light_first_days 2",
+          "passed": false,
+          "detail": "2026-01-19 Weightlifting + Push + Metcon"
+        }
+      ],
+      "input_tokens": 24429,
+      "output_tokens": 10256,
+      "seconds": 50.76
+    },
+    {
+      "scenario": "low_recovery",
+      "category": "health",
+      "run": 2,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "light_first_days 2",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 8041,
+      "output_tokens": 4005,
+      "seconds": 18.63
+    },
+    {
+      "scenario": "low_recovery",
+      "category": "health",
+      "run": 3,
+      "accepted": true,
+      "attempts": 3,
+      "first_violations": 1,
+      "final_violations": 0,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 1,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "light_first_days 2",
+          "passed": false,
+          "detail": "2026-01-19 Weightlifting + Push + Light Metcon"
+        }
+      ],
+      "input_tokens": 24272,
+      "output_tokens": 11354,
+      "seconds": 53.83
     },
     {
       "scenario": "missed_whole_week",
@@ -1584,7 +1584,7 @@
       "run": 1,
       "accepted": true,
       "attempts": 2,
-      "first_violations": 8,
+      "first_violations": 6,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
@@ -1610,59 +1610,20 @@
         {
           "check": "load_at_most Leg press 115",
           "passed": true,
-          "detail": "loads [115.0, 110.0]"
+          "detail": "loads [115.0, 115.0]"
         }
       ],
-      "input_tokens": 13396,
-      "output_tokens": 6405,
-      "seconds": 29.85
+      "input_tokens": 13792,
+      "output_tokens": 8191,
+      "seconds": 37.67
     },
     {
       "scenario": "missed_whole_week",
       "category": "review",
       "run": 2,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 6,
-      "final_violations": 6,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 1,
-      "expectations": 4,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "load_at_most Bench press 62.5",
-          "passed": false,
-          "detail": "loads [65.0]"
-        },
-        {
-          "check": "load_at_most Leg press 115",
-          "passed": false,
-          "detail": "loads [120.0]"
-        }
-      ],
-      "input_tokens": 19832,
-      "output_tokens": 9028,
-      "seconds": 41.48
-    },
-    {
-      "scenario": "missed_whole_week",
-      "category": "review",
-      "run": 3,
       "accepted": true,
       "attempts": 2,
-      "first_violations": 6,
+      "first_violations": 11,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
@@ -1691,9 +1652,48 @@
           "detail": "loads [115.0]"
         }
       ],
-      "input_tokens": 13272,
-      "output_tokens": 7692,
-      "seconds": 34.62
+      "input_tokens": 13893,
+      "output_tokens": 4943,
+      "seconds": 23.48
+    },
+    {
+      "scenario": "missed_whole_week",
+      "category": "review",
+      "run": 3,
+      "accepted": true,
+      "attempts": 2,
+      "first_violations": 5,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 4,
+      "expectations": 4,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "2 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "load_at_most Bench press 62.5",
+          "passed": true,
+          "detail": "loads [62.5]"
+        },
+        {
+          "check": "load_at_most Leg press 115",
+          "passed": true,
+          "detail": "loads [115.0]"
+        }
+      ],
+      "input_tokens": 13730,
+      "output_tokens": 5296,
+      "seconds": 27.08
     },
     {
       "scenario": "power_week",
@@ -1701,77 +1701,9 @@
       "run": 1,
       "accepted": false,
       "attempts": 3,
-      "first_violations": 6,
-      "final_violations": 4,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 1,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "strength_reps_at_most 5",
-          "passed": false,
-          "detail": "Barbell row x6, Leg press x6"
-        }
-      ],
-      "input_tokens": 13445,
-      "output_tokens": 10225,
-      "seconds": 46.47
-    },
-    {
-      "scenario": "power_week",
-      "category": "phase",
-      "run": 2,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 5,
-      "final_violations": 6,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 2,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": false,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "strength_reps_at_most 5",
-          "passed": true,
-          "detail": "ok"
-        }
-      ],
-      "input_tokens": 13356,
-      "output_tokens": 8476,
-      "seconds": 37.27
-    },
-    {
-      "scenario": "power_week",
-      "category": "phase",
-      "run": 3,
-      "accepted": false,
-      "attempts": 3,
-      "first_violations": 1,
+      "first_violations": 13,
       "final_violations": 0,
-      "schema_failures": 2,
+      "schema_failures": 1,
       "budget_stopped": false,
       "unsourced_numbers": 0,
       "expectations_met": 0,
@@ -1793,9 +1725,77 @@
           "detail": "no plan"
         }
       ],
-      "input_tokens": 13200,
-      "output_tokens": 12188,
-      "seconds": 52.78
+      "input_tokens": 14380,
+      "output_tokens": 12912,
+      "seconds": 63.49
+    },
+    {
+      "scenario": "power_week",
+      "category": "phase",
+      "run": 2,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "strength_reps_at_most 5",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 4577,
+      "output_tokens": 4599,
+      "seconds": 22.7
+    },
+    {
+      "scenario": "power_week",
+      "category": "phase",
+      "run": 3,
+      "accepted": true,
+      "attempts": 2,
+      "first_violations": 5,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "2 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "strength_reps_at_most 5",
+          "passed": false,
+          "detail": "Barbell row x6"
+        }
+      ],
+      "input_tokens": 9440,
+      "output_tokens": 5187,
+      "seconds": 25.42
     },
     {
       "scenario": "pull_and_legs_skipped",
@@ -1803,7 +1803,7 @@
       "run": 1,
       "accepted": true,
       "attempts": 2,
-      "first_violations": 4,
+      "first_violations": 5,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
@@ -1827,9 +1827,9 @@
           "detail": "found"
         }
       ],
-      "input_tokens": 14293,
-      "output_tokens": 5826,
-      "seconds": 26.1
+      "input_tokens": 14903,
+      "output_tokens": 6593,
+      "seconds": 30.97
     },
     {
       "scenario": "pull_and_legs_skipped",
@@ -1837,7 +1837,7 @@
       "run": 2,
       "accepted": true,
       "attempts": 2,
-      "first_violations": 4,
+      "first_violations": 3,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
@@ -1861,9 +1861,9 @@
           "detail": "found"
         }
       ],
-      "input_tokens": 14322,
-      "output_tokens": 5498,
-      "seconds": 24.1
+      "input_tokens": 14781,
+      "output_tokens": 4919,
+      "seconds": 23.63
     },
     {
       "scenario": "pull_and_legs_skipped",
@@ -1895,9 +1895,9 @@
           "detail": "found"
         }
       ],
-      "input_tokens": 14322,
-      "output_tokens": 5441,
-      "seconds": 25.71
+      "input_tokens": 14842,
+      "output_tokens": 6572,
+      "seconds": 31.57
     },
     {
       "scenario": "rir_not_logged",
@@ -1924,28 +1924,28 @@
           "detail": "ok"
         }
       ],
-      "input_tokens": 7546,
-      "output_tokens": 3551,
-      "seconds": 16.08
+      "input_tokens": 7806,
+      "output_tokens": 3908,
+      "seconds": 19.13
     },
     {
       "scenario": "rir_not_logged",
       "category": "review",
       "run": 2,
       "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
+      "attempts": 2,
+      "first_violations": 1,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
-      "unsourced_numbers": 0,
+      "unsourced_numbers": 1,
       "expectations_met": 2,
       "expectations": 2,
       "outcomes": [
         {
           "check": "accepted",
           "passed": true,
-          "detail": "1 attempt(s)"
+          "detail": "2 attempt(s)"
         },
         {
           "check": "prescribed_rir",
@@ -1953,28 +1953,28 @@
           "detail": "ok"
         }
       ],
-      "input_tokens": 7546,
-      "output_tokens": 2386,
-      "seconds": 10.29
+      "input_tokens": 15650,
+      "output_tokens": 6039,
+      "seconds": 30.91
     },
     {
       "scenario": "rir_not_logged",
       "category": "review",
       "run": 3,
       "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
+      "attempts": 2,
+      "first_violations": 1,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
-      "unsourced_numbers": 0,
+      "unsourced_numbers": 1,
       "expectations_met": 2,
       "expectations": 2,
       "outcomes": [
         {
           "check": "accepted",
           "passed": true,
-          "detail": "1 attempt(s)"
+          "detail": "2 attempt(s)"
         },
         {
           "check": "prescribed_rir",
@@ -1982,14 +1982,48 @@
           "detail": "ok"
         }
       ],
-      "input_tokens": 7546,
-      "output_tokens": 2006,
-      "seconds": 9.56
+      "input_tokens": 15650,
+      "output_tokens": 6149,
+      "seconds": 30.1
     },
     {
       "scenario": "short_sleep",
       "category": "health",
       "run": 1,
+      "accepted": true,
+      "attempts": 1,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "1 attempt(s)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "light_first_days 1",
+          "passed": true,
+          "detail": "ok"
+        }
+      ],
+      "input_tokens": 7917,
+      "output_tokens": 3613,
+      "seconds": 17.41
+    },
+    {
+      "scenario": "short_sleep",
+      "category": "health",
+      "run": 2,
       "accepted": true,
       "attempts": 1,
       "first_violations": 0,
@@ -2016,43 +2050,9 @@
           "detail": "2026-01-19 Weightlifting + Push + Light Metcon"
         }
       ],
-      "input_tokens": 7657,
-      "output_tokens": 2154,
-      "seconds": 10.19
-    },
-    {
-      "scenario": "short_sleep",
-      "category": "health",
-      "run": 2,
-      "accepted": true,
-      "attempts": 1,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "1 attempt(s)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "light_first_days 1",
-          "passed": true,
-          "detail": "ok"
-        }
-      ],
-      "input_tokens": 7657,
-      "output_tokens": 4657,
-      "seconds": 19.6
+      "input_tokens": 7917,
+      "output_tokens": 2908,
+      "seconds": 14.68
     },
     {
       "scenario": "short_sleep",
@@ -2065,7 +2065,7 @@
       "schema_failures": 0,
       "budget_stopped": false,
       "unsourced_numbers": 0,
-      "expectations_met": 3,
+      "expectations_met": 2,
       "expectations": 3,
       "outcomes": [
         {
@@ -2080,97 +2080,19 @@
         },
         {
           "check": "light_first_days 1",
-          "passed": true,
-          "detail": "ok"
+          "passed": false,
+          "detail": "2026-01-19 Weightlifting + Push + Light Metcon"
         }
       ],
-      "input_tokens": 7657,
-      "output_tokens": 3331,
-      "seconds": 14.7
+      "input_tokens": 7917,
+      "output_tokens": 3322,
+      "seconds": 15.45
     },
     {
       "scenario": "test_week",
       "category": "phase",
       "run": 1,
       "accepted": true,
-      "attempts": 3,
-      "first_violations": 1,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 1,
-      "expectations_met": 3,
-      "expectations": 4,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "includes_single Bench press",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "includes_metcon amrap",
-          "passed": false,
-          "detail": "missing"
-        },
-        {
-          "check": "excludes_flags",
-          "passed": true,
-          "detail": "none"
-        }
-      ],
-      "input_tokens": 11772,
-      "output_tokens": 8432,
-      "seconds": 37.78
-    },
-    {
-      "scenario": "test_week",
-      "category": "phase",
-      "run": 2,
-      "accepted": true,
-      "attempts": 3,
-      "first_violations": 0,
-      "final_violations": 0,
-      "schema_failures": 1,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 3,
-      "expectations": 4,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "3 attempt(s)"
-        },
-        {
-          "check": "includes_single Bench press",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "includes_metcon amrap",
-          "passed": false,
-          "detail": "missing"
-        },
-        {
-          "check": "excludes_flags",
-          "passed": true,
-          "detail": "none"
-        }
-      ],
-      "input_tokens": 11937,
-      "output_tokens": 7310,
-      "seconds": 32.74
-    },
-    {
-      "scenario": "test_week",
-      "category": "phase",
-      "run": 3,
-      "accepted": true,
       "attempts": 1,
       "first_violations": 0,
       "final_violations": 0,
@@ -2201,9 +2123,87 @@
           "detail": "none"
         }
       ],
-      "input_tokens": 3810,
-      "output_tokens": 2583,
-      "seconds": 11.75
+      "input_tokens": 4070,
+      "output_tokens": 2220,
+      "seconds": 11.28
+    },
+    {
+      "scenario": "test_week",
+      "category": "phase",
+      "run": 2,
+      "accepted": false,
+      "attempts": 3,
+      "first_violations": 0,
+      "final_violations": 2,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 2,
+      "expectations": 4,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": false,
+          "detail": "3 attempt(s)"
+        },
+        {
+          "check": "includes_single Bench press",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "includes_metcon amrap",
+          "passed": false,
+          "detail": "missing"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "input_tokens": 12885,
+      "output_tokens": 7481,
+      "seconds": 36.95
+    },
+    {
+      "scenario": "test_week",
+      "category": "phase",
+      "run": 3,
+      "accepted": true,
+      "attempts": 2,
+      "first_violations": 1,
+      "final_violations": 0,
+      "schema_failures": 0,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 3,
+      "expectations": 4,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "2 attempt(s)"
+        },
+        {
+          "check": "includes_single Bench press",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "includes_metcon amrap",
+          "passed": false,
+          "detail": "missing"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        }
+      ],
+      "input_tokens": 8187,
+      "output_tokens": 3166,
+      "seconds": 16.67
     },
     {
       "scenario": "volume_peak_week",
@@ -2223,6 +2223,55 @@
           "check": "accepted",
           "passed": true,
           "detail": "1 attempt(s)"
+        },
+        {
+          "check": "sessions",
+          "passed": true,
+          "detail": "6 sessions (expected 4..6)"
+        },
+        {
+          "check": "has_pattern legs",
+          "passed": true,
+          "detail": "found"
+        },
+        {
+          "check": "excludes_flags",
+          "passed": true,
+          "detail": "none"
+        },
+        {
+          "check": "volume_vs_previous",
+          "passed": true,
+          "detail": "43 sets vs 46 (0.93, expected 0.9..1.4)"
+        },
+        {
+          "check": "load_at_most Bench press 65",
+          "passed": true,
+          "detail": "loads [65.0]"
+        }
+      ],
+      "input_tokens": 7806,
+      "output_tokens": 3816,
+      "seconds": 19.16
+    },
+    {
+      "scenario": "volume_peak_week",
+      "category": "phase",
+      "run": 2,
+      "accepted": true,
+      "attempts": 2,
+      "first_violations": 0,
+      "final_violations": 0,
+      "schema_failures": 1,
+      "budget_stopped": false,
+      "unsourced_numbers": 0,
+      "expectations_met": 6,
+      "expectations": 6,
+      "outcomes": [
+        {
+          "check": "accepted",
+          "passed": true,
+          "detail": "2 attempt(s)"
         },
         {
           "check": "sessions",
@@ -2250,17 +2299,17 @@
           "detail": "loads [65.0]"
         }
       ],
-      "input_tokens": 7546,
-      "output_tokens": 1866,
-      "seconds": 8.63
+      "input_tokens": 16016,
+      "output_tokens": 5872,
+      "seconds": 30.01
     },
     {
       "scenario": "volume_peak_week",
       "category": "phase",
-      "run": 2,
+      "run": 3,
       "accepted": true,
-      "attempts": 2,
-      "first_violations": 1,
+      "attempts": 1,
+      "first_violations": 0,
       "final_violations": 0,
       "schema_failures": 0,
       "budget_stopped": false,
@@ -2271,7 +2320,7 @@
         {
           "check": "accepted",
           "passed": true,
-          "detail": "2 attempt(s)"
+          "detail": "1 attempt(s)"
         },
         {
           "check": "sessions",
@@ -2296,61 +2345,12 @@
         {
           "check": "load_at_most Bench press 65",
           "passed": true,
-          "detail": "loads [62.5]"
-        }
-      ],
-      "input_tokens": 15143,
-      "output_tokens": 6019,
-      "seconds": 26.74
-    },
-    {
-      "scenario": "volume_peak_week",
-      "category": "phase",
-      "run": 3,
-      "accepted": true,
-      "attempts": 2,
-      "first_violations": 1,
-      "final_violations": 0,
-      "schema_failures": 0,
-      "budget_stopped": false,
-      "unsourced_numbers": 0,
-      "expectations_met": 5,
-      "expectations": 6,
-      "outcomes": [
-        {
-          "check": "accepted",
-          "passed": true,
-          "detail": "2 attempt(s)"
-        },
-        {
-          "check": "sessions",
-          "passed": true,
-          "detail": "5 sessions (expected 4..6)"
-        },
-        {
-          "check": "has_pattern legs",
-          "passed": true,
-          "detail": "found"
-        },
-        {
-          "check": "excludes_flags",
-          "passed": true,
-          "detail": "none"
-        },
-        {
-          "check": "volume_vs_previous",
-          "passed": false,
-          "detail": "39 sets vs 46 (0.85, expected 0.9..1.4)"
-        },
-        {
-          "check": "load_at_most Bench press 65",
-          "passed": true,
           "detail": "loads [65.0]"
         }
       ],
-      "input_tokens": 15140,
-      "output_tokens": 5232,
-      "seconds": 24.42
+      "input_tokens": 7806,
+      "output_tokens": 3798,
+      "seconds": 17.95
     }
   ]
 }

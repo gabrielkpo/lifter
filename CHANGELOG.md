@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/gabrielkpo/lifter/compare/v0.1.2...v0.1.3) (2026-10-18)
+
+
+### Bug Fixes
+
+* **agents:** the coach's tool calls run one at a time, in the model's order ([#83](https://github.com/gabrielkpo/lifter/issues/83)) ([c5007e8](https://github.com/gabrielkpo/lifter/commit/c5007e80d093aecb1ec9ea4ff0506a6c38dbd635))
+* the agents lose their table-wide insert on proposals, the Mac stays awake through its jobs ([#85](https://github.com/gabrielkpo/lifter/issues/85)) ([b06cd90](https://github.com/gabrielkpo/lifter/commit/b06cd90cd5292f0ae1003a63b8a802c552840dcb))
+
 ## [0.1.2](https://github.com/gabrielkpo/lifter/compare/v0.1.1...v0.1.2) (2026-10-18)
 
 

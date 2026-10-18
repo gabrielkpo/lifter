@@ -22,7 +22,14 @@ export default function WodPage() {
   const picked = useApi<WeekDetail>(shownId === null ? null : `/weeks/${shownId}`);
   const current = shownId === null ? thisWeek : picked;
 
-  if (noCurrent && weeks.status !== "ok") return <ApiStatus state={weeks} />;
+  if (noCurrent && weeks.status !== "ok") {
+    return (
+      <>
+        <TopBar title="WOD" />
+        <ApiStatus state={weeks} />
+      </>
+    );
+  }
   if (noCurrent && !fallback) {
     return (
       <>

@@ -53,8 +53,9 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   3 runs per scenario (`bench/results/single-agent-mistral-small.json`, prompt round 3):
   **84 % accepted, 82 % of expectations met**, 82 first-plan violations over 63 runs, 18 left
   in final plans, 14 answers that did not parse, 8 unsourced numbers, about 1.18 million tokens
-  for the 63 runs. Above the floor on both measures; the stop rule, the skipped sessions, the
-  volume weeks and the deload are solid. Still weak: the intensification and test weeks (low
+  for the 63 runs. Above the floor on both measures; the skipped sessions, the volume weeks
+  and the deload are solid, and the stop rule (`knee_pain`) passed 3/3 when run again after
+  falling to 1/3 in this pass. Still weak: the intensification and test weeks (low
   reps, the AMRAP benchmark), the first week (exercises outside the bank, extra sessions), the
   light first days after low recovery or short sleep (2/6), and answers that do not parse.
 - **Round 3** (on 2026-10-18, against the run before it, same 63 runs), aimed at the three

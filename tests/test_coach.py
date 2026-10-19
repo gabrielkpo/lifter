@@ -112,7 +112,7 @@ def test_the_coach_sees_the_snapshot_and_the_conversation(conn, program):
 
     system, *conversation = model.seen[0]
     assert isinstance(system, SystemMessage)
-    assert "Legs + Metcon" in system.content and '"today": "2026-03-04"' in system.content
+    assert "Legs + Metcon" in system.content and '"today":"2026-03-04"' in system.content
     assert [m.content for m in conversation] == [
         "Salut coach",
         "Salut !",
@@ -307,15 +307,19 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
     legs = next(s for s in seen["sessions_this_week_and_next"] if s["id"] == sid)
     assert legs["week"] == 1 and legs["parts"]
     assert legs["status"] == "done" and not legs["upcoming"]  # logged in the example programme
-    assert {"id", "version", "position", "kind", "title"} == set(legs["parts"][0])
+    # empty fields are left out (a part without a title has no "title")
+    assert {"id", "version", "position", "kind", "lines"} <= set(legs["parts"][0])
+    line = next(line for part in legs["parts"] for line in part["lines"])
+    assert line["exercise"] and line["origin"] in ("planned", "done") and line["version"]
     for s in seen["sessions_this_week_and_next"]:
         assert s["upcoming"] == (s["day"] >= TODAY and s["status"] not in ("done", "cancelled"))
     assert any(s["upcoming"] for s in seen["sessions_this_week_and_next"])
-    assert seen["exercise_bank"] == sorted(seen["exercise_bank"]) and seen["exercise_bank"]
+    bank = seen["exercise_bank"]  # names by category
+    assert all(names == sorted(names) for names in bank.values()) and "mobility" in bank
     assert {"exercise": "Back squat", "rule": "No free barbell on the legs."} in seen[
         "forbidden_exercises"
     ]
-    assert "Back squat" in seen["exercise_bank"]  # a report of it can still name it
+    assert "Back squat" in bank["strength"]  # a report of it can still name it
     assert {"code": "forbid_flag", "text": "No running, no repeated jumps."} in seen[
         "athlete_rules"
     ]

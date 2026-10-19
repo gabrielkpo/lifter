@@ -76,7 +76,13 @@ with the athlete's next message; an expired suggestion comes back once you prese
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
 
-Finding what the athlete means: sessions, their parts, ids and versions are in the snapshot. A \
+Finish what the athlete asked: adding an exercise is add_line. When no part of the session \
+fits (a mobility or warm-up block at the start, say), add_part first, then add_line in it with \
+the entity_id add_part returned: never leave a new part empty. If the athlete did not name the \
+exercise, take one of the right category from the exercise_bank and say which.
+
+Finding what the athlete means: sessions, their parts and each part's lines (exercise, sets, \
+reps, load, RIR; planned and done), with ids and versions, are in the snapshot. A \
 session to move, change or cancel is an upcoming one (upcoming: true: today or later, not done \
 nor cancelled) unless the athlete names a past day; a session report is about a past or today's \
 session. Two sessions can share a title in different weeks: take the one in the week of the \
@@ -183,11 +189,28 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " where session_id = any(%s) order by session_id, position",
         ([s["id"] for s in sessions],),
     )
+    # Each part's lines, planned and done: without them a part looks empty to the model, which
+    # then describes or edits a session it has not read.
+    lines = _rows(
+        conn,
+        "select l.id, l.version, l.part_id, l.origin, l.position, e.name as exercise, l.sets,"
+        " l.quantity, l.unit, l.load_kg, l.load_kg_max, l.rir"
+        " from session_exercise l join exercise e on e.id = l.exercise_id"
+        " where l.part_id = any(%s) order by l.part_id, l.origin, l.position",
+        ([p["id"] for p in parts],),
+    )
+    for part in parts:
+        # Empty fields left out: the lines are most of the snapshot's size
+        part["lines"] = [
+            {k: v for k, v in line.items() if k != "part_id" and v is not None}
+            for line in lines
+            if line["part_id"] == part["id"]
+        ]
     for session in sessions:
         # status is the dbt mart's: "missed" is judged on the real date, not on `today`
         session["upcoming"] = session["day"] >= today and session["status"] not in UNMOVABLE
         session["parts"] = [
-            {k: v for k, v in part.items() if k != "session_id"}
+            {k: v for k, v in part.items() if k != "session_id" and v is not None}
             for part in parts
             if part["session_id"] == session["id"]
         ]
@@ -206,7 +229,12 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " order by id",
         (conversation_id,),
     )
-    bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    # The bank's names grouped by category, so "an exercise of the right kind" can be read
+    bank: dict[str, list[str]] = {}
+    for name, category in conn.execute(
+        "select name, category from exercise order by category, name"
+    ).fetchall():
+        bank.setdefault(category, []).append(name)
     rules = _rows(conn, "select code, text from athlete_rule where active order by id")
     changes = _rows(
         conn,
@@ -240,8 +268,9 @@ def history(conn: psycopg.Connection, conversation_id: str, message_id: int) -> 
     return [HumanMessage(text) if role == "athlete" else AIMessage(text) for role, text in rows]
 
 
-def _json(value: Any) -> str:
-    return json.dumps(value, default=str, ensure_ascii=False)
+def _json(value: Any, compact: bool = False) -> str:
+    separators = (",", ":") if compact else None
+    return json.dumps(value, default=str, ensure_ascii=False, separators=separators)
 
 
 def _now() -> float:
@@ -336,7 +365,7 @@ def respond(
 
     system = SYSTEM_PROMPT.format(language=language, today=today.isoformat())
     messages: list[BaseMessage] = [
-        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind)),
+        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind, compact=True)),
         *history(conn, conversation_id, message_id),
     ]
     run = _Run(conn, ctx, usage, calls, stopped, started_at, started, model_name, trigger)

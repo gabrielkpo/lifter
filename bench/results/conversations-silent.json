@@ -2,16 +2,38 @@
   "coach": "silent",
   "model": null,
   "summary": {
-    "runs": 8,
-    "expectations_met_rate": 0.6,
+    "runs": 9,
+    "expectations_met_rate": 0.562,
     "scenarios_fully_met": 4,
     "refused_quotes": 0,
     "stopped": 0,
-    "model_calls": 9,
+    "model_calls": 10,
     "input_tokens": 0,
     "output_tokens": 0
   },
   "runs": [
+    {
+      "scenario": "add_mobility",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "planned_line_in_part 3 Legs + Metcon mobility",
+          "passed": false,
+          "detail": "0 mobility part(s), 0 with a planned line"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
     {
       "scenario": "forbidden_exercise",
       "category": "rules",

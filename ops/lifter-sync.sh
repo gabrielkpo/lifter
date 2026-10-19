@@ -22,6 +22,13 @@ synced_within() {
 if [[ "${1:-}" == "--catch-up" ]] && { ! user_active || synced_within 12; }; then
   exit 0
 fi
+# One sync at a time: the scheduled run and the catch-up can start together at 21:00.
+LOCK="$LIFTER_LOG_DIR/sync.lock"
+if ! /usr/bin/shlock -f "$LOCK" -p $$; then
+  log "sync: another sync is running, this one is skipped"
+  exit 0
+fi
+trap '/bin/rm -f "$LOCK"' EXIT
 
 load_env sync.env
 log "sync: start"

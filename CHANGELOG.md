@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.2](https://github.com/gabrielkpo/lifter/compare/v0.2.1...v0.2.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **agents:** a coach turn ends before the hosted function's 60 s ([#92](https://github.com/gabrielkpo/lifter/issues/92)) ([c3e723d](https://github.com/gabrielkpo/lifter/commit/c3e723d4b15eb86f4b552eb637e4ef5e8c6ca930))
+* **agents:** planner round 3, a missed set and fewer reps never raise the load ([#91](https://github.com/gabrielkpo/lifter/issues/91)) ([38a7d34](https://github.com/gabrielkpo/lifter/commit/38a7d34286ea6c77ac92c7c3e6b6a1193849fa85))
+* **agents:** the coach sees each part's lines and never leaves a new part empty ([#93](https://github.com/gabrielkpo/lifter/issues/93)) ([b3983e4](https://github.com/gabrielkpo/lifter/commit/b3983e43eaf8faf8b15dcedde90e880e1eff93bb))
+* the coach's changes can be undone, one part per kind in a session, a clearer coach screen on a phone ([#95](https://github.com/gabrielkpo/lifter/issues/95)) ([116661d](https://github.com/gabrielkpo/lifter/commit/116661d7c2154d867c6ac5e93ede99935916cd99))
+
 ## [0.2.1](https://github.com/gabrielkpo/lifter/compare/v0.2.0...v0.2.1) (2026-10-19)
 
 

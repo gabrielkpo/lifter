@@ -50,22 +50,25 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   (`bench/results/copy-baseline.json`); it fails the deload, the return after it, the stop rule,
   low recovery, critical alerts and duplicates the drafts.
 - **Single agent** (`--planner mistral`): the week planner of step 3, `mistral-small-latest`,
-  3 runs per scenario (`bench/results/single-agent-mistral-small.json`, measured on 27065d1):
-  **82.5 % accepted, 79 % of expectations met**, 69 first-plan violations over 63 runs, 6
-  answers that did not parse, 11 unsourced numbers (8 in a single refused run), about 1.05
-  million tokens for the 63 runs. Above the floor on both measures; the stop rule (`knee_pain`
-  3/3, all expectations), the skipped sessions and the volume peak (2/3 fully met) are solid.
-  Still weak: the power week (0/3 accepted, reps above 5 in one run, two answers that did not
-  parse), a load kept after a missed RIR (`bench_rir_missed`, 0/3), the deload week (accepted
-  3/3 but never fully met: volume against the previous week, metcon count), the
-  intensification and test weeks (low reps, the AMRAP benchmark), and the light first days
-  after low recovery or short sleep (3/6).
-- **The two review touch-ups** (the load step read from the progression rule's params, light
-  first days on alerts that are not critical) against the run before them (ffde33e, same 63
-  runs): the same 82.5 % accepted and 79 % of expectations, but **first-plan violations down
-  from 129 to 69** and the light first days from 0/6 to 3/6. The power week went from 2/3
-  accepted to 0/3 and unsourced numbers from 1 to 11; with 3 runs per scenario, part of that is
-  the model's spread.
+  **5 runs per scenario** (`bench/results/single-agent-mistral-small.json`, 105 plans):
+  **87.6 % accepted, 79.7 % of expectations met**, 129 first-plan violations, 28 left in final
+  plans, 8 answers that did not parse, 6 unsourced numbers, about 1.7 million tokens. Above the
+  floor on both measures; the skipped sessions, a missed RIR, a load spike and the return after
+  the deload are solid. Still weak: the deload (always accepted, never fully met: volume and
+  metcon count), the intensification and test weeks (low reps, the AMRAP benchmark), light pain
+  read as a reason to lower the load (`light_pain_ignored`, 0/5), the light first days after low
+  recovery (1/5), and the power week (3/5 accepted).
+- **Round 3** (2026-10-19). Two rules added, the only ones that held across the trial passes:
+  a missed set (fewer reps, or a RIR under its target) keeps the load or one step lighter; fewer
+  reps never allow a heavier load than one step above the heaviest set at as many reps or more.
+  Against main's prompt (3 runs per scenario): accepted 82.5 % to 87.6 %, expectations flat
+  (79.4 % to 79.7 %), `bench_rir_missed` 0/3 to 4/5, the power week 0/3 to 3/5 accepted,
+  unsourced numbers 11 to 6 (on more runs). Main's prompt was measured on 3 runs, this one on
+  5: the rates carry different sampling noise, and only the gains on the targeted scenarios
+  (a missed RIR, the power week) are large enough to read as the rules' effect.
+  Rejected along the way: a version that mapped the bench programme's own intent wording ("very
+  short sets", "volume halved") to numbers scored 84 % accepted and fixed the deload, but it was
+  tuned to the bench's phrasing, and once written generically it fell to 79 %.
 - **Agent team** (step 7): kept only if it has **no constraint violation**, cites numbers **at
   least as accurately** as the single agent, and costs **at most 2×** its tokens; otherwise the
   README reports the negative result.

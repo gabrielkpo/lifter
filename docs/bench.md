@@ -116,7 +116,7 @@ does nothing always meets, 60 % before `add_mobility`), 4 of 9
 scenarios fully met (every "nothing changes" one, none of the others;
 `bench/results/conversations-silent.json`). **The coach with `mistral-small-latest`** (`--coach
 mistral --runs 3`, `bench/results/coach-mistral-small.json`): **27 runs of 27 fully met** on the
-nine scenarios, no quote refused, no turn stopped by a limit, about 670,000 tokens. The snapshot
+nine scenarios, no quote refused, no turn stopped by a limit, about 630,000 tokens. The snapshot
 now carries each part's lines (compact JSON, empty fields left out), which raised the input of
 a call from about 6,000 to about 8,000 tokens. It got there in six rounds:
 - **First pass, 67 %.** The coach called operations as if they were tools, guessed table

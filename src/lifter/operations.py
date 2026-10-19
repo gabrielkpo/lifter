@@ -973,9 +973,7 @@ def update_part(conn, p, ctx: Context) -> Change:
     if "kind" in changes:
         part = _existing(conn, "session_part", p.id)
         _one_part_per_kind(conn, part["session_id"], changes["kind"], but=p.id)
-    return _named(
-        _update(conn, "session_part", p.id, p.expected_version, changes), "update_part"
-    )
+    return _named(_update(conn, "session_part", p.id, p.expected_version, changes), "update_part")
 
 
 DeletePart = _delete_model("DeletePart", "Delete a part of a session with its lines.")

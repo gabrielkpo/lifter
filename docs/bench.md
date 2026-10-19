@@ -118,7 +118,7 @@ scenarios fully met (every "nothing changes" one, none of the others;
 mistral --runs 3`, `bench/results/coach-mistral-small.json`): **27 runs of 27 fully met** on the
 nine scenarios, no quote refused, no turn stopped by a limit, about 670,000 tokens. The snapshot
 now carries each part's lines (compact JSON, empty fields left out), which raised the input of
-a call from about 6,000 to about 8,000 tokens. It got there in five rounds on the same scenarios:
+a call from about 6,000 to about 8,000 tokens. It got there in six rounds:
 - **First pass, 67 %.** The coach called operations as if they were tools, guessed table
   names and part ids, picked last week's legs session to move, and reported an undo as refused
   without calling any tool.

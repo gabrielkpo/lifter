@@ -63,7 +63,8 @@ function PlannedPart({ part }: { part: Part }) {
   const target = partTarget(part);
   return (
     <section className="card">
-      <h2>{part.title ?? label(part.kind)}</h2>
+      <h2>{label(part.kind)}</h2>
+      {part.title && <p className="part-title">{part.title}</p>}
       {(format || target) && (
         <p className="small" style={{ marginBottom: 10 }}>
           {[format, target].filter(Boolean).join(" · ")}
@@ -82,9 +83,10 @@ function DonePart({ part }: { part: Part }) {
   return (
     <section className="card">
       <div className="row">
-        <h2>{part.title ?? label(part.kind)}</h2>
+        <h2>{label(part.kind)}</h2>
         {result && <strong>{result}</strong>}
       </div>
+      {part.title && <p className="part-title">{part.title}</p>}
       {(partFormat(part) || target) && (
         <p className="small" style={{ marginBottom: 10 }}>
           {[partFormat(part), target].filter(Boolean).join(" · ")}

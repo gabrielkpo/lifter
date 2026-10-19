@@ -69,6 +69,7 @@ def test_a_message_is_answered_and_its_change_shown_under_it(conn, database_url,
     assert body["coach"]["text"].startswith("C'est fait")
     (change,) = body["athlete"]["changes"]
     assert change["operation"] == "move_session" and not change["undone"]
+    assert change["subject"].startswith("Legs + Metcon")  # what moved, not just "move session"
     assert body["run_id"] is not None
     thread = api.get("/conversation").json()
     assert [(m["role"], m["id"]) for m in thread] == [

@@ -158,6 +158,29 @@ export default function CoachPage() {
     element.style.height = `${Math.min(element.scrollHeight, INPUT_MAX)}px`;
   }, [draft]);
 
+  // With the keyboard open (a phone), the input sits right above it and the tab bar steps
+  // aside: the visual viewport says how much of the screen the keyboard takes.
+  useEffect(() => {
+    const view = window.visualViewport;
+    if (!view) return;
+    const onChange = () => {
+      const keyboard = Math.max(0, window.innerHeight - view.height - view.offsetTop);
+      const open = keyboard > 80;
+      document.documentElement.style.setProperty("--keyboard", `${open ? keyboard : 0}px`);
+      document.body.classList.toggle("keyboard-open", open);
+      if (open) window.scrollTo({ top: document.documentElement.scrollHeight });
+    };
+    onChange();
+    view.addEventListener("resize", onChange);
+    view.addEventListener("scroll", onChange);
+    return () => {
+      view.removeEventListener("resize", onChange);
+      view.removeEventListener("scroll", onChange);
+      document.body.classList.remove("keyboard-open");
+      document.documentElement.style.removeProperty("--keyboard");
+    };
+  }, []);
+
   useEffect(() => {
     const onScroll = () => {
       const left = document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
@@ -188,13 +211,14 @@ export default function CoachPage() {
     if (!said || sending) return;
     setSending(said);
     setNotice(null);
+    setDraft(""); // sent: the input is free at once, the message shows in the thread
     try {
       const reply = await postJson<ConversationReply>("/conversation", { text: said });
       pendingScroll.current = "reply";
       setMessages((before) => [...(before ?? []), reply.athlete, reply.coach]);
-      setDraft("");
     } catch (error) {
       setNotice(failure(error));
+      setDraft((now) => now || said); // not answered: the words come back to send again
       pendingScroll.current = "end";
       await reload(); // the message, or a reply about a crash, may be stored all the same
     } finally {
@@ -233,7 +257,10 @@ export default function CoachPage() {
   return (
     <>
       <TopBar title="Coach" />
-      <div className="chat" style={{ paddingBottom: inputHeight + 16 }}>
+      <div
+        className="chat"
+        style={{ paddingBottom: `calc(${inputHeight + 16}px + var(--keyboard, 0px))` }}
+      >
         {messages.length === 0 && !sending && (
           <p className="empty">
             Talk to your coach: “move Thursday to Friday”, “my right knee hurts”, “why RIR 3?”.
@@ -256,6 +283,12 @@ export default function CoachPage() {
               <div key={change.change_id} className="chat-change">
                 <span>
                   {label(change.operation)}
+                  {change.subject && (
+                    <>
+                      {" · "}
+                      <strong>{change.subject}</strong>
+                    </>
+                  )}
                   {change.undone && " · undone"}
                 </span>
                 {!change.undone && (

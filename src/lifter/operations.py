@@ -296,6 +296,12 @@ def _writable() -> set[str]:
     return {t for op in CATALOGUE.values() for t in op.writes}
 
 
+def _content(row: dict[str, Any]) -> dict[str, Any]:
+    """A row without its bookkeeping: an undo bumps the version of the rows it puts back, so
+    undoing the changes one after the other (the last first) compares what they hold."""
+    return {k: v for k, v in row.items() if k not in ("version", "updated_at")}
+
+
 def revert(conn: psycopg.Connection, change: Change) -> Change:
     """The inverse of `change`: delete what it created, recreate what it deleted (same ids),
     restore what it updated. Refused when any of those rows changed since."""
@@ -312,7 +318,7 @@ def revert(conn: psycopg.Connection, change: Change) -> Change:
         if row is None:
             if current is not None:
                 raise StaleRow(f"{table} {row_id} exists again since this change")
-        elif current is None or current["version"] != row["version"]:
+        elif current is None or _content(current) != _content(row):
             raise StaleRow(f"{table} {row_id} changed since this change: undo is refused")
     for key in before.keys() - after.keys():
         if _row(conn, *key) is not None:
@@ -870,7 +876,10 @@ class PartFields(StrictModel):
 
 class AddPart(PartFields):
     """Add a part to a session (warm-up, weightlifting, gymnastics, strength, metcon, cardio,
-    mobility), at the end or at `position` (the parts after it move down)."""
+    mobility): one part per kind, its exercises go inside it (add_line), so a session that
+    already has a part of this kind refuses it. Without `position`, it takes its place in the
+    usual order (warm-up, mobility, weightlifting, gymnastics, strength, metcon, cardio); at
+    `position`, the parts after it move down."""
 
     session_id: int
     position: int | None = Field(default=None, ge=1)
@@ -887,6 +896,9 @@ def _shift_parts(conn, session_id: int, from_position: int, images: list[RowImag
         conn.execute("update session_part set position = position + 1 where id = %s", (part_id,))
 
 
+PART_ORDER = ("warmup", "mobility", "weightlifting", "gymnastics", "strength", "metcon", "cardio")
+
+
 @_register(
     "add_part",
     AddPart,
@@ -896,11 +908,23 @@ def _shift_parts(conn, session_id: int, from_position: int, images: list[RowImag
 )
 def add_part(conn, p: AddPart, ctx: Context) -> Change:
     _existing(conn, "planned_session", p.session_id)
-    last = conn.execute(
-        "select coalesce(max(position), 0) from session_part where session_id = %s",
+    parts = conn.execute(
+        "select id, kind, position from session_part where session_id = %s order by position",
         (p.session_id,),
-    ).fetchone()[0]
-    position = min(p.position or last + 1, last + 1)
+    ).fetchall()
+    same = next((part_id for part_id, kind, _ in parts if kind == p.kind), None)
+    if same is not None:
+        raise OperationError(
+            f"session {p.session_id} already has a {p.kind} part (part {same}): add the"
+            " exercises to it (add_line), one part per kind"
+        )
+    last = parts[-1][2] if parts else 0
+    if p.position is None:
+        rank = PART_ORDER.index(p.kind)
+        after = [pos for _, kind, pos in parts if PART_ORDER.index(kind) > rank]
+        position = min(after) if after else last + 1
+    else:
+        position = min(p.position, last + 1)
     shifted: list[RowImage] = []
     _shift_parts(conn, p.session_id, position, shifted)
     img = _insert(

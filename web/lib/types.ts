@@ -313,7 +313,23 @@ export interface ConversationMessage {
   suggestions: ConversationSuggestion[];
 }
 
+/** A conversation with the coach, as the history panel lists it. */
+export interface Conversation {
+  id: string;
+  /** The start of the athlete's first message. */
+  title: string;
+  source: "app" | "cli" | "bench";
+  created_at: string;
+  last_message_at: string;
+}
+
+export interface ConversationThread {
+  conversation: Conversation;
+  messages: ConversationMessage[];
+}
+
 export interface ConversationReply {
+  conversation_id: string;
   athlete: ConversationMessage;
   coach: ConversationMessage;
   stopped: string | null;

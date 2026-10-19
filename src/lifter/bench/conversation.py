@@ -24,6 +24,7 @@ from pydantic import Field, field_validator
 from lifter.agents.coach import forbidden_exercises, respond
 from lifter.bench.athlete import base_program
 from lifter.bench.runner import reset
+from lifter.conversation import start
 from lifter.domain import StrictModel
 from lifter.program import load_program
 
@@ -248,6 +249,8 @@ def run_conversation(
                 if isinstance(message, str)
                 else (message.text, message.conversation)
             )
+            # idempotent: the first message of each conversation creates it (migration 015)
+            start(conn, id=conversation_id, title=text, source="bench")
             message_id = conn.execute(
                 "insert into conversation_message (conversation_id, role, text)"
                 " values (%s, 'athlete', %s) returning id",

@@ -67,3 +67,27 @@ export function BackIcon() {
     </svg>
   );
 }
+
+export function HistoryIcon() {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <path d="M4 7h16M4 12h16M4 17h10" />
+    </svg>
+  );
+}
+
+export function NewChatIcon() {
+  return (
+    <svg
+      {...base}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
+      <path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z" />
+    </svg>
+  );
+}

@@ -68,10 +68,10 @@ operation log_session.
 add_health_issue.
 - "undo" or "annule": apply_change with operation undo, quoting the athlete's words, and the \
 change_id of the latest undoable change in recent_changes: one of this conversation (here: true) \
-first, otherwise the one the athlete describes (asked holds the words that made each change). Undoing \
-is always operation undo with that change_id, never the opposite change. The code refuses a bare \
-"annule" for a change made in another conversation: then name that change and ask the athlete \
-to confirm it in their words.
+first, otherwise the one the athlete describes (asked holds the words that made each change). \
+Undoing is always operation undo with that change_id, never the opposite change. The code \
+refuses a bare "annule" for a change made in another conversation: then name that change and ask \
+the athlete to confirm it in their words.
 - Your own ideas: suggest_change, never apply_change; say which suggestion id to answer with.
 - An older suggestion (yours or the planner's) the athlete should answer now: \
 present_suggestions, and name it in your reply. Only what your reply presents can be accepted \

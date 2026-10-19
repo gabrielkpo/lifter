@@ -12,6 +12,7 @@ from psycopg.conninfo import make_conninfo
 from lifter import operations
 from lifter.api.app import create_app
 from lifter.api.conversation import CONVERSATION, CoachSetup
+from lifter.conversation import start
 from lifter.program import load_program, read_program
 from test_coach import ScriptedChat, tool_call
 
@@ -99,6 +100,8 @@ def test_a_suggestion_presented_by_the_reply_comes_back_with_it(conn, database_u
 
 def test_a_newer_message_makes_the_turn_stale(conn, database_url, program):
     # Another message lands between storing this one and answering it: nothing runs.
+    start(conn, id=CONVERSATION, title="salut coach", source="app")
+
     def model():
         conn.execute(
             "insert into conversation_message (conversation_id, role, text)"
@@ -125,6 +128,8 @@ def test_without_the_coach_configured_the_conversation_is_off(database_url):
     api = TestClient(create_app(database_url), base_url="http://127.0.0.1:8000")
     assert api.get("/conversation").status_code == 503
     assert api.post("/conversation", json={"text": "salut"}).status_code == 503
+    assert api.get("/conversations").status_code == 503
+    assert api.post("/conversations", json={"text": "salut"}).status_code == 503
 
 
 def test_an_empty_or_huge_message_is_refused(conn, database_url, program):
@@ -132,3 +137,93 @@ def test_an_empty_or_huge_message_is_refused(conn, database_url, program):
     assert api.post("/conversation", json={"text": ""}).status_code == 422
     assert api.post("/conversation", json={"text": "x" * 2001}).status_code == 422
     assert conn.execute("select count(*) from conversation_message").fetchone() == (0,)
+
+
+def test_a_first_message_opens_a_conversation_listed_first(conn, database_url, program):
+    model = lambda: ScriptedChat(AIMessage("Bien noté."))  # noqa: E731
+    api = api_with(database_url, model)
+
+    first = api.post("/conversations", json={"text": "Comment va   mon squat ?\nDis-moi"})
+    second = api.post("/conversations", json={"text": "Je suis fatigué", "id": "mine"})
+
+    assert first.status_code == 200 and second.status_code == 200, second.text
+    one, two = first.json()["conversation_id"], second.json()["conversation_id"]
+    assert len({one, two, "mine"}) == 3  # drawn by the server, never the client's
+    listed = api.get("/conversations").json()
+    assert [(c["id"], c["title"], c["source"]) for c in listed] == [
+        (two, "Je suis fatigué", "app"),
+        (one, "Comment va mon squat ? Dis-moi", "app"),
+    ]
+    thread = api.get(f"/conversations/{one}").json()
+    assert thread["conversation"]["id"] == one
+    assert [m["role"] for m in thread["messages"]] == ["athlete", "coach"]
+
+
+def test_a_conversation_goes_on_where_it_was(conn, database_url, program):
+    api = api_with(database_url, lambda: ScriptedChat(AIMessage("Ok.")))
+    one = api.post("/conversations", json={"text": "Salut coach"}).json()["conversation_id"]
+    two = api.post("/conversations", json={"text": "Autre sujet"}).json()["conversation_id"]
+
+    reply = api.post(f"/conversations/{one}", json={"text": "Et pour jeudi ?"})
+
+    assert reply.status_code == 200, reply.text
+    assert reply.json()["conversation_id"] == one
+    texts = [m["text"] for m in api.get(f"/conversations/{one}").json()["messages"]]
+    assert texts == ["Salut coach", "Ok.", "Et pour jeudi ?", "Ok."]
+    assert len(api.get(f"/conversations/{two}").json()["messages"]) == 2
+    # The one just written to is the most recently active again.
+    assert [c["id"] for c in api.get("/conversations").json()] == [one, two]
+
+
+def test_the_list_comes_by_pages(conn, database_url, program):
+    api = api_with(database_url, lambda: ScriptedChat(AIMessage("Ok.")))
+    ids = [
+        api.post("/conversations", json={"text": f"message {i}"}).json()["conversation_id"]
+        for i in range(3)
+    ]
+    page = api.get("/conversations", params={"limit": 2}).json()
+    assert [c["id"] for c in page] == [ids[2], ids[1]]
+    rest = api.get("/conversations", params={"limit": 2, "before": ids[1]}).json()
+    assert [c["id"] for c in rest] == [ids[0]]
+
+
+def test_an_unknown_conversation_is_a_404_and_stores_nothing(conn, database_url, program):
+    api = api_with(database_url, ScriptedChat)
+    assert api.get("/conversations/nope").status_code == 404
+    assert api.post("/conversations/nope", json={"text": "salut"}).status_code == 404
+    assert api.get("/conversations/a%20b").status_code == 422  # not an id at all
+    assert conn.execute("select count(*) from conversation_message").fetchone() == (0,)
+    assert conn.execute("select count(*) from conversation").fetchone() == (0,)
+
+
+def test_a_newer_message_elsewhere_does_not_stop_a_turn(conn, database_url, program):
+    # A turn is stale only when a newer message waits in its own conversation.
+    api = api_with(database_url, lambda: ScriptedChat(AIMessage("Ok.")))
+    other = api.post("/conversations", json={"text": "Autre"}).json()["conversation_id"]
+
+    def model():
+        conn.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values (%s, 'athlete', 'ailleurs')",
+            (other,),
+        )
+        return ScriptedChat(AIMessage("Toujours là."))
+
+    reply = api_with(database_url, model).post("/conversations", json={"text": "Salut"})
+    assert reply.status_code == 200, reply.text
+
+
+def test_a_failed_first_turn_says_which_conversation_it_opened(conn, database_url, program):
+    # The message is stored all the same: the app goes on there instead of opening another.
+    class Down(ScriptedChat):
+        def invoke(self, messages):
+            raise httpx.ConnectError("https://api.mistral.ai/v1/chat/completions")
+
+    api = api_with(database_url, Down)
+    reply = api.post("/conversations", json={"text": "salut coach"})
+
+    assert reply.status_code == 502
+    opened = reply.json()["detail"]["conversation_id"]
+    texts = [m["text"] for m in api.get(f"/conversations/{opened}").json()["messages"]]
+    assert texts == ["salut coach"]
+    assert "mistral.ai" not in reply.text

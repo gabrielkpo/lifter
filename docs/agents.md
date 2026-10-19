@@ -133,7 +133,7 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
 - **What the coach sees**: a snapshot built by code: today and its weekday; this week's and next
   week's sessions with their week number, ids and versions, their parts with ids and each part's
   lines (exercise, sets, quantity, load, RIR, planned or done, with ids and versions), and whether
-  they are upcoming (today or later, not done nor cancelled); the exercise bank's names, the
+  they are upcoming (today or later, not done nor cancelled); the exercise bank's names by category, the
   exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
   issues not resolved; pending suggestions; the last five changes applied in this conversation
   with their change ids and whether undo can still take them (not undone, not an undo). Then

@@ -126,17 +126,20 @@ def no_planned_line(conn, p) -> tuple[bool, str]:
 
 
 def planned_line_in_part(conn, p) -> tuple[bool, str]:
-    """The session has a part of that kind holding at least one planned line."""
+    """The session has a part of that kind holding at least one planned line; with `position`
+    (1: the start), that part is at that position."""
     rows = conn.execute(
-        "select sp.id, count(l.id) from session_part sp"
+        "select sp.id, sp.position, count(l.id) from session_part sp"
         " join planned_session s on s.id = sp.session_id"
         " join training_week w on w.id = s.week_id"
         " left join session_exercise l on l.part_id = sp.id and l.origin = 'planned'"
         " where w.number = %s and s.title = %s and sp.kind = %s group by sp.id",
         (p["week"], p["title"], p["kind"]),
     ).fetchall()
-    filled = sum(1 for _, n in rows if n > 0)
-    return filled > 0, f"{len(rows)} {p['kind']} part(s), {filled} with a planned line"
+    filled = [position for _, position, n in rows if n > 0]
+    ok = bool(filled) and ("position" not in p or p["position"] in filled)
+    where = f" at position {', '.join(map(str, filled))}" if filled else ""
+    return ok, f"{len(rows)} {p['kind']} part(s), {len(filled)} with a planned line{where}"
 
 
 def goals(conn, p) -> tuple[bool, str]:

@@ -128,7 +128,7 @@ def test_an_empty_new_part_fails_the_add_mobility_check(conn, conversations):
     from lifter.bench.conversation import planned_line_in_part
 
     run_conversation(conn, conversations["add_mobility"], SilentCoach, 1)
-    params = {"week": 3, "title": "Legs + Metcon", "kind": "mobility"}
+    params = {"week": 3, "title": "Legs + Metcon", "kind": "mobility", "position": 1}
     assert planned_line_in_part(conn, params) == (
         False,
         "0 mobility part(s), 0 with a planned line",
@@ -151,4 +151,9 @@ def test_an_empty_new_part_fails_the_add_mobility_check(conn, conversations):
         " select %s, 'planned', 1, id, 1, 60 from exercise where name = 'Hip mobility'",
         (part,),
     )
-    assert planned_line_in_part(conn, params) == (True, "1 mobility part(s), 1 with a planned line")
+    # a filled part at position 9 is not at the start
+    assert planned_line_in_part(conn, params) == (
+        False,
+        "1 mobility part(s), 1 with a planned line at position 9",
+    )
+    assert planned_line_in_part(conn, params | {"position": 9})[0]

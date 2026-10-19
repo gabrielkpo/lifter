@@ -71,7 +71,7 @@ operation's name. Ask operation_schema for its payload before the first call of 
 Finish what the athlete asked: adding an exercise is add_line. When no part of the session \
 fits (a mobility or warm-up block at the start, say), add_part first, then add_line in it with \
 the entity_id add_part returned: never leave a new part empty. If the athlete did not name the \
-exercise, take one of the right kind from the exercise_bank and say which.
+exercise, take one of the right category from the exercise_bank and say which.
 
 Finding what the athlete means: sessions, their parts and each part's lines (exercise, sets, \
 reps, load, RIR; planned and done), with ids and versions, are in the snapshot. A \
@@ -221,7 +221,12 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " order by id",
         (conversation_id,),
     )
-    bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    # The bank's names grouped by category, so "an exercise of the right kind" can be read
+    bank: dict[str, list[str]] = {}
+    for name, category in conn.execute(
+        "select name, category from exercise order by category, name"
+    ).fetchall():
+        bank.setdefault(category, []).append(name)
     rules = _rows(conn, "select code, text from athlete_rule where active order by id")
     changes = _rows(
         conn,

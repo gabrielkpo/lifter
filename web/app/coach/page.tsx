@@ -101,16 +101,14 @@ export default function CoachPage() {
     );
   }
 
-  // The changes an athlete's message authorised are shown under the coach's reply to it.
+  // The changes an athlete's message authorised are shown under the coach's reply to it, or
+  // under the message itself when no reply followed (a turn that failed after applying them).
   const changesFor = new Map<number, ConversationChange[]>();
-  let pending: ConversationChange[] = [];
-  for (const message of messages) {
-    if (message.role === "athlete") pending = message.changes;
-    else {
-      changesFor.set(message.id, pending);
-      pending = [];
-    }
-  }
+  messages.forEach((message, i) => {
+    if (message.role !== "athlete" || message.changes.length === 0) return;
+    const next = messages[i + 1];
+    changesFor.set(next?.role === "coach" ? next.id : message.id, message.changes);
+  });
   const lastCoach = [...messages].reverse().find((m) => m.role === "coach")?.id;
 
   return (

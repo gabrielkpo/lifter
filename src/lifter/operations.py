@@ -296,6 +296,12 @@ def _writable() -> set[str]:
     return {t for op in CATALOGUE.values() for t in op.writes}
 
 
+def _content(row: dict[str, Any]) -> dict[str, Any]:
+    """A row without its bookkeeping: an undo bumps the version of the rows it puts back, so
+    undoing the changes one after the other (the last first) compares what they hold."""
+    return {k: v for k, v in row.items() if k not in ("version", "updated_at")}
+
+
 def revert(conn: psycopg.Connection, change: Change) -> Change:
     """The inverse of `change`: delete what it created, recreate what it deleted (same ids),
     restore what it updated. Refused when any of those rows changed since."""
@@ -312,7 +318,7 @@ def revert(conn: psycopg.Connection, change: Change) -> Change:
         if row is None:
             if current is not None:
                 raise StaleRow(f"{table} {row_id} exists again since this change")
-        elif current is None or current["version"] != row["version"]:
+        elif current is None or _content(current) != _content(row):
             raise StaleRow(f"{table} {row_id} changed since this change: undo is refused")
     for key in before.keys() - after.keys():
         if _row(conn, *key) is not None:
@@ -712,6 +718,13 @@ class CreateSession(SessionIn):
     weeks=lambda c, p: {p.week_id} if p.week_id else _week_of_day(c, p.day),
 )
 def create_session(conn, p: CreateSession, ctx: Context) -> Change:
+    kinds = [part.kind for part in p.parts]
+    twice = sorted({k for k in kinds if kinds.count(k) > 1})
+    if twice:
+        raise OperationError(
+            f"a session holds one part per kind, not two {twice[0]} parts: put their"
+            " exercises in one"
+        )
     session_id = domain.create_session(conn, p, ctx.source)
     images = [_image(conn, "planned_session", session_id)]
     for (part_id,) in conn.execute(
@@ -870,7 +883,10 @@ class PartFields(StrictModel):
 
 class AddPart(PartFields):
     """Add a part to a session (warm-up, weightlifting, gymnastics, strength, metcon, cardio,
-    mobility), at the end or at `position` (the parts after it move down)."""
+    mobility): one part per kind, its exercises go inside it (add_line), so a session that
+    already has a part of this kind refuses it. It takes its place in the usual order (warm-up,
+    mobility, weightlifting, gymnastics, strength, metcon, cardio), the parts after it move
+    down; `position` is accepted and ignored, the order decides."""
 
     session_id: int
     position: int | None = Field(default=None, ge=1)
@@ -887,6 +903,22 @@ def _shift_parts(conn, session_id: int, from_position: int, images: list[RowImag
         conn.execute("update session_part set position = position + 1 where id = %s", (part_id,))
 
 
+PART_ORDER = ("warmup", "mobility", "weightlifting", "gymnastics", "strength", "metcon", "cardio")
+
+
+def _one_part_per_kind(conn, session_id: int, kind: str, but: int | None = None) -> None:
+    """A session holds one part per kind: its exercises go inside it (add_line)."""
+    same = conn.execute(
+        "select id from session_part where session_id = %s and kind = %s and id <> %s limit 1",
+        (session_id, kind, but or 0),
+    ).fetchone()
+    if same:
+        raise OperationError(
+            f"session {session_id} already has a {kind} part (part {same[0]}): add the"
+            " exercises to it (add_line), one part per kind"
+        )
+
+
 @_register(
     "add_part",
     AddPart,
@@ -896,11 +928,16 @@ def _shift_parts(conn, session_id: int, from_position: int, images: list[RowImag
 )
 def add_part(conn, p: AddPart, ctx: Context) -> Change:
     _existing(conn, "planned_session", p.session_id)
-    last = conn.execute(
-        "select coalesce(max(position), 0) from session_part where session_id = %s",
+    parts = conn.execute(
+        "select id, kind, position from session_part where session_id = %s order by position",
         (p.session_id,),
-    ).fetchone()[0]
-    position = min(p.position or last + 1, last + 1)
+    ).fetchall()
+    _one_part_per_kind(conn, p.session_id, p.kind)
+    # Its place in the usual order: before the first part ranked after it, else last. The order
+    # decides, not `position`: a mobility part never lands before the warm-up.
+    rank = PART_ORDER.index(p.kind)
+    after = [pos for _, kind, pos in parts if PART_ORDER.index(kind) > rank]
+    position = min(after) if after else (parts[-1][2] if parts else 0) + 1
     shifted: list[RowImage] = []
     _shift_parts(conn, p.session_id, position, shifted)
     img = _insert(
@@ -932,9 +969,11 @@ UpdatePart = _partial(
     weeks=lambda c, p: _week_of_part(c, p.id),
 )
 def update_part(conn, p, ctx: Context) -> Change:
-    return _named(
-        _update(conn, "session_part", p.id, p.expected_version, p.changes()), "update_part"
-    )
+    changes = p.changes()
+    if "kind" in changes:
+        part = _existing(conn, "session_part", p.id)
+        _one_part_per_kind(conn, part["session_id"], changes["kind"], but=p.id)
+    return _named(_update(conn, "session_part", p.id, p.expected_version, changes), "update_part")
 
 
 DeletePart = _delete_model("DeletePart", "Delete a part of a session with its lines.")

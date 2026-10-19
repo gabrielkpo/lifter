@@ -594,6 +594,79 @@ def test_undo_does_not_detach_what_was_added_under_since(conn, program):
         do(conn, "undo", {"change_id": created}, "annule")
 
 
+def test_parts_added_one_after_the_other_are_undone_last_first(conn, program):
+    # 19/10: the coach added parts at the top of a session and could undo none of them
+    # (positions briefly duplicated while moving back; versions bumped by each undo).
+    sid = conn.execute(
+        "select session_id from session_part order by session_id limit 1"
+    ).fetchone()[0]
+    present = {
+        r[0] for r in conn.execute("select kind from session_part where session_id = %s", (sid,))
+    }
+    kinds = [k for k in operations.PART_ORDER if k not in present][:3]
+    before = snapshot(conn)
+    for position, kind in enumerate(kinds, start=1):
+        do(
+            conn,
+            "add_part",
+            {"session_id": sid, "kind": kind, "position": position},
+            f"ajoute une partie {kind} en tête",
+        )
+    last = change_id(conn)
+    for target in range(last, last - len(kinds), -1):
+        do(conn, "undo", {"change_id": target}, "annule")
+    assert snapshot(conn) == before
+
+
+def test_a_session_has_one_part_per_kind_in_the_usual_order(conn, program):
+    sid, kinds = conn.execute(
+        "select session_id, array_agg(kind order by position) from session_part"
+        " group by session_id order by session_id limit 1"
+    ).fetchone()
+    with pytest.raises(OperationError, match="already has a"):
+        do(conn, "add_part", {"session_id": sid, "kind": kinds[0]}, "ajoute une autre partie")
+    missing = next(k for k in ("mobility", "warmup") if k not in kinds)
+    # A position against the usual order is ignored: the order decides.
+    do(
+        conn,
+        "add_part",
+        {"session_id": sid, "kind": missing, "position": len(kinds) + 1},
+        "ajoute une partie mobilité à la fin",
+    )
+    order = [
+        r[0]
+        for r in conn.execute(
+            "select kind from session_part where session_id = %s order by position", (sid,)
+        )
+    ]
+    ranks = [operations.PART_ORDER.index(k) for k in order]
+    assert ranks == sorted(ranks), order
+    # Nor can another write make two parts of one kind: changing a kind, creating a session.
+    part = conn.execute(
+        "select id, version from session_part where session_id = %s and kind = %s",
+        (sid, missing),
+    ).fetchone()
+    with pytest.raises(OperationError, match="already has a"):
+        do(
+            conn,
+            "update_part",
+            {"id": part[0], "expected_version": part[1], "kind": kinds[0]},
+            "change le type de la partie",
+        )
+    day = conn.execute("select day from planned_session where id = %s", (sid,)).fetchone()[0]
+    with pytest.raises(OperationError, match="one part per kind"):
+        do(
+            conn,
+            "create_session",
+            {
+                "day": str(day),
+                "title": "Double",
+                "parts": [{"kind": "mobility"}, {"kind": "mobility"}],
+            },
+            "crée une séance avec deux mobilités",
+        )
+
+
 def test_undo_is_refused_once_the_row_changed_again(conn, program):
     goal = conn.execute("select id, version from goal order by id limit 1").fetchone()
     do(

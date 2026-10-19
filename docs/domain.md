@@ -14,7 +14,10 @@ Lifter coaches CrossFit only, with one method:
 - **A block is counted in strength sessions done, not in weeks.** It moves on when the count
   is reached, the loads progressed and nothing (pain, swelling) is unresolved.
 - **Every session has the same frame**: warm-up, weightlifting or gymnastics while fresh,
-  strength, then the metcon. Cardio and mobility days have their own parts.
+  strength, then the metcon. Cardio and mobility days have their own parts. A session holds one
+  part per kind (warm-up, mobility, weightlifting, gymnastics, strength, metcon, cardio, in that
+  order), and the exercises go inside it, each with its sets, quantity, load, RIR and notes:
+  `add_part` refuses a kind the session already has.
 - **Every movement is prescribed** as sets x quantity at a load, with a target RIR
   (repetitions in reserve) and a rest. The RIR is the instruction, the load a guide.
 - **A metcon has a target, never a time cap**: a time to beat (For Time) or rounds to reach

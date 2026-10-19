@@ -290,6 +290,8 @@ export interface ConversationChange {
   operation: string;
   entity: string;
   entity_id: number | null;
+  /** What it is about, in a few words (the exercise of a line, a part's kind or title...). */
+  subject: string | null;
   undone: boolean;
 }
 

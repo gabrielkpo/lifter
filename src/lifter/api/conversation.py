@@ -50,6 +50,9 @@ class Change(BaseModel):
     operation: str
     entity: str
     entity_id: int | None
+    # What it is about, in a few words: the exercise of a line, the kind or title of a part,
+    # the title and day of a session...
+    subject: str | None = None
     undone: bool = False
 
 
@@ -81,15 +84,43 @@ class Reply(BaseModel):
 def _changes(conn: psycopg.Connection, message_ids: list[int]) -> dict[int, list[Change]]:
     rows = conn.execute(
         "select p.message_id, c.id as change_id, c.operation, c.entity, c.entity_id,"
-        " p.undone_by is not null as undone"
+        " p.undone_by is not null as undone, c.before, c.after"
         " from change_log c join proposal p on p.id = c.proposal_id"
         " where p.message_id = any(%s) order by c.id",
         (message_ids,),
     ).fetchall()
     out: dict[int, list[Change]] = {}
     for row in rows:
-        out.setdefault(row.pop("message_id"), []).append(Change(**row))
+        images = row.pop("after") + row.pop("before")  # the row as it became, else as it was
+        image = next(
+            (
+                i["row"]
+                for i in images
+                if i["table"] == row["entity"] and i["id"] == row["entity_id"] and i["row"]
+            ),
+            None,
+        )
+        out.setdefault(row.pop("message_id"), []).append(
+            Change(**row, subject=_subject(conn, image))
+        )
     return out
+
+
+def _subject(conn: psycopg.Connection, row: dict[str, Any] | None) -> str | None:
+    """A few words naming a changed row, for the athlete: never more than the row says."""
+    if not row:
+        return None
+    words = []
+    if row.get("exercise_id"):
+        found = conn.execute("select name from exercise where id = %s", (row["exercise_id"],))
+        name = found.fetchone()
+        words.append(name["name"] if name else None)
+    for key in ("title", "name", "kind", "body_part", "day", "text"):
+        value = row.get(key)
+        if value and str(value) not in words:
+            words.append(str(value).replace("_", " "))
+    text = " · ".join(w for w in words[:2] if w)
+    return text[:80] or None
 
 
 def _suggestions(conn: psycopg.Connection, message_ids: list[int]) -> dict[int, list[Suggestion]]:

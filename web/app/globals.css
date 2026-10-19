@@ -743,8 +743,15 @@ button {
 /* The conversation with the coach (app/coach): the athlete on the right, the coach on the left,
    the input pinned above the tab bar. */
 :root {
-  /* Where the coach's input sits: above the tab bar on a phone, at the bottom on a computer. */
+  /* Where the coach's input sits: above the tab bar on a phone, at the bottom on a computer,
+     right above the keyboard when it is open (--keyboard, set by app/coach). */
   --chat-input-bottom: calc(var(--island-space) + env(safe-area-inset-bottom));
+}
+body.keyboard-open {
+  --chat-input-bottom: calc(var(--keyboard, 0px) + 8px);
+}
+body.keyboard-open .tabbar {
+  display: none;
 }
 /* Its bottom padding follows the input's height (app/coach), so nothing hides under it. */
 .chat {
@@ -863,4 +870,41 @@ button {
     left: calc(var(--sidebar) + (100% - var(--sidebar)) / 2);
     width: min(720px, calc(100% - var(--sidebar) - 80px));
   }
+}
+
+/* The installed app draws under the phone's status bar: a strip of the page's colour keeps the
+   content from scrolling under the clock and the battery. */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  background: var(--bg);
+  z-index: 50;
+  pointer-events: none;
+}
+/* On a phone, an opaque floor under the floating tab bar: nothing shows through around it. */
+@media (max-width: 899px) {
+  body::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--island-space) + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) calc(100% - 12px), transparent);
+    z-index: 9;
+    pointer-events: none;
+  }
+  body.keyboard-open::after {
+    display: none;
+  }
+}
+/* A session's part: its category on top, its own title under it (app/sessions, WOD). */
+.part-title {
+  margin: -4px 0 8px;
+  color: var(--muted);
+  font-size: 14px;
 }

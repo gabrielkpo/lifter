@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 
 from lifter import operations
 from lifter.agents.coach import respond, snapshot
+from lifter.conversation import start
 from lifter.program import load_program, read_program
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -53,6 +54,7 @@ def tool_call(name: str, n: int = 1, **args) -> AIMessage:
 
 
 def say(conn, text: str, conversation: str = "c1") -> int:
+    start(conn, id=conversation, title=text, source="cli")
     return conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values (%s, 'athlete', %s) returning id",

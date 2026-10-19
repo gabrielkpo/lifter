@@ -9,6 +9,8 @@ import psycopg
 import pytest
 
 from lifter import operations
+from lifter.conversation import start
+from lifter.db import connect
 from lifter.operations import CATALOGUE, OperationError, RuleViolation, StaleRow, run, suggest
 from lifter.program import load_program, read_program
 from lifter.quote import QuoteError
@@ -25,6 +27,7 @@ NOT_WRITABLE_BY_THE_COACH = {
     "change_log": "the trace, written by run()",
     "agent_run": "the agents' audit",
     "agent_step": "the agents' audit",
+    "conversation": "opened by the conversation endpoint (lifter.conversation.start)",
     "conversation_message": "written by the conversation endpoint",
     "schema_migrations": "schema bookkeeping",
     "schema_views": "schema bookkeeping",
@@ -46,6 +49,7 @@ def program(conn):
 
 def say(conn, text: str) -> int:
     """Store an athlete's message, as the conversation endpoint does; returns its id."""
+    start(conn, id="c1", title=text, source="cli")
     return conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'athlete', %s) returning id",
@@ -55,6 +59,7 @@ def say(conn, text: str) -> int:
 
 def coach_says(conn, text: str, shown: list[int]) -> int:
     """Store the coach's reply, which presents the suggestions `shown` (as respond() does)."""
+    start(conn, id="c1", title=text, source="cli")
     message = conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'coach', %s) returning id",
@@ -157,6 +162,7 @@ def test_a_quote_not_in_the_athletes_message_is_refused(conn, program):
 
 
 def test_the_coachs_own_message_is_never_a_quote(conn, program):
+    start(conn, id="c1", title="je supprime le bloc 2", source="cli")
     coach = conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'coach', 'je supprime le bloc 2') returning id"
@@ -178,6 +184,7 @@ def test_only_the_message_being_answered_authorises_a_change(conn, program):
     # Audit N1: a true quote from an older message, or from another conversation, is refused.
     old = say(conn, "supprime la règle sur le rameur")
     say(conn, "comment va mon squat ?")
+    start(conn, id="c2", title="ajoute une règle pas de saut", source="cli")
     other = conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c2', 'athlete', 'ajoute une règle pas de saut') returning id"
@@ -961,6 +968,8 @@ def test_the_coach_writes_through_the_catalogue(conn, database_url, program):
 
 def test_only_the_conversation_endpoint_writes_the_athletes_words(database_url):
     insert = "insert into conversation_message (conversation_id, role, text) values ('c', %s, 'x')"
+    with connect(database_url) as owner:
+        start(owner, id="c", title="x", source="cli")
     with as_role(database_url, "lifter_coach") as coach:
         coach.execute(insert, ("coach",))
         with pytest.raises(psycopg.errors.InsufficientPrivilege):

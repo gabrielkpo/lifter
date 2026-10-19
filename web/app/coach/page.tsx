@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   type FormEvent,
   type ReactNode,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -10,6 +12,8 @@ import {
   useState,
 } from "react";
 import ApiStatus from "@/components/ApiStatus";
+import ConversationDrawer from "@/components/ConversationDrawer";
+import { HistoryIcon, NewChatIcon } from "@/components/icons";
 import TopBar from "@/components/TopBar";
 import { ApiError, getJson, postJson } from "@/lib/api";
 import { label } from "@/lib/format";
@@ -17,9 +21,22 @@ import type {
   ConversationChange,
   ConversationMessage,
   ConversationReply,
+  ConversationThread,
 } from "@/lib/types";
 
-const THREAD = "/conversation?limit=50";
+/** A conversation's latest messages; a new conversation has none to load. */
+const threadOf = (id: string) =>
+  `/conversations/${encodeURIComponent(id)}?limit=50`;
+const NONE: ConversationMessage[] = [];
+
+/** A conversation on screen: null for a new one, not opened yet. */
+type Loaded = {
+  id: string | null;
+  messages: ConversationMessage[];
+  title: string | null;
+};
+/** Something that happened in one conversation, shown in that one only. */
+type Tagged<T> = { id: string | null; value: T };
 /** The input grows with the text up to this height, then scrolls. */
 const INPUT_MAX = 160;
 /** Closer to the end than this, the thread counts as read to the end. */
@@ -29,6 +46,8 @@ const NEAR_END = 120;
 function failure(error: unknown): string {
   const status = error instanceof ApiError ? error.status : null;
   switch (status) {
+    case 404:
+      return "This conversation does not exist. Start a new one.";
     case 409:
       return "A newer message was waiting: the conversation is up to date again.";
     case 502:
@@ -44,13 +63,15 @@ function failure(error: unknown): string {
 
 /** **bold** inside a line, as text: the model writes Markdown, nothing of it is HTML. */
 function inline(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((piece, i) =>
-    piece.startsWith("**") && piece.endsWith("**") && piece.length > 4 ? (
-      <strong key={i}>{piece.slice(2, -2)}</strong>
-    ) : (
-      piece
-    ),
-  );
+  return text
+    .split(/(\*\*[^*]+\*\*)/g)
+    .map((piece, i) =>
+      piece.startsWith("**") && piece.endsWith("**") && piece.length > 4 ? (
+        <strong key={i}>{piece.slice(2, -2)}</strong>
+      ) : (
+        piece
+      ),
+    );
 }
 
 /** A reply's text: paragraphs, "- " or "* " lists and **bold**; anything else as written. */
@@ -91,16 +112,35 @@ function MessageText({ text }: { text: string }) {
 }
 
 /**
- * The conversation with the coach (ADR 0002): saying it is deciding it. An instruction is applied
- * at once and shown under the reply with an undo; the coach's own ideas come back as numbered
- * suggestions, accepted by answering "ok pour N".
+ * The conversations with the coach (ADR 0002): saying it is deciding it. An instruction is
+ * applied at once and shown under the reply with an undo; the coach's own ideas come back as
+ * numbered suggestions, accepted by answering "ok pour N". The tab opens on a new conversation;
+ * the history panel resumes any earlier one, named in the address (?c=).
  */
 export default function CoachPage() {
-  const [messages, setMessages] = useState<ConversationMessage[] | null>(null);
-  const [loadError, setLoadError] = useState<unknown>(null);
+  // The conversation comes from the address, read on the client only.
+  return (
+    <Suspense fallback={<TopBar title="Coach" />}>
+      <Coach />
+    </Suspense>
+  );
+}
+
+function Coach() {
+  const router = useRouter();
+  const current = useSearchParams().get("c");
+  const [drawer, setDrawer] = useState(false);
+  // The conversation last loaded or opened, and what happened to the one on screen: each says
+  // which conversation it belongs to, so another one never shows it.
+  const [loaded, setLoaded] = useState<Loaded>({
+    id: null,
+    messages: NONE,
+    title: null,
+  });
+  const [loadError, setLoadError] = useState<Tagged<unknown> | null>(null);
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [turn, setTurn] = useState<Tagged<string> | null>(null);
+  const [said, setSaid] = useState<Tagged<string> | null>(null);
   const [atEnd, setAtEnd] = useState(true);
   const [inputHeight, setInputHeight] = useState(64);
   const form = useRef<HTMLFormElement>(null);
@@ -109,24 +149,66 @@ export default function CoachPage() {
   // Where to go once the thread renders: its end on load, a new reply's first line after it.
   const pendingScroll = useRef<"end" | "reply" | null>("end");
 
-  async function reload() {
+  const mine = <T,>(tagged: Tagged<T> | null) =>
+    tagged?.id === current ? tagged.value : null;
+  const messages =
+    loaded.id === current ? loaded.messages : current === null ? NONE : null;
+  const title = loaded.id === current ? loaded.title : null;
+  const sending = mine(turn);
+  const notice = mine(said);
+  const error = mine(loadError);
+
+  async function reload(id: string) {
     try {
-      setMessages(await getJson<ConversationMessage[]>(THREAD));
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(error);
+      const thread = await getJson<ConversationThread>(threadOf(id));
+      setLoaded({
+        id,
+        messages: thread.messages,
+        title: thread.conversation.title,
+      });
+    } catch (failed) {
+      setLoadError({ id, value: failed });
     }
   }
 
+  // An earlier conversation: its thread, from its end.
   useEffect(() => {
+    if (current === null || loaded.id === current) return;
     let live = true;
-    getJson<ConversationMessage[]>(THREAD)
-      .then((thread) => live && setMessages(thread))
-      .catch((error: unknown) => live && setLoadError(error));
+    getJson<ConversationThread>(threadOf(current))
+      .then((thread) => {
+        if (!live) return;
+        pendingScroll.current = "end";
+        setLoaded({
+          id: current,
+          messages: thread.messages,
+          title: thread.conversation.title,
+        });
+      })
+      .catch(
+        (failed: unknown) =>
+          live && setLoadError({ id: current, value: failed }),
+      );
     return () => {
       live = false;
     };
-  }, []);
+  }, [current, loaded.id]);
+
+  const pick = useCallback(
+    (id: string | null) => {
+      setDrawer(false);
+      if (id === current) return;
+      pendingScroll.current = "end";
+      router.push(
+        id === null ? "/coach" : `/coach?c=${encodeURIComponent(id)}`,
+        {
+          scroll: false,
+        },
+      );
+    },
+    [current, router],
+  );
+  const closeDrawer = useCallback(() => setDrawer(false), []);
 
   // The page's own bottom: the thread's padding keeps its end above the input.
   const toEnd = useCallback((smooth: boolean) => {
@@ -136,7 +218,7 @@ export default function CoachPage() {
     });
   }, []);
 
-  const loaded = messages !== null;
+  const shown = messages !== null;
   // The thread always ends above the input: its padding follows the input's height.
   useLayoutEffect(() => {
     const element = form.current;
@@ -148,7 +230,7 @@ export default function CoachPage() {
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [loaded]);
+  }, [shown]);
 
   // The input grows with what is typed, up to INPUT_MAX, then scrolls inside.
   useLayoutEffect(() => {
@@ -165,12 +247,19 @@ export default function CoachPage() {
     if (!view) return;
     let wasOpen = false;
     const onChange = () => {
-      const keyboard = Math.max(0, window.innerHeight - view.height - view.offsetTop);
+      const keyboard = Math.max(
+        0,
+        window.innerHeight - view.height - view.offsetTop,
+      );
       const open = keyboard > 80;
-      document.documentElement.style.setProperty("--keyboard", `${open ? keyboard : 0}px`);
+      document.documentElement.style.setProperty(
+        "--keyboard",
+        `${open ? keyboard : 0}px`,
+      );
       document.body.classList.toggle("keyboard-open", open);
       // To the end once, as it opens: scrolling up to reread stays possible while typing.
-      if (open && !wasOpen) window.scrollTo({ top: document.documentElement.scrollHeight });
+      if (open && !wasOpen)
+        window.scrollTo({ top: document.documentElement.scrollHeight });
       wasOpen = open;
     };
     onChange();
@@ -186,7 +275,9 @@ export default function CoachPage() {
 
   useEffect(() => {
     const onScroll = () => {
-      const left = document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
+      const left =
+        document.documentElement.scrollHeight -
+        (window.scrollY + window.innerHeight);
       setAtEnd(left < NEAR_END);
     };
     onScroll();
@@ -210,22 +301,59 @@ export default function CoachPage() {
   }, [messages, sending, toEnd]);
 
   async function send(text: string) {
-    const said = text.trim();
-    if (!said || sending) return;
-    setSending(said);
-    setNotice(null);
+    const words = text.trim();
+    const where = current;
+    if (!words || turn) return;
+    setTurn({ id: where, value: words });
+    setSaid(null);
     setDraft(""); // sent: the input is free at once, the message shows in the thread
     try {
-      const reply = await postJson<ConversationReply>("/conversation", { text: said });
+      const reply = await postJson<ConversationReply>(
+        where === null
+          ? "/conversations"
+          : `/conversations/${encodeURIComponent(where)}`,
+        { text: words },
+      );
       pendingScroll.current = "reply";
-      setMessages((before) => [...(before ?? []), reply.athlete, reply.coach]);
-    } catch (error) {
-      setNotice(failure(error));
-      setDraft((now) => now || said); // not answered: the words come back to send again
+      if (where === null) {
+        // Opened by this message: on screen already, the address names it from now on.
+        setLoaded({
+          id: reply.conversation_id,
+          messages: [reply.athlete, reply.coach],
+          title: words,
+        });
+        router.replace(
+          `/coach?c=${encodeURIComponent(reply.conversation_id)}`,
+          { scroll: false },
+        );
+      } else {
+        setLoaded((before) =>
+          before.id === where
+            ? {
+                ...before,
+                messages: [...before.messages, reply.athlete, reply.coach],
+              }
+            : before,
+        );
+      }
+    } catch (failed) {
+      setDraft((now) => now || words); // not answered: the words come back to send again
       pendingScroll.current = "end";
-      await reload(); // the message, or a reply about a crash, may be stored all the same
+      // The message, or a reply about a crash, may be stored all the same: in this
+      // conversation, or in the one this message opened.
+      const stored =
+        where ?? (failed instanceof ApiError ? failed.conversationId : null);
+      setSaid({ id: stored, value: failure(failed) });
+      if (stored !== null) {
+        await reload(stored);
+        if (where === null) {
+          router.replace(`/coach?c=${encodeURIComponent(stored)}`, {
+            scroll: false,
+          });
+        }
+      }
     } finally {
-      setSending(null);
+      setTurn(null);
     }
   }
 
@@ -234,12 +362,53 @@ export default function CoachPage() {
     void send(draft);
   }
 
+  // The history on the left, a new conversation on the right, the conversation's name under.
+  const header = (
+    <>
+      <TopBar
+        title="Coach"
+        leading={
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setDrawer(true)}
+            aria-label="Conversations"
+            aria-expanded={drawer}
+          >
+            <HistoryIcon />
+          </button>
+        }
+        actions={
+          current !== null && (
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => pick(null)}
+              aria-label="New conversation"
+            >
+              <NewChatIcon />
+            </button>
+          )
+        }
+      />
+      <p className="chat-title">
+        {current === null ? "New conversation" : (title ?? "")}
+      </p>
+      <ConversationDrawer
+        open={drawer}
+        current={current}
+        onClose={closeDrawer}
+        onPick={pick}
+      />
+    </>
+  );
+
   if (messages === null) {
     return (
       <>
-        <TopBar title="Coach" />
-        {loadError ? (
-          <p className="empty">{failure(loadError)}</p>
+        {header}
+        {error ? (
+          <p className="empty">{failure(error)}</p>
         ) : (
           <ApiStatus state={{ status: "loading" }} />
         )}
@@ -253,21 +422,27 @@ export default function CoachPage() {
   messages.forEach((message, i) => {
     if (message.role !== "athlete" || message.changes.length === 0) return;
     const next = messages[i + 1];
-    changesFor.set(next?.role === "coach" ? next.id : message.id, message.changes);
+    changesFor.set(
+      next?.role === "coach" ? next.id : message.id,
+      message.changes,
+    );
   });
   const lastCoach = [...messages].reverse().find((m) => m.role === "coach")?.id;
 
   return (
     <>
-      <TopBar title="Coach" />
+      {header}
       <div
         className="chat"
-        style={{ paddingBottom: `calc(${inputHeight + 16}px + var(--keyboard, 0px))` }}
+        style={{
+          paddingBottom: `calc(${inputHeight + 16}px + var(--keyboard, 0px))`,
+        }}
       >
         {messages.length === 0 && !sending && (
           <p className="empty">
-            Talk to your coach: “move Thursday to Friday”, “my right knee hurts”, “why RIR 3?”.
-            What you ask is applied at once and can be undone; its own ideas wait for your “ok”.
+            Talk to your coach: “move Thursday to Friday”, “my right knee
+            hurts”, “why RIR 3?”. What you ask is applied at once and can be
+            undone; its own ideas wait for your “ok”.
           </p>
         )}
         {messages.map((message) => (
@@ -299,7 +474,9 @@ export default function CoachPage() {
                     type="button"
                     className="chip"
                     disabled={sending !== null}
-                    onClick={() => void send(`annule le changement ${change.change_id}`)}
+                    onClick={() =>
+                      void send(`annule le changement ${change.change_id}`)
+                    }
                   >
                     Undo
                   </button>
@@ -309,20 +486,21 @@ export default function CoachPage() {
             {message.suggestions.map((suggestion) => (
               <div key={suggestion.id} className="chat-change">
                 <span>
-                  <strong>{suggestion.id}</strong> · {label(suggestion.operation)} ·{" "}
-                  {suggestion.rationale}
+                  <strong>{suggestion.id}</strong> ·{" "}
+                  {label(suggestion.operation)} · {suggestion.rationale}
                   {suggestion.status !== "pending" && ` · ${suggestion.status}`}
                 </span>
-                {suggestion.status === "pending" && message.id === lastCoach && (
-                  <button
-                    type="button"
-                    className="chip"
-                    disabled={sending !== null}
-                    onClick={() => void send(`ok pour la ${suggestion.id}`)}
-                  >
-                    OK
-                  </button>
-                )}
+                {suggestion.status === "pending" &&
+                  message.id === lastCoach && (
+                    <button
+                      type="button"
+                      className="chip"
+                      disabled={sending !== null}
+                      onClick={() => void send(`ok pour la ${suggestion.id}`)}
+                    >
+                      OK
+                    </button>
+                  )}
               </div>
             ))}
           </div>
@@ -347,7 +525,9 @@ export default function CoachPage() {
         <button
           type="button"
           className="chat-to-end"
-          style={{ bottom: `calc(var(--chat-input-bottom) + ${inputHeight + 12}px)` }}
+          style={{
+            bottom: `calc(var(--chat-input-bottom) + ${inputHeight + 12}px)`,
+          }}
           onClick={() => toEnd(true)}
           aria-label="Go to the latest message"
         >
@@ -357,7 +537,9 @@ export default function CoachPage() {
       {/* An opaque floor under the input and the tab bar: the thread never shows through. */}
       <div
         className="chat-floor"
-        style={{ height: `calc(var(--chat-input-bottom) + ${inputHeight + 8}px)` }}
+        style={{
+          height: `calc(var(--chat-input-bottom) + ${inputHeight + 8}px)`,
+        }}
         aria-hidden
       />
       <form ref={form} className="chat-input" onSubmit={submit}>
@@ -376,7 +558,12 @@ export default function CoachPage() {
           rows={1}
           aria-label="Message to your coach"
         />
-        <button type="submit" className="pill" aria-pressed disabled={!draft.trim() || !!sending}>
+        <button
+          type="submit"
+          className="pill"
+          aria-pressed
+          disabled={!draft.trim() || !!sending}
+        >
           Send
         </button>
       </form>

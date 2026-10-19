@@ -7,6 +7,7 @@ from pathlib import Path
 
 from lifter import __version__
 from lifter.config import Settings
+from lifter.conversation import start
 from lifter.db import connect, migrate
 
 METRIC_COLUMNS = (
@@ -508,6 +509,7 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
     model = mistral_model(settings.mistral_api_key, settings.model, settings.max_output_tokens)
     try:
         with connect(settings.database_url) as conn:
+            start(conn, id=args.conversation, title=args.message, source="cli")
             message_id = conn.execute(
                 "insert into conversation_message (conversation_id, role, text)"
                 " values (%s, 'athlete', %s) returning id",

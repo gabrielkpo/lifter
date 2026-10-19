@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 // The app's server reads the Lifter API on behalf of the browser: the API's address, its
 // token and the Vercel protection bypass stay on the server, never in the page.
 // GET on the API's own endpoints; the one write forwarded is a message to the coach
-// (POST /conversation), from this app's own pages only.
+// (POST /conversations, /conversations/{id}), from this app's own pages only.
 const API_URL = process.env.LIFTER_API_URL ?? "http://127.0.0.1:8000";
 const API_TOKEN = process.env.LIFTER_API_TOKEN;
 const BYPASS = process.env.LIFTER_API_BYPASS;
@@ -22,8 +22,21 @@ const ENDPOINTS = new Set([
   "history",
   "proposals",
   "conversation",
+  "conversations",
 ]);
-const SEGMENT = /^[A-Za-z0-9_-]+$/;
+const SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Where a message may go: a new conversation, one by its id, or the first one (the route of
+ * the release before, for an app left open across the deployment). */
+function messagePath(path: string[]): string | null {
+  if (path.length === 1 && (path[0] === "conversations" || path[0] === "conversation")) {
+    return path[0];
+  }
+  if (path.length === 2 && path[0] === "conversations" && SEGMENT.test(path[1])) {
+    return path.join("/");
+  }
+  return null;
+}
 
 export const dynamic = "force-dynamic";
 // A coach's turn makes 1 to 8 model calls: the longest a function may run on Vercel's plan.
@@ -77,7 +90,8 @@ export async function POST(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (path.length !== 1 || path[0] !== "conversation") {
+  const target = messagePath(path);
+  if (target === null) {
     return NextResponse.json({ detail: "not found" }, { status: 404 });
   }
   if (request.headers.get("origin") !== request.nextUrl.origin) {
@@ -90,7 +104,7 @@ export async function POST(
   if (body.length > MAX_BODY) {
     return NextResponse.json({ detail: "message too long" }, { status: 413 });
   }
-  return forward(`${API_URL}/conversation`, {
+  return forward(`${API_URL}/${target}`, {
     method: "POST",
     headers: { ...upstreamHeaders(), "content-type": "application/json" },
     body,

@@ -116,32 +116,35 @@ forbidden exercises (it had once applied the leg press it should have suggested)
 Measured per run: expectations met, model calls, tokens, writes refused because the quote was
 not the athlete's, turns stopped by a limit. Each `review` line is for hand grading.
 
-The floor is a coach that never calls a tool (`--coach silent`): 50 % of expectations (50 % before
-`no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that does nothing
-always meets, 60 % before `add_mobility`, 56 % before `mobility_three_joints`, 53 % before the two
-`undo_elsewhere` ones), 4 of 12 scenarios fully met (every "nothing changes" one, none of the
-others; `bench/results/conversations-silent.json`). **The coach with `mistral-small-latest`**
-(`--coach mistral --runs 3`, `bench/results/coach-mistral-small.json`): **29 runs of 30 fully met**
-on the ten scenarios, no quote refused, no turn stopped by a limit, about 765,000 tokens. The
-snapshot now carries each part's lines (compact JSON, empty fields left out), which raised the input
-of a call from about 6,000 to about 8,000 tokens. It got there in seven rounds: - **First pass, 67
-%.** The coach called operations as if they were tools, guessed table names and part ids, picked
-last week's legs session to move, and reported an undo as refused without calling any tool. - **Then
-92 %.** The snapshot gained week numbers, the parts of each session with their ids, the exercise
-bank's names and the table list for `read_rows`, and the prompt said that every change is
-`apply_change` with an operation. - **Then 100 %.** The snapshot marks sessions as upcoming or past,
-and lists the changes applied in the conversation with their change ids, which undo takes. The
-prompt forbids reporting a refusal that no tool returned (16 of 16, about 270,000 tokens, no turn
-stopped). - **After the code review, 100 % again.** A session done or cancelled is no longer
-upcoming, and each recent change says whether undo can still take it (not undone, not an undo
-itself). But one `ideas_only` turn stopped at the 8-call limit: it changed nothing, so its
-expectation held, yet the athlete got no ideas (16 of 16, about 316,000 tokens). - **Fifth round,
-100 % on 3 runs.** The `ideas_only` turn had looped on suggestions with an invalid payload, guessing
-the fields each time: an invalid payload now comes back with the operation's schema, and
-`ideas_only` takes 2 or 3 calls. The snapshot gives the exercises a `forbid_flag` rule excludes and
-the athlete's rules; the coach once applied the leg press it should have suggested in place of the
-forbidden back squat, so the prompt says a replacement is a suggestion, never applied, and the
-scenario checks it.
+The floor is a coach that never calls a tool (`--coach silent`): 50 % of expectations (50 %
+before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
+does nothing always meets, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
+53 % before the two `undo_elsewhere` ones), 4 of 12
+scenarios fully met (every "nothing changes" one, none of the others;
+`bench/results/conversations-silent.json`). **The coach with `mistral-small-latest`** (`--coach
+mistral --runs 3`, `bench/results/coach-mistral-small.json`): **36 runs of 36 fully met** on the
+twelve scenarios, no quote refused, no turn stopped by a limit, about 1,130,000 tokens. The snapshot
+now carries each part's lines (compact JSON, empty fields left out), which raised the input of
+a call from about 6,000 to about 8,000 tokens. It got there in eight rounds:
+- **First pass, 67 %.** The coach called operations as if they were tools, guessed table
+  names and part ids, picked last week's legs session to move, and reported an undo as refused
+  without calling any tool.
+- **Then 92 %.** The snapshot gained week numbers, the parts of each session with their ids,
+  the exercise bank's names and the table list for `read_rows`, and the prompt said that every
+  change is `apply_change` with an operation.
+- **Then 100 %.** The snapshot marks sessions as upcoming or past, and lists the changes applied
+  in the conversation with their change ids, which undo takes. The prompt forbids reporting a
+  refusal that no tool returned (16 of 16, about 270,000 tokens, no turn stopped).
+- **After the code review, 100 % again.** A session done or cancelled is no longer upcoming,
+  and each recent change says whether undo can still take it (not undone, not an undo itself).
+  But one `ideas_only` turn stopped at the 8-call limit: it changed nothing, so its expectation
+  held, yet the athlete got no ideas (16 of 16, about 316,000 tokens).
+- **Fifth round, 100 % on 3 runs.** The `ideas_only` turn had looped on suggestions with an
+  invalid payload, guessing the fields each time: an invalid payload now comes back with the
+  operation's schema, and `ideas_only` takes 2 or 3 calls. The snapshot gives the exercises a
+  `forbid_flag` rule excludes and the athlete's rules; the coach once applied the leg press it
+  should have suggested in place of the forbidden back squat, so the prompt says a replacement
+  is a suggestion, never applied, and the scenario checks it.
 
 - **Sixth round, after the first turns in the app (2026-10-19).** Asked to add an exercise to
   today's session, the coach said its parts were empty: the snapshot gave the parts without
@@ -155,6 +158,13 @@ scenario checks it.
   bank lacked shoulder and ankle mobility, the coach added them to it (`add_exercise`) and put
   them in the part. One `add_mobility` run of 3 asked "OK?" instead of adding the exercise: 29
   of 30.
+- **Eighth round, several conversations (2026-10-19).** The snapshot lists the last changes of
+  every conversation, those of this one marked, with the athlete's words that made each. A bare
+  "annule" in a new conversation undid the move made in another one 3 times of 3 despite the
+  prompt, so the code now refuses an undo of a change made elsewhere unless the quote names it
+  (the full quote rule). With a named change the model first moved the session back by hand;
+  the prompt says an undo is always the undo operation, and the words that made each change
+  let it find the one named. `undo_elsewhere` 3 of 3, `undo_elsewhere_named` 3 of 3: 36 of 36.
 
 Twelve scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).

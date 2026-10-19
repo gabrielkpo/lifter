@@ -15,6 +15,7 @@ from lifter.agents.context import Alert, PlanningError, RecentLoad, build_contex
 from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
 from lifter.agents.planner import MistralPlanner, PlannerOutputError, Usage, user_message
 from lifter.agents.week import run_week_planner
+from lifter.agents.week_check import introduced
 from lifter.program import load_program, read_program
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -166,7 +167,11 @@ def test_two_parts_of_one_kind_in_a_session_are_refused(ctx):
         PlanPart(kind="strength", lines=[PlanLine(exercise="Leg curl", sets=2, quantity=12, rir=3)])
     )
     (violation,) = [v for v in guardrail.check(plan, ctx).violations if v.check == "part_kinds"]
-    assert "2 strength parts" in violation.message and violation.day == str(legs.day)
+    assert "more than one strength part" in violation.message and violation.day == str(legs.day)
+    # with no count in the message, one part fewer is not a new violation on a stored week
+    legs.parts.append(PlanPart(kind="strength", lines=[]))
+    three = [v for v in guardrail.check(plan, ctx).violations if v.check == "part_kinds"]
+    assert introduced([violation], three) == []
 
 
 def test_forbidden_exercises_are_refused(ctx):

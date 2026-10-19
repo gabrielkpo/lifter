@@ -109,13 +109,15 @@ def check_days(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
 
 def check_part_kinds(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
     """A session holds one part per kind, as the operations catalogue requires (create_session
-    refuses two): a plan with two strength parts would be accepted here and refused at apply."""
+    refuses two): a plan with two strength parts would be accepted here and refused at apply.
+    The message holds no count: on a stored week (week_check), removing one of four mobility
+    parts must not read as a new violation."""
     for s in plan.sessions:
         kinds = [part.kind for part in s.parts]
         for kind in sorted({k for k in kinds if kinds.count(k) > 1}):
             yield Violation(
                 "part_kinds",
-                f"'{s.title}' has {kinds.count(kind)} {kind} parts: one part per kind, all its"
+                f"'{s.title}' has more than one {kind} part: one part per kind, all its"
                 " exercises in it",
                 str(s.day),
             )

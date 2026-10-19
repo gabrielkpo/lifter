@@ -43,11 +43,12 @@ from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 
 AGENT = "coach"
 MAX_STEPS = 8
-# The hosted API runs a turn in a function killed at 60 s. No model call starts after this many
-# seconds, and one call lasts at most CALL_TIMEOUT_SECONDS x 2 (one retry): a turn ends, its
-# reply stored and audited, before the platform cuts it.
-DEADLINE_SECONDS = 35
-CALL_TIMEOUT_SECONDS = 10
+# The hosted API runs a turn in a function killed at 60 s. No model call starts after
+# DEADLINE_SECONDS, and one call lasts at most CALL_TIMEOUT_SECONDS (no retry): a turn ends, its
+# reply stored and audited, about 10 s before the platform cuts it. 20 s leaves a long reply
+# (several hundred tokens) the time it needs.
+DEADLINE_SECONDS = 30
+CALL_TIMEOUT_SECONDS = 20
 HISTORY = 20  # earlier messages of the conversation the coach sees
 
 SYSTEM_PROMPT = """You are the coach of Lifter, a CrossFit coach. You talk with the athlete \
@@ -115,7 +116,7 @@ def mistral_model(api_key: str, model: str, max_output_tokens: int = 6000) -> Ch
         api_key=api_key,
         temperature=0.2,
         timeout=CALL_TIMEOUT_SECONDS,
-        max_retries=1,
+        max_retries=0,
         max_tokens=max_output_tokens,
     )
 
@@ -283,7 +284,14 @@ def respond(
     calls: list[dict] = []  # every tool call and its result, kept even if the run crashes
     tool_node = ToolNode(tools)
 
+    def past_deadline() -> bool:
+        return deadline_seconds is not None and time.monotonic() - started >= deadline_seconds
+
     def coach(state: MessagesState) -> dict:
+        # Checked again before every call: the tools since the last check took time too
+        if usage.calls and past_deadline():
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
+            return {"messages": [AIMessage("")]}
         answer = bound.invoke(state["messages"])
         usage.calls += 1
         meta = getattr(answer, "usage_metadata", None) or {}
@@ -307,7 +315,7 @@ def respond(
         if token_budget is not None and usage.total_tokens >= token_budget:
             stopped.append(f"token budget reached: {usage.total_tokens} of {token_budget}")
             return END
-        if deadline_seconds is not None and time.monotonic() - started >= deadline_seconds:
+        if past_deadline():
             stopped.append(f"time limit reached ({deadline_seconds:g} s)")
             return END
         return "tools"

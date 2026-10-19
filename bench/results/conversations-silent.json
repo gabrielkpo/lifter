@@ -2,12 +2,12 @@
   "coach": "silent",
   "model": null,
   "summary": {
-    "runs": 10,
-    "expectations_met_rate": 0.529,
+    "runs": 12,
+    "expectations_met_rate": 0.5,
     "scenarios_fully_met": 4,
     "refused_quotes": 0,
     "stopped": 0,
-    "model_calls": 11,
+    "model_calls": 15,
     "input_tokens": 0,
     "output_tokens": 0
   },
@@ -215,6 +215,57 @@
     },
     {
       "scenario": "undo",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-23",
+          "passed": true,
+          "detail": "on 2026-01-23"
+        },
+        {
+          "check": "changed undo",
+          "passed": false,
+          "detail": "applied: nothing"
+        }
+      ],
+      "model_calls": 2,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted.",
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-22",
+          "passed": false,
+          "detail": "on 2026-01-23"
+        }
+      ],
+      "model_calls": 2,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted.",
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere_named",
       "category": "instruction",
       "run": 1,
       "expectations_met": 1,

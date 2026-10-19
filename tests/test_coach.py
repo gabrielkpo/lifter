@@ -323,17 +323,20 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
     assert {"code": "forbid_flag", "text": "No running, no repeated jumps."} in seen[
         "athlete_rules"
     ]
-    assert [
-        (c["change_id"], c["undoable"]) for c in seen["recent_changes_in_this_conversation"]
-    ] == [(moved, True)]
-    assert snapshot(conn, TODAY, "c2")["recent_changes_in_this_conversation"] == []
+    assert [(c["change_id"], c["undoable"], c["here"]) for c in seen["recent_changes"]] == [
+        (moved, True, True)
+    ]
+    # another conversation sees the change too, marked as made elsewhere
+    assert [(c["change_id"], c["here"]) for c in snapshot(conn, TODAY, "c2")["recent_changes"]] == [
+        (moved, False)
+    ]
 
     undo = say(conn, "annule")
     model = ScriptedChat(
         tool_call("apply_change", operation="undo", payload={"change_id": moved}, quote="annule")
     )
     answer(conn, model, undo)
-    changes = snapshot(conn, TODAY, "c1")["recent_changes_in_this_conversation"]
+    changes = snapshot(conn, TODAY, "c1")["recent_changes"]
     assert [(c["operation"], c["undoable"]) for c in changes] == [
         ("undo", False),
         ("move_session", False),

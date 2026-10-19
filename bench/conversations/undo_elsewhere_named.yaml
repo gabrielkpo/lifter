@@ -1,0 +1,17 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+# Written for several conversations (2026-10-19): a change made in another conversation can be
+# undone when the athlete names it.
+name: undo_elsewhere_named
+category: instruction
+description: 'A move in one conversation, then in a new one an undo that names it.'
+today: 2026-01-18
+messages:
+- Décale la séance Legs + Metcon de cette semaine au jeudi 22 janvier.
+- {text: "Annule le déplacement de la séance Legs + Metcon que j'ai demandé tout à l'heure.", conversation: bench-new}
+expect:
+- check: session_day
+  params: {week: 3, title: Legs + Metcon, day: '2026-01-23'}
+- check: changed
+  params: {operation: undo}
+review: 'The coach finds the move among the recent changes of the other conversation and undoes
+  it; it reports the session back on Friday.'

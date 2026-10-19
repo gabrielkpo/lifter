@@ -1,6 +1,7 @@
 #!/bin/bash
 # Installs (or removes, with --uninstall) the scheduled jobs on this Mac, for the current user:
 #   com.lifter.sync           07:30 and 21:00  Garmin sync to the hosted database
+#   com.lifter.sync-catchup   every hour       the same, only in use and past 12 h without one
 #   com.lifter.backup         13:00            backup of the hosted database
 #   com.lifter.restore-check  Sunday 13:30     restore test of the latest backup
 # A job missed while the Mac sleeps runs when it wakes up. The scripts are copied out of the
@@ -13,7 +14,7 @@ source "$SRC/common.sh"
 OPS_DIR="$HOME/.local/share/lifter/ops"
 LOG_DIR="$LIFTER_LOG_DIR"
 AGENTS="$HOME/Library/LaunchAgents"
-LABELS=(com.lifter.sync com.lifter.backup com.lifter.restore-check)
+LABELS=(com.lifter.sync com.lifter.sync-catchup com.lifter.backup com.lifter.restore-check)
 
 for label in "${LABELS[@]}"; do
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true

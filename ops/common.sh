@@ -47,6 +47,14 @@ stay_awake() {
   fi
 }
 
+# Someone used the keyboard or the trackpad in the last 10 minutes: the Mac is fully awake, not in
+# a dark wake that macOS ends within seconds on battery, whatever caffeinate asks (19/10).
+user_active() {
+  local idle
+  idle=$(ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print int($NF / 1000000000); exit}')
+  [[ -n "$idle" && "$idle" -lt 600 ]]
+}
+
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LIFTER_LOG"; }
 
 # A macOS notification: the scheduled jobs run unattended, a failure must be seen.

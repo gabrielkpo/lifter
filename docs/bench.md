@@ -63,7 +63,9 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   reps never allow a heavier load than one step above the heaviest set at as many reps or more.
   Against main's prompt (3 runs per scenario): accepted 82.5 % to 87.6 %, expectations flat
   (79.4 % to 79.7 %), `bench_rir_missed` 0/3 to 4/5, the power week 0/3 to 3/5 accepted,
-  unsourced numbers 11 to 6 (on more runs).
+  unsourced numbers 11 to 6 (on more runs). Main's prompt was measured on 3 runs, this one on
+  5: the rates carry different sampling noise, and only the gains on the targeted scenarios
+  (a missed RIR, the power week) are large enough to read as the rules' effect.
   Rejected along the way: a version that mapped the bench programme's own intent wording ("very
   short sets", "volume halved") to numbers scored 84 % accepted and fixed the deload, but it was
   tuned to the bench's phrasing, and once written generically it fell to 79 %.

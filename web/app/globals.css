@@ -739,3 +739,84 @@ button {
   font-weight: 700;
   color: var(--text);
 }
+
+/* The conversation with the coach (app/coach): the athlete on the right, the coach on the left,
+   the input pinned above the tab bar. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 88px;
+}
+.bubble {
+  max-width: 85%;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.bubble[data-role="athlete"] {
+  align-self: flex-end;
+  background: var(--surface-2);
+}
+.bubble[data-role="coach"] {
+  align-self: flex-start;
+}
+.chat-change {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--muted);
+}
+.chat-change .chip {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+.chat-input {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--island-space) + env(safe-area-inset-bottom));
+  width: min(536px, calc(100% - 2 * var(--island-gap)));
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 6px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: rgba(28, 28, 30, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  max-height: 140px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.chat-input .pill:disabled {
+  opacity: 0.4;
+}
+@media (min-width: 900px) {
+  .chat-input {
+    left: calc(var(--sidebar) + (100% - var(--sidebar)) / 2);
+    bottom: 24px;
+    width: min(720px, calc(100% - var(--sidebar) - 80px));
+  }
+}

@@ -42,6 +42,25 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   }
 }
 
+/** POST `body` as JSON to `path` (the app's server only forwards a message to the coach). */
+export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  track(1);
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, `${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as T;
+  } finally {
+    track(-1);
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,

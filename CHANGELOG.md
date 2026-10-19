@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/gabrielkpo/lifter/compare/v0.2.0...v0.2.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** the coach's thread never hides under the bars, and every planned part is shown ([#89](https://github.com/gabrielkpo/lifter/issues/89)) ([fccfce2](https://github.com/gabrielkpo/lifter/commit/fccfce26381fe600f866763541cc001680225d34))
+
 ## [0.2.0](https://github.com/gabrielkpo/lifter/compare/v0.1.3...v0.2.0) (2026-10-19)
 
 

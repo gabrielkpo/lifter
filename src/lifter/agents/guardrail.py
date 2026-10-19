@@ -107,6 +107,20 @@ def check_days(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
             )
 
 
+def check_part_kinds(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
+    """A session holds one part per kind, as the operations catalogue requires (create_session
+    refuses two): a plan with two strength parts would be accepted here and refused at apply."""
+    for s in plan.sessions:
+        kinds = [part.kind for part in s.parts]
+        for kind in sorted({k for k in kinds if kinds.count(k) > 1}):
+            yield Violation(
+                "part_kinds",
+                f"'{s.title}' has {kinds.count(kind)} {kind} parts: one part per kind, all its"
+                " exercises in it",
+                str(s.day),
+            )
+
+
 def check_exercises(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violation]:
     bank = {e.name for e in ctx.exercises}
     for s in plan.sessions:
@@ -465,6 +479,7 @@ def check_cancellations(plan: WeekPlan, ctx: PlanningContext) -> Iterator[Violat
 
 GENERIC_CHECKS = (
     check_days,
+    check_part_kinds,
     check_exercises,
     check_cancellations,
     check_sources,

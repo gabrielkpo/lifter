@@ -159,6 +159,16 @@ def test_sessions_outside_the_week_and_unknown_exercises_are_refused(ctx):
     assert checks(plan, ctx) == {"days", "exercise_bank"}
 
 
+def test_two_parts_of_one_kind_in_a_session_are_refused(ctx):
+    plan = good_plan()
+    legs = plan.sessions[1]
+    legs.parts.append(
+        PlanPart(kind="strength", lines=[PlanLine(exercise="Leg curl", sets=2, quantity=12, rir=3)])
+    )
+    (violation,) = [v for v in guardrail.check(plan, ctx).violations if v.check == "part_kinds"]
+    assert "2 strength parts" in violation.message and violation.day == str(legs.day)
+
+
 def test_forbidden_exercises_are_refused(ctx):
     plan = good_plan()
     plan.sessions[1].parts[0].lines += [

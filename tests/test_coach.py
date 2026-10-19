@@ -307,7 +307,9 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
     legs = next(s for s in seen["sessions_this_week_and_next"] if s["id"] == sid)
     assert legs["week"] == 1 and legs["parts"]
     assert legs["status"] == "done" and not legs["upcoming"]  # logged in the example programme
-    assert {"id", "version", "position", "kind", "title"} == set(legs["parts"][0])
+    assert {"id", "version", "position", "kind", "title", "lines"} == set(legs["parts"][0])
+    line = next(line for part in legs["parts"] for line in part["lines"])
+    assert line["exercise"] and line["origin"] in ("planned", "done") and line["version"]
     for s in seen["sessions_this_week_and_next"]:
         assert s["upcoming"] == (s["day"] >= TODAY and s["status"] not in ("done", "cancelled"))
     assert any(s["upcoming"] for s in seen["sessions_this_week_and_next"])

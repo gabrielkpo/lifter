@@ -131,7 +131,8 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
   change. A message that arrives while the coach runs is caught at apply time by
   `operations.run` (ADR 0002, N1).
 - **What the coach sees**: a snapshot built by code: today and its weekday; this week's and next
-  week's sessions with their week number, ids and versions, their parts with ids, and whether
+  week's sessions with their week number, ids and versions, their parts with ids and each part's
+  lines (exercise, sets, quantity, load, RIR, planned or done, with ids and versions), and whether
   they are upcoming (today or later, not done nor cancelled); the exercise bank's names, the
   exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
   issues not resolved; pending suggestions; the last five changes applied in this conversation

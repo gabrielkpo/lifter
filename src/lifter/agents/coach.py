@@ -68,7 +68,8 @@ with the athlete's next message; an expired suggestion comes back once you prese
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
 
-Finding what the athlete means: sessions, their parts, ids and versions are in the snapshot. A \
+Finding what the athlete means: sessions, their parts and each part's lines (exercise, sets, \
+reps, load, RIR; planned and done), with ids and versions, are in the snapshot. A \
 session to move, change or cancel is an upcoming one (upcoming: true: today or later, not done \
 nor cancelled) unless the athlete names a past day; a session report is about a past or today's \
 session. Two sessions can share a title in different weeks: take the one in the week of the \
@@ -175,6 +176,22 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " where session_id = any(%s) order by session_id, position",
         ([s["id"] for s in sessions],),
     )
+    # Each part's lines, planned and done: without them a part looks empty to the model, which
+    # then describes or edits a session it has not read.
+    lines = _rows(
+        conn,
+        "select l.id, l.version, l.part_id, l.origin, l.position, e.name as exercise, l.sets,"
+        " l.quantity, l.unit, l.load_kg, l.load_kg_max, l.rir"
+        " from session_exercise l join exercise e on e.id = l.exercise_id"
+        " where l.part_id = any(%s) order by l.part_id, l.origin, l.position",
+        ([p["id"] for p in parts],),
+    )
+    for part in parts:
+        part["lines"] = [
+            {k: v for k, v in line.items() if k != "part_id"}
+            for line in lines
+            if line["part_id"] == part["id"]
+        ]
     for session in sessions:
         # status is the dbt mart's: "missed" is judged on the real date, not on `today`
         session["upcoming"] = session["day"] >= today and session["status"] not in UNMOVABLE

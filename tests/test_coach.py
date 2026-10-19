@@ -410,3 +410,29 @@ def test_the_tool_calls_of_one_message_run_one_at_a_time_in_order(conn, program,
     assert [n for n, _ in seen] == [1, 1]  # never two at once
     assert [key.rsplit(":", 1)[1] for _, key in seen] == ["1", "2"]  # in the model's order
     assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+
+
+def test_the_run_stops_at_its_deadline_with_its_reply_stored(conn, program):
+    message = say(conn, "Montre-moi mes exercices")
+    looping = [tool_call("read_rows", n, table="exercise") for n in range(10)]
+    reply = answer(conn, ScriptedChat(*looping), message, deadline_seconds=0, trigger="cli")
+
+    assert reply.usage.calls == 1 and reply.stopped == "time limit reached (0 s)"
+    assert "I stopped before finishing" in reply.text
+    stored = conn.execute(
+        "select role from conversation_message where id = %s", (reply.message_id,)
+    )
+    assert stored.fetchone() == ("coach",)
+
+
+def test_no_model_call_starts_past_the_deadline_even_after_slow_tools(conn, program, monkeypatch):
+    from lifter.agents import coach as coach_module
+
+    ticks = iter(range(0, 1000, 15))  # each reading of the clock is 15 s later
+    monkeypatch.setattr(coach_module, "_now", lambda: next(ticks))
+    message = say(conn, "Montre-moi mes exercices")
+    looping = [tool_call("read_rows", n, table="exercise") for n in range(10)]
+    reply = answer(conn, ScriptedChat(*looping), message, deadline_seconds=30, trigger="cli")
+
+    # started at 0; after call 1 the check reads 15 (go on), before call 2 it reads 30 (stop)
+    assert reply.usage.calls == 1 and reply.stopped == "time limit reached (30 s)"

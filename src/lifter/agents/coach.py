@@ -43,6 +43,14 @@ from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 
 AGENT = "coach"
 MAX_STEPS = 8
+# The hosted API runs a turn in a function killed at 60 s. No model call starts after
+# DEADLINE_SECONDS, and one call lasts at most CALL_TIMEOUT_SECONDS: a turn ends, its reply
+# stored and audited, about 10 s before the platform cuts it. 15 s leaves a long reply (several
+# hundred tokens) the time it needs. One attempt per call (max_retries=1: LangChain counts
+# attempts, and would retry only network errors, after at least 4 s); a failed call ends the
+# turn with its error, audited.
+DEADLINE_SECONDS = 35
+CALL_TIMEOUT_SECONDS = 15
 HISTORY = 20  # earlier messages of the conversation the coach sees
 
 SYSTEM_PROMPT = """You are the coach of Lifter, a CrossFit coach. You talk with the athlete \
@@ -115,8 +123,8 @@ def mistral_model(api_key: str, model: str, max_output_tokens: int = 6000) -> Ch
         model=model,
         api_key=api_key,
         temperature=0.2,
-        timeout=120,
-        max_retries=2,
+        timeout=CALL_TIMEOUT_SECONDS,
+        max_retries=1,
         max_tokens=max_output_tokens,
     )
 
@@ -265,6 +273,11 @@ def _json(value: Any, compact: bool = False) -> str:
     return json.dumps(value, default=str, ensure_ascii=False, separators=separators)
 
 
+def _now() -> float:
+    """The clock the turn's deadline reads (a function, so a test can replace it alone)."""
+    return time.monotonic()
+
+
 def respond(
     conn: psycopg.Connection,
     model: ChatModel,
@@ -277,6 +290,7 @@ def respond(
     trigger: str | None = None,
     token_budget: int | None = None,
     max_steps: int = MAX_STEPS,
+    deadline_seconds: float | None = DEADLINE_SECONDS,
 ) -> CoachReply:
     """Answer the athlete's message `message_id`, already stored in `conversation_message`.
 
@@ -296,7 +310,7 @@ def respond(
     today = today or date.today()
     register_rule_check()
     started_at = datetime.now(UTC)
-    started = time.monotonic()
+    started = _now()
     state_of_mind = snapshot(conn, today, conversation_id)
     ctx = ToolContext(conn=conn, message_id=message_id, conversation_id=conversation_id)
     tools = coach_tools(ctx)
@@ -306,7 +320,14 @@ def respond(
     calls: list[dict] = []  # every tool call and its result, kept even if the run crashes
     tool_node = ToolNode(tools)
 
+    def past_deadline() -> bool:
+        return deadline_seconds is not None and _now() - started >= deadline_seconds
+
     def coach(state: MessagesState) -> dict:
+        # Checked again before every call: the tools since the last check took time too
+        if usage.calls and past_deadline():
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
+            return {"messages": [AIMessage("")]}
         answer = bound.invoke(state["messages"])
         usage.calls += 1
         meta = getattr(answer, "usage_metadata", None) or {}
@@ -329,6 +350,9 @@ def respond(
             return END
         if token_budget is not None and usage.total_tokens >= token_budget:
             stopped.append(f"token budget reached: {usage.total_tokens} of {token_budget}")
+            return END
+        if past_deadline():
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
             return END
         return "tools"
 
@@ -442,7 +466,7 @@ class _Run:
                 self.usage.calls,
                 self.usage.input_tokens,
                 self.usage.output_tokens,
-                round(time.monotonic() - self.started, 3),
+                round(_now() - self.started, 3),
                 Jsonb(self.context | {"calls": self.calls}, dumps=_json),
                 Jsonb(self.stopped),
                 proposals + self.ctx.suggestions,

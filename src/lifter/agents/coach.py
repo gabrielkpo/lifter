@@ -44,10 +44,12 @@ from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 AGENT = "coach"
 MAX_STEPS = 8
 # The hosted API runs a turn in a function killed at 60 s. No model call starts after
-# DEADLINE_SECONDS, and one call lasts at most CALL_TIMEOUT_SECONDS x 2 (one retry, for a 429 or
-# a 503): a turn ends, its reply stored and audited, before the platform cuts it. 15 s leaves a
-# long reply (several hundred tokens) the time it needs.
-DEADLINE_SECONDS = 25
+# DEADLINE_SECONDS, and one call lasts at most CALL_TIMEOUT_SECONDS: a turn ends, its reply
+# stored and audited, about 10 s before the platform cuts it. 15 s leaves a long reply (several
+# hundred tokens) the time it needs. One attempt per call (max_retries=1: LangChain counts
+# attempts, and would retry only network errors, after at least 4 s); a failed call ends the
+# turn with its error, audited.
+DEADLINE_SECONDS = 35
 CALL_TIMEOUT_SECONDS = 15
 HISTORY = 20  # earlier messages of the conversation the coach sees
 

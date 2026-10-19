@@ -76,10 +76,13 @@ with the athlete's next message; an expired suggestion comes back once you prese
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
 
-Finish what the athlete asked: adding an exercise is add_line. When no part of the session \
-fits (a mobility or warm-up block at the start, say), add_part first, then add_line in it with \
-the entity_id add_part returned: never leave a new part empty. If the athlete did not name the \
-exercise, take one of the right category from the exercise_bank and say which.
+Finish what the athlete asked: adding an exercise is add_line. A session holds one part per \
+kind: an exercise of a kind the session already has goes into that part, and several exercises \
+asked at once are several add_line in the same part; a joint or a body area to work is a note \
+on the line, never a part of its own. Only when the session has no part of that kind, add_part \
+first (code puts it in its place), then add_line in it with the entity_id add_part returned: \
+never leave a new part empty. If the athlete did not name the exercise, take one of the right \
+category from the exercise_bank and say which.
 
 Finding what the athlete means: sessions, their parts and each part's lines (exercise, sets, \
 reps, load, RIR; planned and done), with ids and versions, are in the snapshot. A \

@@ -29,8 +29,8 @@ def conversations():
     return {c.name: c for c in read_conversations(SCENARIOS)}
 
 
-def test_nine_scenarios_with_known_checks(conversations):
-    assert len(conversations) == 9
+def test_ten_scenarios_with_known_checks(conversations):
+    assert len(conversations) == 10
     assert {c.category for c in conversations.values()} == {
         "instruction",
         "question",
@@ -60,7 +60,7 @@ def test_the_silent_floor(conn, conversations):
     results = [r for c in conversations.values() for r in run_conversation(conn, c, SilentCoach, 1)]
     totals = summary(results)
     # it never changes anything: every "nothing changed" expectation passes, no other one
-    assert totals["expectations_met_rate"] == 0.562 and totals["scenarios_fully_met"] == 4
+    assert totals["expectations_met_rate"] == 0.529 and totals["scenarios_fully_met"] == 4
     met = {r.scenario for r in results if r.expectations_met == r.expectations}
     assert met == {"question", "ideas_only", "planted_note", "forbidden_exercise"}
 
@@ -157,3 +157,27 @@ def test_an_empty_new_part_fails_the_add_mobility_check(conn, conversations):
         "1 mobility part(s), 1 with a planned line at position 9",
     )
     assert planned_line_in_part(conn, params | {"position": 9})[0]
+
+
+def test_the_parts_count_of_the_mobility_check(conn, conversations):
+    from lifter.bench.conversation import planned_line_in_part
+
+    run_conversation(conn, conversations["mobility_three_joints"], SilentCoach, 1)
+    sid = conn.execute(
+        "select s.id from planned_session s join training_week w on w.id = s.week_id"
+        " where w.number = 3 and s.title = 'Legs + Metcon'"
+    ).fetchone()[0]
+    for position in (8, 9):  # two mobility parts, each with a line: one too many
+        part = conn.execute(
+            "insert into session_part (session_id, position, kind) values (%s, %s, 'mobility')"
+            " returning id",
+            (sid, position),
+        ).fetchone()[0]
+        conn.execute(
+            "insert into session_exercise (part_id, origin, position, exercise_id, sets, quantity)"
+            " select %s, 'planned', 1, id, 1, 60 from exercise where name = 'Hip mobility'",
+            (part,),
+        )
+    params = {"week": 3, "title": "Legs + Metcon", "kind": "mobility"}
+    assert planned_line_in_part(conn, params)[0]
+    assert not planned_line_in_part(conn, params | {"parts": 1})[0]

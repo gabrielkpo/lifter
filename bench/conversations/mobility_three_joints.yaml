@@ -1,0 +1,15 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+# Written after the owner's session of 2026-10-19 (18:52): asked for hips, shoulders and ankles,
+# the coach added four mobility parts ("Mobilite", "Hanches", "Epaules", "Chevilles").
+name: mobility_three_joints
+category: instruction
+description: 'Mobility for three joints: one mobility part, its exercises, a note per joint.'
+today: 2026-01-18
+messages:
+- Ajoute de la mobilité pour les hanches, les épaules et les chevilles à la séance Legs + Metcon
+  de cette semaine.
+expect:
+- check: planned_line_in_part
+  params: {week: 3, title: Legs + Metcon, kind: mobility, parts: 1}
+review: 'One mobility part, never one per joint; the bank has one mobility exercise (hip
+  mobility), so the coach adds it with notes for the other joints or says what is missing.'

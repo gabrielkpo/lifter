@@ -127,7 +127,8 @@ def no_planned_line(conn, p) -> tuple[bool, str]:
 
 def planned_line_in_part(conn, p) -> tuple[bool, str]:
     """The session has a part of that kind holding at least one planned line; with `position`
-    (1: the start), that part is at that position."""
+    (1: the start), that part is at that position; with `parts`, the session has exactly that
+    many parts of the kind."""
     rows = conn.execute(
         "select sp.id, sp.position, count(l.id) from session_part sp"
         " join planned_session s on s.id = sp.session_id"
@@ -138,6 +139,7 @@ def planned_line_in_part(conn, p) -> tuple[bool, str]:
     ).fetchall()
     filled = [position for _, position, n in rows if n > 0]
     ok = bool(filled) and ("position" not in p or p["position"] in filled)
+    ok = ok and ("parts" not in p or len(rows) == p["parts"])
     where = f" at position {', '.join(map(str, filled))}" if filled else ""
     return ok, f"{len(rows)} {p['kind']} part(s), {len(filled)} with a planned line{where}"
 

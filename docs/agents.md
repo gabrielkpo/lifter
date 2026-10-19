@@ -136,8 +136,8 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
   lines (exercise, sets, quantity, load, RIR, planned or done, with ids and versions), and whether
   they are upcoming (today or later, not done nor cancelled); the exercise bank's names by category,
   the exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
-  issues not resolved; pending suggestions; the last eight changes of every conversation, those of
-  this one marked, with their change ids and whether undo can still take them (not undone, not
+  issues not resolved; pending suggestions; the five latest changes of this conversation and the
+  five latest of the others, each marked, with their change ids and whether undo can still take them (not undone, not
   an undo). Then the last 20
   messages of the conversation, and the tools above. The prompt carries the behaviour of ADR 0002
   (instruction applied, question answered, suggestion only on choice, undo), the method, "cite only

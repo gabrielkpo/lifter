@@ -251,20 +251,16 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
     # pushes this one's latest change out of the list.
     changes = _rows(
         conn,
-        "select * from ((select c.id as change_id, c.operation, c.entity, c.entity_id,"
-        " c.created_at, left(p.quote, 120) as asked,"  # the words that made it: how it is named
-        " p.undone_by is null and c.operation <> 'undo' as undoable, here"
+        "select change_id, operation, entity, entity_id, created_at, asked, undoable, here"
+        " from (select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
+        " left(p.quote, 120) as asked,"  # the words that made it: how the athlete names it
+        " p.undone_by is null and c.operation <> 'undo' as undoable,"
+        " m.conversation_id is not distinct from %s as here,"
+        " row_number() over (partition by m.conversation_id is not distinct from %s"
+        " order by c.id desc) as latest"
         " from change_log c join proposal p on p.id = c.proposal_id"
-        " join public.conversation_message m on m.id = p.message_id,"
-        " lateral (select m.conversation_id is not distinct from %s as here) h"
-        " where here order by c.id desc limit 5)"
-        " union all"
-        " (select c.id, c.operation, c.entity, c.entity_id, c.created_at, left(p.quote, 120),"
-        " p.undone_by is null and c.operation <> 'undo', here"
-        " from change_log c join proposal p on p.id = c.proposal_id"
-        " join public.conversation_message m on m.id = p.message_id,"
-        " lateral (select m.conversation_id is not distinct from %s as here) h"
-        " where not here order by c.id desc limit 5)) recent order by change_id desc",
+        " join public.conversation_message m on m.id = p.message_id) recent"
+        " where latest <= 5 order by change_id desc",
         (conversation_id, conversation_id),
     )
     return {

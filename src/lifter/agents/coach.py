@@ -43,6 +43,11 @@ from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 
 AGENT = "coach"
 MAX_STEPS = 8
+# The hosted API runs a turn in a function killed at 60 s. No model call starts after this many
+# seconds, and one call lasts at most CALL_TIMEOUT_SECONDS x 2 (one retry): a turn ends, its
+# reply stored and audited, before the platform cuts it.
+DEADLINE_SECONDS = 35
+CALL_TIMEOUT_SECONDS = 10
 HISTORY = 20  # earlier messages of the conversation the coach sees
 
 SYSTEM_PROMPT = """You are the coach of Lifter, a CrossFit coach. You talk with the athlete \
@@ -109,8 +114,8 @@ def mistral_model(api_key: str, model: str, max_output_tokens: int = 6000) -> Ch
         model=model,
         api_key=api_key,
         temperature=0.2,
-        timeout=120,
-        max_retries=2,
+        timeout=CALL_TIMEOUT_SECONDS,
+        max_retries=1,
         max_tokens=max_output_tokens,
     )
 
@@ -248,6 +253,7 @@ def respond(
     trigger: str | None = None,
     token_budget: int | None = None,
     max_steps: int = MAX_STEPS,
+    deadline_seconds: float | None = DEADLINE_SECONDS,
 ) -> CoachReply:
     """Answer the athlete's message `message_id`, already stored in `conversation_message`.
 
@@ -300,6 +306,9 @@ def respond(
             return END
         if token_budget is not None and usage.total_tokens >= token_budget:
             stopped.append(f"token budget reached: {usage.total_tokens} of {token_budget}")
+            return END
+        if deadline_seconds is not None and time.monotonic() - started >= deadline_seconds:
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
             return END
         return "tools"
 

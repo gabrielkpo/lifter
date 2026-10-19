@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/gabrielkpo/lifter/compare/v0.2.2...v0.3.0) (2026-10-19)
+
+
+### Features
+
+* several conversations with the coach, a new one on opening and a history panel ([#98](https://github.com/gabrielkpo/lifter/issues/98)) ([1b2ab32](https://github.com/gabrielkpo/lifter/commit/1b2ab328796f669e687f67d295c903f4091e5112))
+
+
+### Bug Fixes
+
+* **agents:** the coach puts an exercise in the part of its kind ([#97](https://github.com/gabrielkpo/lifter/issues/97)) ([68beac9](https://github.com/gabrielkpo/lifter/commit/68beac9fb60b0e3c791c7f6f9067d91cf1e7a55b))
+* **agents:** the guardrail refuses two parts of one kind in a session ([#96](https://github.com/gabrielkpo/lifter/issues/96)) ([fc95e08](https://github.com/gabrielkpo/lifter/commit/fc95e0825c0223f9e0ab431a55d205360731d040))
+
 ## [0.2.2](https://github.com/gabrielkpo/lifter/compare/v0.2.1...v0.2.2) (2026-10-19)
 
 

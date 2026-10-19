@@ -68,6 +68,11 @@ with the athlete's next message; an expired suggestion comes back once you prese
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
 
+Finish what the athlete asked: adding an exercise is add_line. When no part of the session \
+fits (a mobility or warm-up block at the start, say), add_part first, then add_line in it with \
+the entity_id add_part returned: never leave a new part empty. If the athlete did not name the \
+exercise, take one of the right kind from the exercise_bank and say which.
+
 Finding what the athlete means: sessions, their parts and each part's lines (exercise, sets, \
 reps, load, RIR; planned and done), with ids and versions, are in the snapshot. A \
 session to move, change or cancel is an upcoming one (upcoming: true: today or later, not done \
@@ -187,8 +192,9 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         ([p["id"] for p in parts],),
     )
     for part in parts:
+        # Empty fields left out: the lines are most of the snapshot's size
         part["lines"] = [
-            {k: v for k, v in line.items() if k != "part_id"}
+            {k: v for k, v in line.items() if k != "part_id" and v is not None}
             for line in lines
             if line["part_id"] == part["id"]
         ]
@@ -196,7 +202,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         # status is the dbt mart's: "missed" is judged on the real date, not on `today`
         session["upcoming"] = session["day"] >= today and session["status"] not in UNMOVABLE
         session["parts"] = [
-            {k: v for k, v in part.items() if k != "session_id"}
+            {k: v for k, v in part.items() if k != "session_id" and v is not None}
             for part in parts
             if part["session_id"] == session["id"]
         ]
@@ -249,8 +255,9 @@ def history(conn: psycopg.Connection, conversation_id: str, message_id: int) -> 
     return [HumanMessage(text) if role == "athlete" else AIMessage(text) for role, text in rows]
 
 
-def _json(value: Any) -> str:
-    return json.dumps(value, default=str, ensure_ascii=False)
+def _json(value: Any, compact: bool = False) -> str:
+    separators = (",", ":") if compact else None
+    return json.dumps(value, default=str, ensure_ascii=False, separators=separators)
 
 
 def respond(
@@ -329,7 +336,7 @@ def respond(
 
     system = SYSTEM_PROMPT.format(language=language, today=today.isoformat())
     messages: list[BaseMessage] = [
-        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind)),
+        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind, compact=True)),
         *history(conn, conversation_id, message_id),
     ]
     run = _Run(conn, ctx, usage, calls, stopped, started_at, started, model_name, trigger)

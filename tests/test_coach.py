@@ -112,7 +112,7 @@ def test_the_coach_sees_the_snapshot_and_the_conversation(conn, program):
 
     system, *conversation = model.seen[0]
     assert isinstance(system, SystemMessage)
-    assert "Legs + Metcon" in system.content and '"today": "2026-03-04"' in system.content
+    assert "Legs + Metcon" in system.content and '"today":"2026-03-04"' in system.content
     assert [m.content for m in conversation] == [
         "Salut coach",
         "Salut !",
@@ -307,7 +307,8 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
     legs = next(s for s in seen["sessions_this_week_and_next"] if s["id"] == sid)
     assert legs["week"] == 1 and legs["parts"]
     assert legs["status"] == "done" and not legs["upcoming"]  # logged in the example programme
-    assert {"id", "version", "position", "kind", "title", "lines"} == set(legs["parts"][0])
+    # empty fields are left out (a part without a title has no "title")
+    assert {"id", "version", "position", "kind", "lines"} <= set(legs["parts"][0])
     line = next(line for part in legs["parts"] for line in part["lines"])
     assert line["exercise"] and line["origin"] in ("planned", "done") and line["version"]
     for s in seen["sessions_this_week_and_next"]:

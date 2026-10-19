@@ -125,6 +125,20 @@ def no_planned_line(conn, p) -> tuple[bool, str]:
     return n == 0, f"{n} planned line(s) of {p['exercise']}"
 
 
+def planned_line_in_part(conn, p) -> tuple[bool, str]:
+    """The session has a part of that kind holding at least one planned line."""
+    rows = conn.execute(
+        "select sp.id, count(l.id) from session_part sp"
+        " join planned_session s on s.id = sp.session_id"
+        " join training_week w on w.id = s.week_id"
+        " left join session_exercise l on l.part_id = sp.id and l.origin = 'planned'"
+        " where w.number = %s and s.title = %s and sp.kind = %s group by sp.id",
+        (p["week"], p["title"], p["kind"]),
+    ).fetchall()
+    filled = sum(1 for _, n in rows if n > 0)
+    return filled > 0, f"{len(rows)} {p['kind']} part(s), {filled} with a planned line"
+
+
 def goals(conn, p) -> tuple[bool, str]:
     (n,) = conn.execute("select count(*) from goal").fetchone()
     return n == p["count"], f"{n} goal(s)"
@@ -149,6 +163,7 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "done_line": done_line,
     "no_planned_line": no_planned_line,
     "goals": goals,
+    "planned_line_in_part": planned_line_in_part,
     "no_forbidden_suggestion": no_forbidden_suggestion,
 }
 

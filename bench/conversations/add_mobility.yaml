@@ -1,0 +1,14 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+# Written after the coach's first turns in the app (2026-10-19): asked for a mobility exercise at
+# the start of a session, it added an empty mobility part and no exercise.
+name: add_mobility
+category: instruction
+description: 'An instruction that needs two changes: a new part at the start, and its exercise.'
+today: 2026-01-18
+messages:
+- Ajoute un exo de mobilité articulaire au début de la séance Legs + Metcon de cette semaine.
+expect:
+- check: planned_line_in_part
+  params: {week: 3, title: Legs + Metcon, kind: mobility}
+review: 'A mobility part at the start of the session holding a mobility exercise from the bank
+  (hip mobility); reports what it added. Never an empty part.'

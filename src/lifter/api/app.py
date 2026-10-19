@@ -1,8 +1,8 @@
-"""Read-only HTTP API of the app: every endpoint reads the analytics views, nothing is computed.
+"""HTTP API of the app: every endpoint reads the analytics views, nothing is computed.
 
-Slice 1 of the app (docs: README, section App). The connection is opened read-only, so no
-endpoint can write even by mistake; writes (approving proposals) come in slice 2, through
-lifter.domain only.
+The connection is opened read-only, so no endpoint can write even by mistake. The one write is
+the conversation with the coach (lifter.api.conversation), on its own roles: the athlete's
+message as lifter_chat, the coach's changes as lifter_coach, through lifter.operations only.
 """
 
 import hmac
@@ -20,6 +20,7 @@ from psycopg.rows import dict_row
 
 from lifter import __version__
 from lifter.api import models
+from lifter.api.conversation import CoachSetup, register
 from lifter.db import connect
 
 # Host headers the API answers: without this check, a page whose name a DNS server rebinds to
@@ -94,11 +95,13 @@ def create_app(
     *,
     hosts: list[str] | None = None,
     token: str | None = None,
+    coach: CoachSetup | None = None,
 ) -> FastAPI:
     """The API on `database_url`, opened read-only.
 
     `app_origins` may call it from a browser; `hosts` are the host names it answers besides this
-    machine; with a `token`, every request must carry `Authorization: Bearer <token>`.
+    machine; with a `token`, every request must carry `Authorization: Bearer <token>`. Without
+    `coach`, the conversation endpoints answer 503.
     """
     app = FastAPI(title="Lifter API", version=__version__)
     app.state.database_url = read_only_url(database_url)
@@ -361,4 +364,5 @@ def create_app(
             (status,),
         ).fetchall()
 
+    register(app, coach)
     return app

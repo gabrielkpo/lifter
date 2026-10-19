@@ -718,6 +718,13 @@ class CreateSession(SessionIn):
     weeks=lambda c, p: {p.week_id} if p.week_id else _week_of_day(c, p.day),
 )
 def create_session(conn, p: CreateSession, ctx: Context) -> Change:
+    kinds = [part.kind for part in p.parts]
+    twice = sorted({k for k in kinds if kinds.count(k) > 1})
+    if twice:
+        raise OperationError(
+            f"a session holds one part per kind, not two {twice[0]} parts: put their"
+            " exercises in one"
+        )
     session_id = domain.create_session(conn, p, ctx.source)
     images = [_image(conn, "planned_session", session_id)]
     for (part_id,) in conn.execute(
@@ -877,9 +884,9 @@ class PartFields(StrictModel):
 class AddPart(PartFields):
     """Add a part to a session (warm-up, weightlifting, gymnastics, strength, metcon, cardio,
     mobility): one part per kind, its exercises go inside it (add_line), so a session that
-    already has a part of this kind refuses it. Without `position`, it takes its place in the
-    usual order (warm-up, mobility, weightlifting, gymnastics, strength, metcon, cardio); at
-    `position`, the parts after it move down."""
+    already has a part of this kind refuses it. It takes its place in the usual order (warm-up,
+    mobility, weightlifting, gymnastics, strength, metcon, cardio), the parts after it move
+    down; `position` is accepted and ignored, the order decides."""
 
     session_id: int
     position: int | None = Field(default=None, ge=1)
@@ -899,6 +906,19 @@ def _shift_parts(conn, session_id: int, from_position: int, images: list[RowImag
 PART_ORDER = ("warmup", "mobility", "weightlifting", "gymnastics", "strength", "metcon", "cardio")
 
 
+def _one_part_per_kind(conn, session_id: int, kind: str, but: int | None = None) -> None:
+    """A session holds one part per kind: its exercises go inside it (add_line)."""
+    same = conn.execute(
+        "select id from session_part where session_id = %s and kind = %s and id <> %s limit 1",
+        (session_id, kind, but or 0),
+    ).fetchone()
+    if same:
+        raise OperationError(
+            f"session {session_id} already has a {kind} part (part {same[0]}): add the"
+            " exercises to it (add_line), one part per kind"
+        )
+
+
 @_register(
     "add_part",
     AddPart,
@@ -912,19 +932,12 @@ def add_part(conn, p: AddPart, ctx: Context) -> Change:
         "select id, kind, position from session_part where session_id = %s order by position",
         (p.session_id,),
     ).fetchall()
-    same = next((part_id for part_id, kind, _ in parts if kind == p.kind), None)
-    if same is not None:
-        raise OperationError(
-            f"session {p.session_id} already has a {p.kind} part (part {same}): add the"
-            " exercises to it (add_line), one part per kind"
-        )
-    last = parts[-1][2] if parts else 0
-    if p.position is None:
-        rank = PART_ORDER.index(p.kind)
-        after = [pos for _, kind, pos in parts if PART_ORDER.index(kind) > rank]
-        position = min(after) if after else last + 1
-    else:
-        position = min(p.position, last + 1)
+    _one_part_per_kind(conn, p.session_id, p.kind)
+    # Its place in the usual order: before the first part ranked after it, else last. The order
+    # decides, not `position`: a mobility part never lands before the warm-up.
+    rank = PART_ORDER.index(p.kind)
+    after = [pos for _, kind, pos in parts if PART_ORDER.index(kind) > rank]
+    position = min(after) if after else (parts[-1][2] if parts else 0) + 1
     shifted: list[RowImage] = []
     _shift_parts(conn, p.session_id, position, shifted)
     img = _insert(
@@ -956,8 +969,12 @@ UpdatePart = _partial(
     weeks=lambda c, p: _week_of_part(c, p.id),
 )
 def update_part(conn, p, ctx: Context) -> Change:
+    changes = p.changes()
+    if "kind" in changes:
+        part = _existing(conn, "session_part", p.id)
+        _one_part_per_kind(conn, part["session_id"], changes["kind"], but=p.id)
     return _named(
-        _update(conn, "session_part", p.id, p.expected_version, p.changes()), "update_part"
+        _update(conn, "session_part", p.id, p.expected_version, changes), "update_part"
     )
 
 

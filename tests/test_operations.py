@@ -626,7 +626,13 @@ def test_a_session_has_one_part_per_kind_in_the_usual_order(conn, program):
     with pytest.raises(OperationError, match="already has a"):
         do(conn, "add_part", {"session_id": sid, "kind": kinds[0]}, "ajoute une autre partie")
     missing = next(k for k in ("mobility", "warmup") if k not in kinds)
-    do(conn, "add_part", {"session_id": sid, "kind": missing}, "ajoute une partie mobilité")
+    # A position against the usual order is ignored: the order decides.
+    do(
+        conn,
+        "add_part",
+        {"session_id": sid, "kind": missing, "position": len(kinds) + 1},
+        "ajoute une partie mobilité à la fin",
+    )
     order = [
         r[0]
         for r in conn.execute(
@@ -635,6 +641,30 @@ def test_a_session_has_one_part_per_kind_in_the_usual_order(conn, program):
     ]
     ranks = [operations.PART_ORDER.index(k) for k in order]
     assert ranks == sorted(ranks), order
+    # Nor can another write make two parts of one kind: changing a kind, creating a session.
+    part = conn.execute(
+        "select id, version from session_part where session_id = %s and kind = %s",
+        (sid, missing),
+    ).fetchone()
+    with pytest.raises(OperationError, match="already has a"):
+        do(
+            conn,
+            "update_part",
+            {"id": part[0], "expected_version": part[1], "kind": kinds[0]},
+            "change le type de la partie",
+        )
+    day = conn.execute("select day from planned_session where id = %s", (sid,)).fetchone()[0]
+    with pytest.raises(OperationError, match="one part per kind"):
+        do(
+            conn,
+            "create_session",
+            {
+                "day": str(day),
+                "title": "Double",
+                "parts": [{"kind": "mobility"}, {"kind": "mobility"}],
+            },
+            "crée une séance avec deux mobilités",
+        )
 
 
 def test_undo_is_refused_once_the_row_changed_again(conn, program):

@@ -163,12 +163,15 @@ export default function CoachPage() {
   useEffect(() => {
     const view = window.visualViewport;
     if (!view) return;
+    let wasOpen = false;
     const onChange = () => {
       const keyboard = Math.max(0, window.innerHeight - view.height - view.offsetTop);
       const open = keyboard > 80;
       document.documentElement.style.setProperty("--keyboard", `${open ? keyboard : 0}px`);
       document.body.classList.toggle("keyboard-open", open);
-      if (open) window.scrollTo({ top: document.documentElement.scrollHeight });
+      // To the end once, as it opens: scrolling up to reread stays possible while typing.
+      if (open && !wasOpen) window.scrollTo({ top: document.documentElement.scrollHeight });
+      wasOpen = open;
     };
     onChange();
     view.addEventListener("resize", onChange);

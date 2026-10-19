@@ -2,12 +2,12 @@
   "coach": "silent",
   "model": null,
   "summary": {
-    "runs": 9,
-    "expectations_met_rate": 0.562,
+    "runs": 10,
+    "expectations_met_rate": 0.529,
     "scenarios_fully_met": 4,
     "refused_quotes": 0,
     "stopped": 0,
-    "model_calls": 10,
+    "model_calls": 11,
     "input_tokens": 0,
     "output_tokens": 0
   },
@@ -20,7 +20,7 @@
       "expectations": 1,
       "outcomes": [
         {
-          "check": "planned_line_in_part 3 Legs + Metcon mobility",
+          "check": "planned_line_in_part 3 Legs + Metcon mobility 1",
           "passed": false,
           "detail": "0 mobility part(s), 0 with a planned line"
         }
@@ -104,6 +104,28 @@
           "check": "done_line 3 Legs + Metcon Leg press",
           "passed": false,
           "detail": "0 done line(s) of Leg press"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "mobility_three_joints",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "planned_line_in_part 3 Legs + Metcon mobility 1",
+          "passed": false,
+          "detail": "0 mobility part(s), 0 with a planned line"
         }
       ],
       "model_calls": 1,

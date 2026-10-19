@@ -49,6 +49,7 @@ uv run lifter proposals                 # then: lifter proposal approve|reject I
 | Check | Refuses |
 |---|---|
 | `days` | A session outside the target week |
+| `part_kinds` | Two parts of one kind in a session (two strength parts): one part per kind, as the catalogue requires |
 | `exercise_bank` | An exercise that is not in the bank |
 | `cancellations` | Cancelling a session that is not an open session of the target week |
 | `sources` | A number in the summary or a rationale that appears nowhere in the context or in the plan's own values: loads, counts, targets, days, never its titles or notes (agents read numbers, they never compute them) |

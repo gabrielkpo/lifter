@@ -8,6 +8,7 @@ import pytest
 from lifter import domain
 from lifter.agents.context import PlanningError
 from lifter.agents.week_check import introduced, violations_for_week
+from lifter.conversation import start
 from lifter.program import load_program, read_program
 from lifter.quote import QuoteError, check_quote, normalize, verify_quote
 
@@ -109,6 +110,7 @@ def test_quotes_match_whole_words_only():
 @pytest.fixture
 def messages(conn):
     """An athlete's message and a coach's reply, as the conversation endpoint stores them."""
+    start(conn, id="c1", title="Décale jeudi à vendredi stp", source="cli")
     rows = conn.execute(
         "insert into conversation_message (conversation_id, role, text) values"
         " ('c1', 'athlete', 'Décale jeudi à vendredi stp'),"

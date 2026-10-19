@@ -908,3 +908,130 @@ body::before {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* The page header's own buttons (app/coach: history, new conversation). */
+.topbar-title,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.icon-button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+/* The conversation on screen, under the header: its first words, on one line. */
+.chat-title {
+  margin: -6px 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The conversations panel (components/ConversationDrawer): it slides in from the left over the
+   page and the tab bar; a tap beside it, or Escape, closes it. */
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.drawer[data-open="true"] {
+  pointer-events: auto;
+}
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.drawer[data-open="true"] .drawer-backdrop {
+  opacity: 1;
+}
+.drawer-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(320px, 85vw);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(env(safe-area-inset-top) + 16px) 12px calc(env(safe-area-inset-bottom) + 16px);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  transform: translateX(-100%);
+  transition: transform 220ms ease;
+  outline: none;
+}
+.drawer[data-open="true"] .drawer-panel {
+  transform: none;
+}
+.drawer-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.drawer-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.drawer-group {
+  margin: 16px 12px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.drawer-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.drawer-item[aria-current="page"] {
+  background: var(--surface-2);
+}
+body.drawer-open {
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop,
+  .drawer-panel {
+    transition: none;
+  }
+}

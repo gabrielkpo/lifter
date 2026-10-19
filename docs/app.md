@@ -3,9 +3,11 @@
 A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private HTTP API
 (FastAPI, `src/lifter/api/`), read-only but for the conversation with the coach. The API reads the same analytics views as the CLI and
 computes nothing of its own. Five tabs: **WOD** (the week, day by day, and each session planned
-against done), **PRs** (best loads by kind and family), **Coach** (the conversation: what the athlete
-asks is applied at once and shown under the reply with an undo; the coach's own ideas come back
-as numbered suggestions, accepted with "ok pour N"),
+against done), **PRs** (best loads by kind and family), **Coach** (the conversations: the tab opens on a new
+one, the history panel on the left resumes any earlier one, named in the address `?c=`; what the
+athlete asks is applied at once and shown under the reply with an undo; the coach's own ideas
+come back as numbered suggestions, accepted with "ok pour N" in the conversation that showed
+them),
 **Planning** (three views: Cycles, the blocks counted in strength sessions; Weeks; Goals, a
 table of targets, dates and next milestones) and **Health** (recovery
 read against the sessions of each day); the profile opens from the avatar.
@@ -28,8 +30,11 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 | `GET /profile` | The athlete (age, never the birth date), declared health issues, active rules |
 | `GET /status` | When the Mac's sync last stored or confirmed a Garmin payload (the app's freshness banner) |
 | `GET /proposals?status=pending` | The agents' proposals |
-| `GET /conversation?limit=50` | The conversation with the coach, oldest first: each athlete message with the changes it authorised, each reply with the suggestions it presented |
-| `POST /conversation` `{text}` | The athlete's message, then the coach's answer to it (one turn, 1 to 8 model calls): 409 if a newer message is waiting, 502 if the model is unreachable, 503 if the database is, or if the coach is not configured |
+| `GET /conversations?limit=50&before=` | The conversations with the coach, the most recently active first (id, title: the start of the first message, dates); `before`, the last id of a page, gives the next one |
+| `GET /conversations/{id}?limit=50` | A conversation and its latest messages, oldest first: each athlete message with the changes it authorised, each reply with the suggestions it presented; 404 for an unknown id |
+| `POST /conversations` `{text}` | A new conversation, opened by the athlete's first message, then the coach's answer to it (one turn, 1 to 8 model calls). Its id is drawn by the server. 502 if the model is unreachable, 503 if the database is or the coach is not configured; when the conversation was opened all the same, the error's `detail` names it (`conversation_id`) |
+| `POST /conversations/{id}` `{text}` | The athlete's next message in a conversation, then the coach's answer: 404 for an unknown id, 409 if a newer message is waiting in it, 502 and 503 as above |
+| `GET /conversation`, `POST /conversation` | The first conversation (`main`), for one release after 0.2.2, then removed |
 
 Run locally, the API listens on `127.0.0.1` only, opens its database connection read-only and
 requires a bearer token when `LIFTER_API_TOKEN` is set; only the app origins in
@@ -41,7 +46,7 @@ Three pieces, each behind Vercel's Deployment Protection (Vercel
 Authentication on every deployment, production included):
 - **App** (Vercel project `lifter`, root `web/`): the browser only talks to the app's own server,
   which reads the API (`web/app/api/[...path]/route.ts`, GET on the API's endpoints). The one
-  write it forwards is a message to the coach (`POST /conversation`), and only from the app's
+  write it forwards is a message to the coach (`POST /conversations`, `/conversations/{id}`), and only from the app's
   own pages: a request whose `Origin` is not the app's is refused (403). The API's address,
   token and protection bypass secret are server-side variables, never sent to the page.
 - **API** (Vercel project `lifter-api`, entry point `api/index.py`): refuses to start without
@@ -49,8 +54,8 @@ Authentication on every deployment, production included):
   only its own host names and allows no browser origin.
 - **Database** (Neon Postgres, Frankfurt): the API connects with a role that can only read
   (`SELECT` grants, read-only transactions). The conversation uses two other roles: the
-  athlete's message is stored as `lifter_chat` (`LIFTER_CHAT_DATABASE_URL`), which may write
-  the athlete's words and nothing else; the coach answers as `lifter_coach`
+  athlete's message is stored as `lifter_chat` (`LIFTER_CHAT_DATABASE_URL`), which may open a
+  conversation and write the athlete's words, nothing else; the coach answers as `lifter_coach`
   (`LIFTER_COACH_DATABASE_URL`), whose writes go through `lifter.operations` and are refused at
   commit without a trace. The model is Mistral (`MISTRAL_API_KEY`, `LIFTER_MODEL`), in
   `LIFTER_COACH_LANGUAGE`, within `LIFTER_RUN_TOKEN_BUDGET`; without these, the conversation

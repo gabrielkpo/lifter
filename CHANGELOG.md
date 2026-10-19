@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.2.1](https://github.com/gabrielkpo/lifter/compare/v0.2.0...v0.2.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** the coach's thread never hides under the bars, and every planned part is shown ([#89](https://github.com/gabrielkpo/lifter/issues/89)) ([fccfce2](https://github.com/gabrielkpo/lifter/commit/fccfce26381fe600f866763541cc001680225d34))
+
+## [0.2.0](https://github.com/gabrielkpo/lifter/compare/v0.1.3...v0.2.0) (2026-10-19)
+
+
+### Features
+
+* the coach in the app, a conversation where saying it is deciding it ([#86](https://github.com/gabrielkpo/lifter/issues/86)) ([c3a3dc8](https://github.com/gabrielkpo/lifter/commit/c3a3dc84459bb016f95c7b7f0c39316266ddd81e))
+
+
+### Bug Fixes
+
+* **ops:** a sync missed in a dark wake is caught up at the next use of the Mac ([#87](https://github.com/gabrielkpo/lifter/issues/87)) ([7536708](https://github.com/gabrielkpo/lifter/commit/75367087cbf5a4d95be551e9a00cdb62b1742980))
+
+## [0.1.3](https://github.com/gabrielkpo/lifter/compare/v0.1.2...v0.1.3) (2026-10-18)
+
+
+### Bug Fixes
+
+* **agents:** the coach's tool calls run one at a time, in the model's order ([#83](https://github.com/gabrielkpo/lifter/issues/83)) ([c5007e8](https://github.com/gabrielkpo/lifter/commit/c5007e80d093aecb1ec9ea4ff0506a6c38dbd635))
+* the agents lose their table-wide insert on proposals, the Mac stays awake through its jobs ([#85](https://github.com/gabrielkpo/lifter/issues/85)) ([b06cd90](https://github.com/gabrielkpo/lifter/commit/b06cd90cd5292f0ae1003a63b8a802c552840dcb))
+
 ## [0.1.2](https://github.com/gabrielkpo/lifter/compare/v0.1.1...v0.1.2) (2026-10-18)
 
 

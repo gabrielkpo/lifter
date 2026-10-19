@@ -9,12 +9,16 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 | Job (launchd) | When | What | Database role |
 |---|---|---|---|
 | `com.lifter.sync` | 07:30 and 21:00 | `lifter sync --days 3 --no-migrate`: last three days from Garmin into the raw layer; the schema is only checked. Then `lifter audit-purge`: the agents' runs older than 90 days lose their context, plans and messages, and keep their metrics (ADR 0002) | `lifter_sync` (writes the raw layer only; may run the purge function, not read the audit) |
+| `com.lifter.sync-catchup` | every hour | `lifter-sync.sh --catch-up`: the same sync, only when the Mac is in use (keyboard or trackpad in the last 10 minutes) and the last successful sync is more than 12 hours old | `lifter_sync` |
 | `com.lifter.backup` | 13:00 | `pg_dump` of the whole database (custom format), kept 30 days, verified with `pg_restore --list` | `lifter_backup` (read-only) |
 | `com.lifter.restore-check` | Sunday 13:30 | restores the latest backup into a throwaway local database and checks the core tables | none on the hosted side |
 
 The sync needs the Garmin MCP server up on `127.0.0.1:8080` (a Docker container: Docker
 Desktop must start at login), and the restore test needs the local Postgres server. A job
-missed while the Mac sleeps runs at wake-up. Logs are in `~/Library/Logs/lifter/`, readable by
+missed while the Mac sleeps runs at wake-up. Each job runs under `caffeinate`, which keeps the Mac
+awake on power; on battery, a job started by a dark wake is put back to sleep within seconds
+whatever it asks, and the sync loses its database connection. Such a failure, with nobody at
+the Mac, raises no notification: the catch-up job syncs at the next use. Logs are in `~/Library/Logs/lifter/`, readable by
 this user only (they can hold full tracebacks).
 
 **Exit codes** of `lifter sync`, which the sync job reads (any code but 0 is a failure): `0`

@@ -739,3 +739,128 @@ button {
   font-weight: 700;
   color: var(--text);
 }
+
+/* The conversation with the coach (app/coach): the athlete on the right, the coach on the left,
+   the input pinned above the tab bar. */
+:root {
+  /* Where the coach's input sits: above the tab bar on a phone, at the bottom on a computer. */
+  --chat-input-bottom: calc(var(--island-space) + env(safe-area-inset-bottom));
+}
+/* Its bottom padding follows the input's height (app/coach), so nothing hides under it. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bubble {
+  max-width: 85%;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.bubble p + p,
+.bubble p + ul,
+.bubble ul + p {
+  margin-top: 10px;
+}
+.bubble ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.45;
+}
+.bubble li + li {
+  margin-top: 4px;
+}
+.bubble[data-role="athlete"] {
+  align-self: flex-end;
+  background: var(--surface-2);
+}
+.bubble[data-role="coach"] {
+  align-self: flex-start;
+}
+.chat-change {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--muted);
+}
+.chat-change .chip {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+.chat-input {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--chat-input-bottom);
+  z-index: 5;
+  width: min(536px, calc(100% - 2 * var(--island-gap)));
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 6px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  max-height: 140px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.chat-input .pill:disabled {
+  opacity: 0.4;
+}
+.chat-floor {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  background: linear-gradient(to top, var(--bg) calc(100% - 16px), transparent);
+  pointer-events: none;
+}
+/* Back to the latest message, when the thread is scrolled up. */
+.chat-to-end {
+  position: fixed;
+  right: max(16px, calc((100% - 560px) / 2 + 16px));
+  z-index: 6;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 20px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+@media (min-width: 900px) {
+  :root {
+    --chat-input-bottom: 24px;
+  }
+  .chat-to-end {
+    right: 48px;
+  }
+  .chat-input {
+    left: calc(var(--sidebar) + (100% - var(--sidebar)) / 2);
+    width: min(720px, calc(100% - var(--sidebar) - 80px));
+  }
+}

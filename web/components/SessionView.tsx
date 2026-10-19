@@ -34,8 +34,16 @@ export default function SessionView({
 
       <div className="parts">
         {session.parts
-          // Nothing prescribed (a warm-up left free): nothing to show in the plan.
-          .filter((part) => mode === "done" || part.planned.length > 0 || part.notes || part.format)
+          // A warm-up left free is not shown; any other part is, empty ones included (one the
+          // coach just added, before its exercises): what changed is always visible.
+          .filter(
+            (part) =>
+              mode === "done" ||
+              part.kind !== "warmup" ||
+              part.planned.length > 0 ||
+              part.notes ||
+              part.format,
+          )
           .map((part) =>
           mode === "plan" ? (
             <PlannedPart key={part.position} part={part} />

@@ -217,6 +217,19 @@ def test_grants_survive_the_views_being_recreated(conn):
     assert privileges(conn, "lifter_api", "analytics.daily_metrics") == {READ}
 
 
+def test_a_database_granted_before_loses_the_agents_table_wide_insert(conn):
+    # roles.sql runs on a database that already holds earlier grants (Neon): the agents' old
+    # insert on the whole proposal table must go, not only a new column grant come (v0.1.2).
+    conn.execute("grant insert on proposal to lifter_propose")
+    assert INSERT in privileges(conn, "lifter_agents", "public.proposal")
+    conn.execute("update public.schema_views set sha256 = 'changed' where name = 'roles.sql'")
+    migrate(conn)
+    assert INSERT not in privileges(conn, "lifter_agents", "public.proposal")
+    column = "select has_column_privilege('lifter_agents', 'proposal', %s, 'INSERT')"
+    assert conn.execute(column, ("payload",)).fetchone() == (True,)
+    assert conn.execute(column, ("status",)).fetchone() == (False,)
+
+
 def test_login_roles_carry_their_guards(conn):
     # SET ROLE does not apply per-role settings: check them where Postgres stores them.
     settings = dict(

@@ -43,6 +43,14 @@ from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 
 AGENT = "coach"
 MAX_STEPS = 8
+# The hosted API runs a turn in a function killed at 60 s. No model call starts after
+# DEADLINE_SECONDS, and one call lasts at most CALL_TIMEOUT_SECONDS: a turn ends, its reply
+# stored and audited, about 10 s before the platform cuts it. 15 s leaves a long reply (several
+# hundred tokens) the time it needs. One attempt per call (max_retries=1: LangChain counts
+# attempts, and would retry only network errors, after at least 4 s); a failed call ends the
+# turn with its error, audited.
+DEADLINE_SECONDS = 35
+CALL_TIMEOUT_SECONDS = 15
 HISTORY = 20  # earlier messages of the conversation the coach sees
 
 SYSTEM_PROMPT = """You are the coach of Lifter, a CrossFit coach. You talk with the athlete \
@@ -68,7 +76,13 @@ with the athlete's next message; an expired suggestion comes back once you prese
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
 
-Finding what the athlete means: sessions, their parts, ids and versions are in the snapshot. A \
+Finish what the athlete asked: adding an exercise is add_line. When no part of the session \
+fits (a mobility or warm-up block at the start, say), add_part first, then add_line in it with \
+the entity_id add_part returned: never leave a new part empty. If the athlete did not name the \
+exercise, take one of the right category from the exercise_bank and say which.
+
+Finding what the athlete means: sessions, their parts and each part's lines (exercise, sets, \
+reps, load, RIR; planned and done), with ids and versions, are in the snapshot. A \
 session to move, change or cancel is an upcoming one (upcoming: true: today or later, not done \
 nor cancelled) unless the athlete names a past day; a session report is about a past or today's \
 session. Two sessions can share a title in different weeks: take the one in the week of the \
@@ -109,8 +123,8 @@ def mistral_model(api_key: str, model: str, max_output_tokens: int = 6000) -> Ch
         model=model,
         api_key=api_key,
         temperature=0.2,
-        timeout=120,
-        max_retries=2,
+        timeout=CALL_TIMEOUT_SECONDS,
+        max_retries=1,
         max_tokens=max_output_tokens,
     )
 
@@ -175,11 +189,28 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " where session_id = any(%s) order by session_id, position",
         ([s["id"] for s in sessions],),
     )
+    # Each part's lines, planned and done: without them a part looks empty to the model, which
+    # then describes or edits a session it has not read.
+    lines = _rows(
+        conn,
+        "select l.id, l.version, l.part_id, l.origin, l.position, e.name as exercise, l.sets,"
+        " l.quantity, l.unit, l.load_kg, l.load_kg_max, l.rir"
+        " from session_exercise l join exercise e on e.id = l.exercise_id"
+        " where l.part_id = any(%s) order by l.part_id, l.origin, l.position",
+        ([p["id"] for p in parts],),
+    )
+    for part in parts:
+        # Empty fields left out: the lines are most of the snapshot's size
+        part["lines"] = [
+            {k: v for k, v in line.items() if k != "part_id" and v is not None}
+            for line in lines
+            if line["part_id"] == part["id"]
+        ]
     for session in sessions:
         # status is the dbt mart's: "missed" is judged on the real date, not on `today`
         session["upcoming"] = session["day"] >= today and session["status"] not in UNMOVABLE
         session["parts"] = [
-            {k: v for k, v in part.items() if k != "session_id"}
+            {k: v for k, v in part.items() if k != "session_id" and v is not None}
             for part in parts
             if part["session_id"] == session["id"]
         ]
@@ -198,7 +229,12 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " order by id",
         (conversation_id,),
     )
-    bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    # The bank's names grouped by category, so "an exercise of the right kind" can be read
+    bank: dict[str, list[str]] = {}
+    for name, category in conn.execute(
+        "select name, category from exercise order by category, name"
+    ).fetchall():
+        bank.setdefault(category, []).append(name)
     rules = _rows(conn, "select code, text from athlete_rule where active order by id")
     changes = _rows(
         conn,
@@ -232,8 +268,14 @@ def history(conn: psycopg.Connection, conversation_id: str, message_id: int) -> 
     return [HumanMessage(text) if role == "athlete" else AIMessage(text) for role, text in rows]
 
 
-def _json(value: Any) -> str:
-    return json.dumps(value, default=str, ensure_ascii=False)
+def _json(value: Any, compact: bool = False) -> str:
+    separators = (",", ":") if compact else None
+    return json.dumps(value, default=str, ensure_ascii=False, separators=separators)
+
+
+def _now() -> float:
+    """The clock the turn's deadline reads (a function, so a test can replace it alone)."""
+    return time.monotonic()
 
 
 def respond(
@@ -248,6 +290,7 @@ def respond(
     trigger: str | None = None,
     token_budget: int | None = None,
     max_steps: int = MAX_STEPS,
+    deadline_seconds: float | None = DEADLINE_SECONDS,
 ) -> CoachReply:
     """Answer the athlete's message `message_id`, already stored in `conversation_message`.
 
@@ -267,7 +310,7 @@ def respond(
     today = today or date.today()
     register_rule_check()
     started_at = datetime.now(UTC)
-    started = time.monotonic()
+    started = _now()
     state_of_mind = snapshot(conn, today, conversation_id)
     ctx = ToolContext(conn=conn, message_id=message_id, conversation_id=conversation_id)
     tools = coach_tools(ctx)
@@ -277,7 +320,14 @@ def respond(
     calls: list[dict] = []  # every tool call and its result, kept even if the run crashes
     tool_node = ToolNode(tools)
 
+    def past_deadline() -> bool:
+        return deadline_seconds is not None and _now() - started >= deadline_seconds
+
     def coach(state: MessagesState) -> dict:
+        # Checked again before every call: the tools since the last check took time too
+        if usage.calls and past_deadline():
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
+            return {"messages": [AIMessage("")]}
         answer = bound.invoke(state["messages"])
         usage.calls += 1
         meta = getattr(answer, "usage_metadata", None) or {}
@@ -301,6 +351,9 @@ def respond(
         if token_budget is not None and usage.total_tokens >= token_budget:
             stopped.append(f"token budget reached: {usage.total_tokens} of {token_budget}")
             return END
+        if past_deadline():
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
+            return END
         return "tools"
 
     graph = StateGraph(MessagesState)
@@ -312,7 +365,7 @@ def respond(
 
     system = SYSTEM_PROMPT.format(language=language, today=today.isoformat())
     messages: list[BaseMessage] = [
-        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind)),
+        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind, compact=True)),
         *history(conn, conversation_id, message_id),
     ]
     run = _Run(conn, ctx, usage, calls, stopped, started_at, started, model_name, trigger)
@@ -413,7 +466,7 @@ class _Run:
                 self.usage.calls,
                 self.usage.input_tokens,
                 self.usage.output_tokens,
-                round(time.monotonic() - self.started, 3),
+                round(_now() - self.started, 3),
                 Jsonb(self.context | {"calls": self.calls}, dumps=_json),
                 Jsonb(self.stopped),
                 proposals + self.ctx.suggestions,

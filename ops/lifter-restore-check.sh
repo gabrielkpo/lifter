@@ -5,6 +5,7 @@
 # out (they name the hosted roles); `lifter migrate` recreates them on a real restore.
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
+stay_awake "$@"
 LIFTER_LOG="$LIFTER_LOG_DIR/restore-check.log"
 BACKUP_DIR="$LIFTER_BACKUP_DIR"
 TARGET="lifter_restore_check"

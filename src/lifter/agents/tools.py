@@ -263,13 +263,14 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         change_id = (payload or {}).get("change_id")
         if not isinstance(change_id, int):
             return None  # the payload check refuses it
+        # A change with no athlete message behind it counts as made elsewhere too
         row = conn.execute(
             "select m.conversation_id from change_log c join proposal p on p.id = c.proposal_id"
-            " join public.conversation_message m on m.id = p.message_id where c.id = %s",
+            " left join public.conversation_message m on m.id = p.message_id where c.id = %s",
             (change_id,),
         ).fetchone()
         if row is None or row[0] == ctx.conversation_id:
-            return None
+            return None  # no such change (operations.run says so), or one made here
         try:
             verify_quote(conn, ctx.message_id, quote)  # no short quote for a change made elsewhere
         except QuoteError:

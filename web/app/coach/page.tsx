@@ -148,6 +148,11 @@ function Coach() {
   const newReply = useRef<HTMLDivElement>(null);
   // Where to go once the thread renders: its end on load, a new reply's first line after it.
   const pendingScroll = useRef<"end" | "reply" | null>("end");
+  // The conversation on screen when a reply comes back: the athlete may have moved on since.
+  const here = useRef(current);
+  useEffect(() => {
+    here.current = current;
+  }, [current]);
 
   const mine = <T,>(tagged: Tagged<T> | null) =>
     tagged?.id === current ? tagged.value : null;
@@ -314,9 +319,11 @@ function Coach() {
           : `/conversations/${encodeURIComponent(where)}`,
         { text: words },
       );
-      pendingScroll.current = "reply";
+      if (here.current === where) pendingScroll.current = "reply";
       if (where === null) {
-        // Opened by this message: on screen already, the address names it from now on.
+        // Opened by this message: shown, and named in the address, if still on screen; the
+        // history panel has it otherwise.
+        if (here.current !== null) return;
         setLoaded({
           id: reply.conversation_id,
           messages: [reply.athlete, reply.coach],
@@ -344,7 +351,7 @@ function Coach() {
       const stored =
         where ?? (failed instanceof ApiError ? failed.conversationId : null);
       setSaid({ id: stored, value: failure(failed) });
-      if (stored !== null) {
+      if (stored !== null && here.current === where) {
         await reload(stored);
         if (where === null) {
           router.replace(`/coach?c=${encodeURIComponent(stored)}`, {
@@ -473,7 +480,7 @@ function Coach() {
                   <button
                     type="button"
                     className="chip"
-                    disabled={sending !== null}
+                    disabled={turn !== null}
                     onClick={() =>
                       void send(`annule le changement ${change.change_id}`)
                     }
@@ -495,7 +502,7 @@ function Coach() {
                     <button
                       type="button"
                       className="chip"
-                      disabled={sending !== null}
+                      disabled={turn !== null}
                       onClick={() => void send(`ok pour la ${suggestion.id}`)}
                     >
                       OK
@@ -562,7 +569,7 @@ function Coach() {
           type="submit"
           className="pill"
           aria-pressed
-          disabled={!draft.trim() || !!sending}
+          disabled={!draft.trim() || turn !== null}
         >
           Send
         </button>

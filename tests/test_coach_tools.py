@@ -8,6 +8,7 @@ import pytest
 
 from lifter import operations
 from lifter.agents.tools import ToolContext, coach_tools, operation_list, register_rule_check
+from lifter.conversation import start
 from lifter.program import load_program, read_program
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -27,6 +28,7 @@ def program(conn):
 
 def say(conn, text: str) -> int:
     """The athlete's message, stored by the conversation endpoint before the model runs."""
+    start(conn, id="c1", title=text, source="cli")
     return conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'athlete', %s) returning id",
@@ -233,6 +235,7 @@ def test_a_suggestion_made_during_the_turn_cannot_be_accepted_in_it(conn, progra
 
 def coach_replies(conn, text: str, shown: list[int]) -> int:
     """The coach's reply as respond() stores it, presenting `shown` (audit N7)."""
+    start(conn, id="c1", title=text, source="cli")
     message = conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'coach', %s) returning id",

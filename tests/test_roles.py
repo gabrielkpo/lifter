@@ -12,6 +12,7 @@ import psycopg
 import pytest
 
 from lifter import domain
+from lifter.conversation import start
 from lifter.db import connect, migrate
 from synthetic import activity
 from test_sync import D1, D2, FakeCaller, listing, run_sync, two_days
@@ -27,6 +28,7 @@ MATRIX = {
         # Not the agents' audit, the conversation nor the change log (audit N5).
         "public.agent_run": set(),
         "public.agent_step": set(),
+        "public.conversation": set(),
         "public.conversation_message": set(),
         "public.change_log": set(),
         "analytics.daily_metrics": {READ},
@@ -52,6 +54,7 @@ MATRIX = {
         "public.schema_migrations": {READ},
         "public.agent_run": {READ},
         "public.agent_step": {READ},
+        "public.conversation": {READ},
         "public.conversation_message": {READ},
         "public.change_log": {READ},
         "analytics.daily_metrics": {READ},
@@ -65,6 +68,7 @@ MATRIX = {
         "public.change_log": {READ, INSERT},
         # Update on the status and trace columns only (column grants).
         "public.proposal": {READ, INSERT},
+        "public.conversation": {READ},
         "public.conversation_message": {READ, INSERT},
         "public.agent_run": {READ, INSERT},
         "public.raw_garmin_payload": {READ},
@@ -73,6 +77,7 @@ MATRIX = {
         "analytics.daily_metrics": {READ},
     },
     "lifter_chat": {
+        "public.conversation": {READ, INSERT},
         "public.conversation_message": {READ, INSERT},
         "public.proposal": {READ},
         "public.agent_run": set(),
@@ -85,6 +90,7 @@ MATRIX = {
         "public.proposal": {READ},
         "public.agent_run": {READ, INSERT},
         "public.agent_step": {READ, INSERT},
+        "public.conversation": set(),
         "public.conversation_message": set(),
         "public.change_log": set(),
         "public.planned_session": {READ},
@@ -270,6 +276,7 @@ def test_the_athletes_words_reach_only_the_roles_that_need_them(conn, database_u
     # Audit N5: the API does not read the conversation, the audit nor the change log; the
     # endpoint and the coach read the conversation, and the backup reads every row of it.
     with as_role(database_url, "lifter_chat") as chat:
+        start(chat, id="c", title="genou douloureux", source="app")
         said = chat.execute(
             "insert into conversation_message (conversation_id, role, text)"
             " values ('c', 'athlete', 'genou douloureux') returning id"
@@ -281,7 +288,13 @@ def test_the_athletes_words_reach_only_the_roles_that_need_them(conn, database_u
             ).fetchone()
             assert row == ("genou douloureux",), role
     with as_role(database_url, "lifter_api") as api:
-        for table in ("conversation_message", "agent_run", "agent_step", "change_log"):
+        for table in (
+            "conversation",
+            "conversation_message",
+            "agent_run",
+            "agent_step",
+            "change_log",
+        ):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 api.execute(f"select count(*) from {table}")
 
@@ -304,6 +317,7 @@ def test_the_coach_writes_every_table_of_the_catalogue_and_no_other(conn):
 def test_the_backup_sees_every_row_of_the_conversation(conn, database_url):
     # pg_dump --enable-row-security leaves out, silently, the rows a policy hides: the backup's
     # role must see as many rows as the owner.
+    start(conn, id="c", title="a", source="cli")
     conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c', 'athlete', 'a'), ('c', 'coach', 'b')"

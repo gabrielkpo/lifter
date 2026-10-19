@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/gabrielkpo/lifter/compare/v0.1.3...v0.2.0) (2026-10-19)
+
+
+### Features
+
+* the coach in the app, a conversation where saying it is deciding it ([#86](https://github.com/gabrielkpo/lifter/issues/86)) ([c3a3dc8](https://github.com/gabrielkpo/lifter/commit/c3a3dc84459bb016f95c7b7f0c39316266ddd81e))
+
+
+### Bug Fixes
+
+* **ops:** a sync missed in a dark wake is caught up at the next use of the Mac ([#87](https://github.com/gabrielkpo/lifter/issues/87)) ([7536708](https://github.com/gabrielkpo/lifter/commit/75367087cbf5a4d95be551e9a00cdb62b1742980))
+
 ## [0.1.3](https://github.com/gabrielkpo/lifter/compare/v0.1.2...v0.1.3) (2026-10-18)
 
 

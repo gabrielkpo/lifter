@@ -12,4 +12,5 @@ expect:
 - check: planned_line_in_part
   params: {week: 3, title: Legs + Metcon, kind: mobility, parts: 1}
 review: 'One mobility part, never one per joint; the bank has one mobility exercise (hip
-  mobility), so the coach adds it with notes for the other joints or says what is missing.'
+  mobility), so the coach adds it with notes for the other joints, or adds the missing exercises
+  to the bank (add_exercise) and puts them in the part, or says what is missing.'

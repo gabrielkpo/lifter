@@ -1,6 +1,6 @@
 {
   "coach": "mistral",
-  "model": "mistral-small-latest",
+  "model": "mistral-medium-latest",
   "summary": {
     "runs": 6,
     "expectations_met_rate": 1.0,
@@ -8,8 +8,8 @@
     "refused_quotes": 0,
     "stopped": 0,
     "model_calls": 12,
-    "input_tokens": 111947,
-    "output_tokens": 721
+    "input_tokens": 111951,
+    "output_tokens": 792
   },
   "runs": [
     {
@@ -27,21 +27,21 @@
         {
           "check": "week_intent 3 ['RIR 3']",
           "passed": true,
-          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement pour les jambes, RIR 3.'}"
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Legs: guided load only, RIR 3, no failure.'}"
         },
         {
           "check": "week_intent 3 notes ['Highest volume']",
           "passed": true,
-          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement pour les jambes, RIR 3.'}"
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Legs: guided load only, RIR 3, no failure.'}"
         }
       ],
       "model_calls": 3,
-      "input_tokens": 28343,
-      "output_tokens": 139,
+      "input_tokens": 28347,
+      "output_tokens": 171,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done. Week 3 intent now includes:\n*\"Charge guid\u00e9e seulement pour les jambes, RIR 3.\"*"
+        "Done. The intent for **Week 3 (Volume peak, starting 2026-01-19)** now includes:\n*\"Legs: guided load only, RIR 3, no failure.\"* This applies from Week 3 onward."
       ]
     },
     {
@@ -59,21 +59,21 @@
         {
           "check": "week_intent 3 ['RIR 3']",
           "passed": true,
-          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Legs: guided load only, RIR 3, no failure.'}"
         },
         {
           "check": "week_intent 3 notes ['Highest volume']",
           "passed": true,
-          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Legs: guided load only, RIR 3, no failure.'}"
         }
       ],
       "model_calls": 3,
       "input_tokens": 28347,
-      "output_tokens": 168,
+      "output_tokens": 172,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done. The intent of week 3 (Volume peak) now reads:\n*\"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"*"
+        "Done. The intent for **Week 3 (Volume peak, starting 2026-01-19)** now includes:\n*\"Legs: guided load only, RIR 3, no failure.\"* This applies to all sessions in that week."
       ]
     },
     {
@@ -91,21 +91,21 @@
         {
           "check": "week_intent 3 ['RIR 3']",
           "passed": true,
-          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Legs: guided load only, RIR 3, no failure.'}"
         },
         {
           "check": "week_intent 3 notes ['Highest volume']",
           "passed": true,
-          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Legs: guided load only, RIR 3, no failure.'}"
         }
       ],
       "model_calls": 3,
       "input_tokens": 28347,
-      "output_tokens": 143,
+      "output_tokens": 177,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done. Week 3 intent now includes:\n*\"Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"*"
+        "Ajout\u00e9 \u00e0 l'intention de la **semaine 3** (du 19 janvier) :\n*\u00ab Legs: guided load only, RIR 3, no failure. \u00bb*\nCela s'appliquera \u00e0 toutes les s\u00e9ances de jambes de cette semaine."
       ]
     },
     {
@@ -123,11 +123,11 @@
       ],
       "model_calls": 1,
       "input_tokens": 8970,
-      "output_tokens": 99,
+      "output_tokens": 91,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Tu es dans le **bloc d'accumulation** (volume), \u00e0 la **semaine 3** (\"Volume peak\") du cycle *Synthetic bench cycle*.\n\n- **Intention de la semaine 3** : *\"Highest volume of the block, RIR 2. Never to failure on the legs.\"*\n- **Intention du bloc** : *\"Volume: 8-12 reps, RIR 3 then 2, long metcons.\"*"
+        "Tu es dans la **semaine 2 (Volume)** du **bloc 1 (accumulation)**.\n- **Intent du bloc** : Volume \u00e0 8-12 reps, RIR 3 puis 2, metcons longs.\n- **Intent de la semaine prochaine (semaine 3, *Volume peak*)** : Volume maximal du bloc, RIR 2, jamais \u00e0 l'\u00e9chec sur les jambes."
       ]
     },
     {
@@ -145,11 +145,11 @@
       ],
       "model_calls": 1,
       "input_tokens": 8970,
-      "output_tokens": 87,
+      "output_tokens": 88,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Tu es dans le **bloc d'accumulation** (volume), \u00e0 la **semaine 2** (phase *volume*), qui a pour intention :\n*\"One more set, not more load. RIR 3.\"*\n\nLa semaine prochaine (semaine 3, phase *volume_peak*) a pour intention :\n*\"Highest volume of the block, RIR 2. Never to failure on the legs.\"*"
+        "Tu es dans la **semaine 2 (Volume)** du **bloc 1 (accumulation)**.\n- **Intent du bloc** : Volume 8-12 reps, RIR 3 puis 2, longs metcons.\n- **Intent de la semaine prochaine (semaine 3, Volume peak)** : Volume maximal du bloc, RIR 2, jamais \u00e0 l'\u00e9chec sur les jambes."
       ]
     },
     {
@@ -167,11 +167,11 @@
       ],
       "model_calls": 1,
       "input_tokens": 8970,
-      "output_tokens": 85,
+      "output_tokens": 93,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Tu es dans le **bloc d'accumulation** (volume), \u00e0 la **semaine 2** (phase *volume*), qui vise :\n*\"One more set, not more load. RIR 3.\"*\n\nLa semaine prochaine (semaine 3, phase *volume_peak*) a pour intention :\n*\"Highest volume of the block, RIR 2. Never to failure on the legs.\"*"
+        "Tu es dans la **semaine 2 (Volume)** du **bloc 1 (accumulation)**.\n- **Intention du bloc** : Volume \u00e0 8-12 reps, RIR 3 puis 2, m\u00e9tcons longs.\n- **Intention de la semaine prochaine (semaine 3, pic de volume)** : Volume maximal du bloc, RIR 2, jamais jusqu\u2019\u00e0 l\u2019\u00e9chec sur les jambes."
       ]
     }
   ]

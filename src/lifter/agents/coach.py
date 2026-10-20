@@ -9,8 +9,8 @@ The athlete's message is stored in `conversation_message` before the coach runs 
 conversation endpoint, or `lifter chat`); the quote check reads it from there. The coach sees a
 snapshot built by code (today, this week's and next week's sessions with their ids and versions,
 the programme with its intents, active health issues, pending suggestions), the conversation so
-far, and the tools generated
-from the operations catalogue (`agents/tools.py`). Every change goes through those tools.
+far, and the tools generated from the operations catalogue (`agents/tools.py`). Every change
+goes through those tools.
 
 The reply is stored as a coach message, and the run is audited (`agent_run`, agent `coach`):
 the snapshot, each tool call with its result, tokens, seconds, the proposals applied or

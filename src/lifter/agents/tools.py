@@ -335,11 +335,26 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             )
         return None
 
+    def _whole_intent(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """update_week replaces the week's intent map; the model sends the part kinds it
+        changes, so the others are read back and kept (a kind set to null is removed). The
+        model dropped the kinds it did not mention three times of three on the bench."""
+        if operation != "update_week" or not isinstance(payload, dict):
+            return payload
+        given, week_id = payload.get("intent"), payload.get("id")
+        if not isinstance(given, dict) or not isinstance(week_id, int):
+            return payload  # the payload check refuses what is wrong here
+        row = conn.execute("select intent from training_week where id = %s", (week_id,)).fetchone()
+        current = dict(row[0] or {}) if row else {}
+        current.update(given)
+        return {**payload, "intent": {k: v for k, v in current.items() if v is not None}}
+
     def apply_change(
         operation: str, payload: dict[str, Any], quote: str, rationale: str = ""
     ) -> str:
         if operation == "undo" and (refusal := _undo_from_elsewhere(payload, quote)):
             return refusal
+        payload = _whole_intent(operation, payload)
         key = ctx.next_key()
         return _attempt(
             lambda: _applied(
@@ -362,7 +377,11 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
     def suggest_change(operation: str, payload: dict[str, Any], rationale: str) -> str:
         def call() -> str:
             suggestion = operations.suggest(
-                conn, operation, payload, rationale=rationale, author=AUTHOR
+                conn,
+                operation,
+                _whole_intent(operation, payload),
+                rationale=rationale,
+                author=AUTHOR,
             )
             ctx.suggestions.append(suggestion)
             return _json({"ok": True, "suggestion_id": suggestion})

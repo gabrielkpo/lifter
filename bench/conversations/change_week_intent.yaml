@@ -1,0 +1,17 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: change_week_intent
+category: instruction
+description: 'An instruction on the method: a legs line added to the intent of week 3.'
+today: 2026-01-18
+messages:
+- "Ajoute à l'intention de la semaine 3 une ligne jambes : charge guidée seulement, RIR 3, pas
+  d'échec."
+expect:
+- check: changed
+  params: {operation: update_week}
+- check: week_intent
+  params: {week: 3, contains: ['RIR 3']}
+- check: week_intent
+  params: {week: 3, key: notes, contains: ['Highest volume']}
+review: 'Applies update_week at once: the legs line is in the intent of week 3 (under its own
+  kind, or appended to the note the programme writes its intent as), nothing of the note lost.'

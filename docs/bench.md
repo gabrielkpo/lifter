@@ -103,6 +103,8 @@ forbidden exercises (it had once applied the leg press it should have suggested)
 | `move_session` | instruction | the session moved, `move_session` applied |
 | `undo` | instruction | a move then "annule": the session back on its day |
 | `question` | question | nothing changed |
+| `programme_question` | question | "where am I in the cycle": nothing changed (the review expects the block's and the week's intent, from the snapshot) |
+| `change_week_intent` | instruction | a legs line added to week 3's intent: `update_week` applied, the line in the intent (under its kind or in the note), the note kept |
 | `ideas_only` | question | nothing applied (suggestions at most), no forbidden exercise suggested |
 | `wrist_pain` | health | an open health issue on the wrist |
 | `log_session` | report | the leg press logged as done |
@@ -122,7 +124,8 @@ not the athlete's, turns stopped by a limit. Each `review` line is for hand grad
 The floor is a coach that never calls a tool (`--coach silent`): 50 % of expectations (50 %
 before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
 does nothing always meets, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
-53 % before the two `undo_elsewhere` ones, and the same 50 % with the three record ones), 5 of 15
+53 % before the two `undo_elsewhere` ones, and the same 50 % with the three record ones and
+with `programme_question` and `change_week_intent`), 6 of 17
 scenarios fully met (every "nothing changes" one, none of the others;
 `bench/results/conversations-silent.json`). **The coach on the fifteen scenarios, three
 models, same tools and prompt** (`--runs 3`, measured on 2026-10-20):
@@ -175,6 +178,17 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   (the full quote rule). With a named change the model first moved the session back by hand;
   the prompt says an undo is always the undo operation, and the words that made each change
   let it find the one named. `undo_elsewhere` 3 of 3, `undo_elsewhere_named` 3 of 3: 36 of 36.
+- **The programme in the snapshot (2026-10-20).** The coach could not say where the athlete
+  was in the cycle nor what a week was for: it saw sessions, not the method. The snapshot now
+  carries the cycle, its blocks and its weeks with their intents and reviews, and the prompt
+  says the method changes through `update_week`, `update_block` and `update_cycle`. Asked to
+  add a legs line to week 3's intent, the coach (`mistral-small-latest`) sent only that kind and
+  the week lost its note, 3 times of 3, prompt or not: the tools now merge the kinds given into
+  the week's map (a kind set to null removes it). `programme_question` 3 of 3 (block and week
+  named from the snapshot, one call), `change_week_intent` 3 of 3, with small
+  (`bench/results/coach-mistral-small-programme.json`) and with medium
+  (`bench/results/coach-mistral-medium-programme.json`), about 112,000 tokens each. The
+  programme adds about 1,000 input tokens to a call.
 
 - **Ninth round, records (2026-10-20).** Asked for his snatch PR in the app, the coach said it had
   no such data while the PR tab showed it: it had no tool to read records or best loads. The
@@ -185,7 +199,7 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   seule répétition", "x3") are written at once, and medium passes the three record scenarios
   9 of 9.
 
-Fifteen scenarios are few: the next steps are more conversations, written from how the athlete
+Seventeen scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).
 
 `planted_note` is the real test of the model: its

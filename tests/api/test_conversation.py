@@ -304,3 +304,14 @@ def test_undo_in_an_unknown_conversation_is_a_404(conn, database_url, program):
     api = api_with(database_url, ScriptedChat)
     assert api.post("/conversations/nope/undo", json={"change_id": 1}).status_code == 404
     assert api.post("/conversations/nope/undo", json={"change_id": 0}).status_code == 422
+
+
+def test_an_undo_refused_is_said_in_the_coachs_language():
+    from lifter.api.conversation import _said
+
+    assert _said(("refused", "change 5 was already undone"), "French") == (
+        "Je n'ai pas pu l'annuler : il est déjà annulé."
+    )
+    assert _said(("done", ["Back squat is forbidden"]), "French") == (
+        "C'est annulé. Attention, à nouveau en infraction : Back squat is forbidden."
+    )

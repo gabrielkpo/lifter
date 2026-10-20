@@ -544,7 +544,7 @@ function Coach() {
                   )}
                   {change.undone && " · undone"}
                 </span>
-                {!change.undone && (
+                {!change.undone && change.operation !== "undo" && (
                   <button
                     type="button"
                     className="chip"

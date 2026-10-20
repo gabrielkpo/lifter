@@ -475,7 +475,20 @@ def _said(answer: tuple[str, Any], language: str) -> str:
             else f"To undo it, first undo the later changes on the same rows: {ids}"
             " (the latest first)."
         )
-    return f"Je n'ai pas pu l'annuler : {what}" if french else f"I could not undo it: {what}"
+    if french:
+        why = next((fr for en, fr in REFUSALS_FR if en in what), what)
+        return f"Je n'ai pas pu l'annuler : {why}"
+    return f"I could not undo it: {what}"
+
+
+# Why an undo is refused, in French (the operations speak English, the coach the athlete's
+# language): what is not found here is said as the operation said it.
+REFUSALS_FR = (
+    ("was already undone", "il est déjà annulé."),
+    ("an undo is not undone", "une annulation ne s'annule pas, redis ce que tu veux."),
+    ("does not exist", "ce changement n'existe pas."),
+    ("was added since this change", "quelque chose a été ajouté dessous depuis."),
+)
 
 
 def _reply(conn: psycopg.Connection, conversation_id: str, text: str) -> int:

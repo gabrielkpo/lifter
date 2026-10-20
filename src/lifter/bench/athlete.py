@@ -324,6 +324,76 @@ def deload_week(number: int) -> list[WeekSessionIn]:
     ]
 
 
+# The synthetic athlete's coaching notes (table coaching_note), written like a method kept in a
+# notebook: the conversation bench loads them before every scenario, so the snapshot weighs what
+# a real one does. (category, title, text, valid_from, valid_until)
+COACHING_NOTES = [
+    (
+        "method",
+        "Weekly frame",
+        "Four sessions a week: Monday push, Tuesday legs, Thursday pull, Saturday full body. A"
+        " missed session is not made up, except legs, moved to the next free day. Never two leg"
+        " sessions on consecutive days.",
+        None,
+        None,
+    ),
+    (
+        "method",
+        "Warm-up",
+        "Every session opens with 8 minutes of easy row or ski, then the Ramp protocol: three"
+        " sets building to the first working load (50 %, 70 %, 85 % of it), 5, 3 then 1 reps.",
+        None,
+        None,
+    ),
+    (
+        "method",
+        "Load progression",
+        "A load goes up only when every set met its RIR. A missed RIR keeps the load the next"
+        " week; two missed in a row take one step back. Fewer reps never justify a heavier load.",
+        None,
+        None,
+    ),
+    (
+        "method",
+        "Blocks",
+        "Three blocks of about four weeks: accumulation (volume, 8-12 reps), transmutation"
+        " (strength, 3-6 reps), realisation (power, then the test week). A block ends on the"
+        " strength sessions done, not on the calendar.",
+        None,
+        None,
+    ),
+    (
+        "method",
+        "What invalidates the plan",
+        "Pain above 3/10, two sessions missed in a week, or sleep under six hours three nights"
+        " running: the week is replanned lighter before anything else.",
+        None,
+        None,
+    ),
+    (
+        "preference",
+        "Metcons",
+        "Prefers long, steady metcons to short sprints; dislikes burpees in long pieces.",
+        None,
+        None,
+    ),
+    (
+        "constraint",
+        "Travel",
+        "Hotel gym only: dumbbells up to 30 kg, a bench, a rower. No barbell.",
+        date(2026, 2, 9),
+        date(2026, 2, 15),
+    ),
+    (
+        "context",
+        "Goal of the cycle",
+        "Bench 100 kg and 12 strict pull-ups at the test week; the legs stay below failure.",
+        None,
+        None,
+    ),
+]
+
+
 def base_program() -> ProgramIn:
     blocks = [
         BlockIn(

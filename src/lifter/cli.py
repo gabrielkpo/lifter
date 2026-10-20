@@ -740,6 +740,7 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
         return 2
     results = []
     with conn:
+        migrate(conn)  # as `bench` does: a scenario's setup writes the latest tables
         for conversation in conversations:
             for r in run_conversation(
                 conn,

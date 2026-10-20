@@ -180,8 +180,10 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   no such data while the PR tab showed it: it had no tool to read records or best loads. The
   `exercise_records` tool reads them as the PR tab does, the prompt says to call it for any PR
   question and never to estimate a max, and a best reported without its reps is asked about. Three
-  scenarios check it. On small: 3/3, 3/3, 3/3; on medium the record with its reps is asked about
-  instead of written (0/3), an over-cautious reading of the new rule to fix.
+  scenarios check it. On small: 3/3, 3/3, 3/3. On medium the record with its reps was first asked
+  about instead of written (0/3): the rule now says that reps given in any form ("1RM", "une
+  seule répétition", "x3") are written at once, and medium passes the three record scenarios
+  9 of 9.
 
 Fifteen scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).

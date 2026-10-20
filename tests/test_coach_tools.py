@@ -341,3 +341,31 @@ def test_an_older_suggestion_is_accepted_only_once_presented_again(conn, program
         tools, "accept_suggestion", suggestion_id=planner, quote=f"ok pour la {planner}"
     )
     assert accepted["ok"] and session(conn, "Legs + Metcon")[2] == "2026-03-06"
+
+
+def test_exercise_records_reads_what_the_pr_tab_shows(conn, program):
+    _, tools = tools_for(conn, "Quel est mon PR au leg press ?")
+    result = call(tools, "exercise_records", exercise="leg press")  # any case
+    assert result["exercise"] == "Leg press"
+    assert result["best_load_per_reps"] and result["recent"]
+
+    conn.execute(
+        "insert into record_definition (name, kind, record_type, unit, exercise_id)"
+        " select 'Leg press 1RM', 'lift', 'rep_max', 'kg', id from exercise"
+        " where name = 'Leg press'"
+    )
+    conn.execute(
+        "insert into record_entry (definition_id, day, reps, value)"
+        " select id, '2026-03-01', 1, 150 from record_definition where name = 'Leg press 1RM'"
+    )
+    (record,) = call(tools, "exercise_records", exercise="Leg press")["records"]
+    assert (record["record"], record["reps"], float(record["value"])) == ("Leg press 1RM", 1, 150.0)
+
+    unknown = call(tools, "exercise_records", exercise="leg")
+    assert not unknown["ok"] and "Leg press" in unknown["error"]
+
+
+def test_exercise_records_close_names_take_the_text_literally(conn, program):
+    _, tools = tools_for(conn, "Mon PR ?")
+    unknown = call(tools, "exercise_records", exercise="leg_")  # a LIKE wildcard, if unescaped
+    assert not unknown["ok"] and "close names: []" in unknown["error"]

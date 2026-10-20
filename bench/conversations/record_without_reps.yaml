@@ -1,0 +1,12 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+# Written after the owner's turns of 2026-10-20 ("il faut que le coach pose plus de questions"):
+# a best without its reps is asked about, not guessed.
+name: record_without_reps
+category: report
+description: 'A best reported without its reps: the coach asks before writing.'
+today: 2026-01-18
+messages:
+- J'ai mis 80 kg au bench press hier.
+expect:
+- check: unchanged
+review: 'Asks how many reps (a single? a triple?) before setting anything; no record written.'

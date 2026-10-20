@@ -101,6 +101,7 @@ catalogue (`agents/tools.py`, `lifter/operations.py`). It has no SQL.
 |---|---|
 | `operation_schema` | The payload schema of one operation, from its Pydantic model |
 | `read_rows` | Rows of a table the operations write, with `id` and `version`, filtered by one column (50 at most); any other table is refused, names are quoted identifiers |
+| `exercise_records` | An exercise's records (PRs), its best logged load per rep count and its last logged days: what the PR tab shows, nothing estimated |
 | `pending_suggestions` | The suggestions waiting for the athlete's choice (listing them presents nothing) |
 | `present_suggestions` | Puts older suggestions (the coach's or the planner's) back in front of the athlete, in this reply |
 | `apply_change` | Any catalogue operation the athlete asked for, with a quote of their message; `undo` is one of them |

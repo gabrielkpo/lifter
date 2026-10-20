@@ -1,0 +1,15 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+# Written after the owner's turns of 2026-10-20: asked for his snatch PR, the coach said it did
+# not know it, while the PR tab showed it.
+name: pr_question
+category: question
+description: 'A question about a PR: the coach reads the records before answering.'
+today: 2026-01-18
+messages:
+- Quel est mon PR au bench press ?
+expect:
+- check: called_tool
+  params: {tool: exercise_records}
+- check: unchanged
+review: 'Answers from exercise_records: the best logged loads by rep count (or that none is
+  logged yet), never an estimated max and never "I do not have the data" without reading.'

@@ -152,6 +152,29 @@ def planned_line_in_part(conn, p) -> tuple[bool, str]:
     return ok, f"{len(rows)} {p['kind']} part(s), {len(filled)} with a planned line{where}"
 
 
+def called_tool(conn, p) -> tuple[bool, str]:
+    """The coach called that tool at least once during the conversation."""
+    (n,) = conn.execute(
+        "select count(*) from agent_run r, jsonb_array_elements(r.context -> 'calls') c"
+        " where r.agent = 'coach' and c ->> 'tool' = %s",
+        (p["tool"],),
+    ).fetchone()
+    return n > 0, f"{p['tool']} called {n} time(s)"
+
+
+def record(conn, p) -> tuple[bool, str]:
+    """A record entry of that value and reps, on a record tied to that exercise."""
+    rows = conn.execute(
+        "select e.value, e.reps from record_entry e"
+        " join record_definition d on d.id = e.definition_id"
+        " join exercise x on x.id = d.exercise_id where x.name = %s",
+        (p["exercise"],),
+    ).fetchall()
+    ok = any(float(v or 0) == p["value"] and r == p["reps"] for v, r in rows)
+    found = ", ".join(f"{v} kg x {r}" for v, r in rows) or "none"
+    return ok, f"records of {p['exercise']}: {found}"
+
+
 def goals(conn, p) -> tuple[bool, str]:
     (n,) = conn.execute("select count(*) from goal").fetchone()
     return n == p["count"], f"{n} goal(s)"
@@ -176,6 +199,8 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "done_line": done_line,
     "no_planned_line": no_planned_line,
     "goals": goals,
+    "called_tool": called_tool,
+    "record": record,
     "planned_line_in_part": planned_line_in_part,
     "no_forbidden_suggestion": no_forbidden_suggestion,
 }

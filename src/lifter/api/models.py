@@ -318,11 +318,12 @@ class Best(BaseModel):
 
 
 class HistoryPoint(BaseModel):
-    """The heaviest logged set of an exercise on a day (analytics.exercise_history)."""
+    """The heaviest set of an exercise on a day, logged or declared as a record
+    (analytics.exercise_history); a record has no session."""
 
     exercise: str
     day: date
-    session_id: int
+    session_id: int | None
     top_load_kg: float
     reps: float | None
     sets: int | None

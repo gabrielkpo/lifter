@@ -197,7 +197,7 @@ models:
       - name: vo2_max
         data_type: numeric
   - name: exercise_best
-    description: "Best logged load per exercise and repetition count (sets done in reps with a load)."
+    description: "Best load per exercise and repetition count: sets done in reps with a load, and the lift records the athlete declared (a max load counts as one repetition)."
     config:
       contract:
         enforced: true
@@ -211,7 +211,7 @@ models:
       - name: day
         data_type: date
   - name: exercise_history
-    description: "The heaviest logged set of each exercise on each day (sets done in reps with a load), with its reps: the progression curve of a movement in the app's PR tab."
+    description: "The heaviest set of each exercise on each day, with its reps: sets done in reps with a load, and the lift records the athlete declared (without a session). The progression curve of a movement in the app's PR tab."
     config:
       contract:
         enforced: true

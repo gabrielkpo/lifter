@@ -37,3 +37,12 @@ models:
         data_tests:
           - unique
           - not_null
+  - name: lift_record
+    description: "The lift records the athlete declared (rep max or max load, in kg), named after the exercise of the bank they belong to: by link, else by name, else the record's own name. A max load counts as one repetition."
+    columns:
+      - name: exercise
+        data_tests:
+          - not_null
+      - name: reps
+        data_tests:
+          - not_null

@@ -243,7 +243,8 @@ export interface BlockDetail {
 export interface HistoryPoint {
   exercise: string;
   day: string;
-  session_id: number;
+  /** null for a record the athlete declared. */
+  session_id: number | null;
   top_load_kg: number;
   reps: number | null;
   sets: number | null;
@@ -292,6 +293,8 @@ export interface ConversationChange {
   entity_id: number | null;
   /** What it is about, in a few words (the exercise of a line, a part's kind or title...). */
   subject: string | null;
+  /** What it changed on that row, old to new ("RIR 2 → 5 · 60 → 45 kg"). */
+  detail: string | null;
   undone: boolean;
 }
 

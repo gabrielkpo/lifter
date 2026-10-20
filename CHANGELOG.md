@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/gabrielkpo/lifter/compare/v0.3.0...v0.4.0) (2026-10-20)
+
+
+### Features
+
+* **agents:** the coach sees the changes of every conversation, a bare undo stays where it is asked ([#100](https://github.com/gabrielkpo/lifter/issues/100)) ([c5c7324](https://github.com/gabrielkpo/lifter/commit/c5c73243e7499c6581c897ed6aaa1afa4ecbb92e))
+
 ## [0.3.0](https://github.com/gabrielkpo/lifter/compare/v0.2.2...v0.3.0) (2026-10-19)
 
 

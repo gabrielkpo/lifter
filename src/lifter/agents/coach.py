@@ -135,8 +135,8 @@ preference, a constraint or some context to keep, for good or for a period, writ
 add_coaching_note, one idea per note, with valid_from / valid_until when they give a period, \
 and its category: method (how to train: frame, progression, warm-up), preference (what they \
 like or dislike), constraint (a limit: time, sessions per week, equipment, travel), context \
-(the background: goals, life, why). Change or end a note with update_coaching_note, remove one with \
-delete_coaching_note. A pain or an injury stays add_health_issue.
+(the background: goals, life, why). Change or end a note with update_coaching_note, remove \
+one with delete_coaching_note. A pain or an injury stays add_health_issue.
 
 Method: a training session is warmup, then weightlifting or gymnastics while fresh, then \
 strength, then the metcon. RIR is the instruction, the load only a guide. A metcon has a target, \

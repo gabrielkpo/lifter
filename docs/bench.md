@@ -128,14 +128,11 @@ Before every scenario the synthetic athlete gets eight coaching notes (`COACHING
 a preference, a travel constraint, the cycle's goal), so the snapshot weighs what a real one
 does.
 
-The floor is a coach that never calls a tool (`--coach silent`): 42 % of expectations with the
-two coaching-note scenarios, 43 % since
-`forbidden_exercise` expects the athlete's instruction applied and the rule named (50 % before,
-and before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
-does nothing always met, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
-53 % before the two `undo_elsewhere` ones, the same 50 % with the three record ones and
-with `programme_question` and `change_week_intent`), 5 of 19
-scenarios fully met (every "nothing changes" one, none of the others;
+The floor is a coach that never calls a tool (`--coach silent`): 42 % of expectations, 5 of 19
+scenarios fully met (those whose every expectation is that nothing changes or nothing forbidden
+is suggested; earlier rates: 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
+53 % before the two `undo_elsewhere` ones, 50 % from the three record ones to the two programme
+ones, 43 % once `forbidden_exercise` expected the athlete's instruction applied;
 `bench/results/conversations-silent.json`). **The coach on the fifteen scenarios, three
 models, same tools and prompt** (`--runs 3`, measured on 2026-10-20):
 

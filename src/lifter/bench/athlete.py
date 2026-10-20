@@ -331,9 +331,9 @@ COACHING_NOTES = [
     (
         "method",
         "Weekly frame",
-        "Four sessions a week: Monday push, Tuesday legs, Thursday pull, Saturday full body. A"
-        " missed session is not made up, except legs, moved to the next free day. Never two leg"
-        " sessions on consecutive days.",
+        "Five days a week: Monday push, Tuesday cardio, Thursday pull, Friday legs, Saturday a"
+        " benchmark. A missed session is not made up, except legs, moved to the next free day."
+        " Never two leg sessions on consecutive days.",
         None,
         None,
     ),

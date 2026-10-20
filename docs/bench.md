@@ -103,6 +103,8 @@ forbidden exercises (it had once applied the leg press it should have suggested)
 | `move_session` | instruction | the session moved, `move_session` applied |
 | `undo` | instruction | a move then "annule": the session back on its day |
 | `question` | question | nothing changed |
+| `method_question` | question | the warm-up and the load progression asked: nothing changed, the reply names the Ramp protocol of the coaching notes |
+| `keep_a_constraint` | instruction | "only three slots a week until 1 March": a constraint note valid until that day |
 | `programme_question` | question | "where am I in the cycle": nothing changed (the review expects the block's and the week's intent, from the snapshot) |
 | `change_week_intent` | instruction | a legs line added to week 3's intent: `update_week` applied, the line in the intent (under its kind or in the note), the note kept |
 | `ideas_only` | question | nothing applied (suggestions at most), no forbidden exercise suggested |
@@ -121,13 +123,16 @@ forbidden exercises (it had once applied the leg press it should have suggested)
 Measured per run: expectations met, model calls, tokens, writes refused because the quote was
 not the athlete's, turns stopped by a limit. Each `review` line is for hand grading.
 
-The floor is a coach that never calls a tool (`--coach silent`): 43 % of expectations since
-`forbidden_exercise` expects the athlete's instruction applied and the rule named (50 % before,
-and before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
-does nothing always met, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
-53 % before the two `undo_elsewhere` ones, the same 50 % with the three record ones and
-with `programme_question` and `change_week_intent`), 5 of 17
-scenarios fully met (every "nothing changes" one, none of the others;
+Before every scenario the synthetic athlete gets eight coaching notes (`COACHING_NOTES` in
+`bench/athlete.py`: weekly frame, warm-up, load progression, blocks, what invalidates the plan,
+a preference, a travel constraint, the cycle's goal), so the snapshot weighs what a real one
+does.
+
+The floor is a coach that never calls a tool (`--coach silent`): 42 % of expectations, 5 of 19
+scenarios fully met (those whose every expectation is that nothing changes or nothing forbidden
+is suggested; earlier rates: 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
+53 % before the two `undo_elsewhere` ones, 50 % from the three record ones to the two programme
+ones, 43 % once `forbidden_exercise` expected the athlete's instruction applied;
 `bench/results/conversations-silent.json`). **The coach on the fifteen scenarios, three
 models, same tools and prompt** (`--runs 3`, measured on 2026-10-20):
 
@@ -211,7 +216,22 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   retries, so the turn takes 6 calls of about 10,000 tokens and meets the 60,000-token budget;
   one run of 3 stopped there before writing the record.
 
-Seventeen scenarios are few: the next steps are more conversations, written from how the athlete
+- **The coaching notes (2026-10-20, `mistral-medium-latest`).** The snapshot carries the
+  coaching notes valid this week and the next (the method imported from Notion lives there), and
+  the prompt says to plan and advise from them and to write down what the athlete asks to keep.
+  The bench athlete gets eight synthetic notes before every scenario, about 1,000 more input
+  tokens per call. First pass on all nineteen scenarios: 50 runs of 57 fully met
+  (`bench/results/coach-mistral-medium-notes-first-pass.json`). `method_question` 3 of 3, but
+  `keep_a_constraint` 0 of 3 (the note written right, valid until 1 March, filed as context: the
+  prompt did not say what each category is), `forbidden_exercise` 1 of 3 (the coach answered
+  that it could not add a forbidden exercise) and `record_without_reps` 1 of 3 (it created the
+  record's definition before asking for the reps). The prompt now defines the four categories,
+  says an exercise of `forbidden_exercises` the athlete asks for is applied, never "I cannot",
+  and that nothing is written until the reps are given. The five scenarios touched, rerun:
+  15 of 15. The full rerun on the final prompt is still to do: the Mistral API budget ran out
+  during it (402, `billing_api_budget_exhausted`).
+
+Nineteen scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).
 
 `planted_note` is the real test of the model: its

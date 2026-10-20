@@ -146,7 +146,11 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
   in, its blocks with their intent and strength sessions done, its weeks with their phase, intent
   per part kind and the athlete's review, the current ones marked, all with ids and versions, so
   the coach explains a week from the athlete's method and changes it through `update_week`,
-  `update_block` and `update_cycle`); the exercise bank's names by category,
+  `update_block` and `update_cycle`); the coaching notes valid on a day of this week or the
+  next (the athlete's method, preferences, constraints and context, with their span, ids and
+  versions: the coach plans and advises from them, writes what the athlete asks to keep with
+  `add_coaching_note`, and changes or ends a note with `update_coaching_note` or
+  `delete_coaching_note`); the exercise bank's names by category,
   the exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
   issues not resolved; pending suggestions; the five latest changes of this conversation and the
   five latest of the others, each marked, with their change ids and whether undo can still take them (not undone, not

@@ -8,9 +8,9 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
 The athlete's message is stored in `conversation_message` before the coach runs (by the
 conversation endpoint, or `lifter chat`); the quote check reads it from there. The coach sees a
 snapshot built by code (today, this week's and next week's sessions with their ids and versions,
-the programme with its intents, active health issues, pending suggestions), the conversation so
-far, and the tools generated from the operations catalogue (`agents/tools.py`). Every change
-goes through those tools.
+the programme with its intents, the coaching notes, active health issues, pending suggestions),
+the conversation so far, and the tools generated from the operations catalogue
+(`agents/tools.py`). Every change goes through those tools.
 
 The reply is stored as a coach message, and the run is audited (`agent_run`, agent `coach`):
 the snapshot, each tool call with its result, tokens, seconds, the proposals applied or
@@ -73,7 +73,8 @@ the data is missing without calling it, and never estimate a max it does not hol
 - A best the athlete reports ("80 kg au bench hier"): set_record on that exercise's record. \
 The reps are given when the message says them in any form ("1RM", "une seule répétition", \
 "x3", "pour 5"): then write at once. Only when nothing in the message says the reps, ask \
-(a single? a triple?) before writing. A record that does not exist yet is \
+(a single? a triple?) and write nothing, not even the record's definition, until they \
+answer. A record that does not exist yet is \
 create_record_definition with its exercise (the bank's name), then set_record.
 - "undo" or "annule": apply_change with operation undo, quoting the athlete's words, and the \
 change_id of the latest undoable change in recent_changes: one of this conversation (here: true) \
@@ -107,7 +108,8 @@ Exercises keep their exact names from the snapshot's exercise_bank. Read a row (
 only for what the snapshot does not hold.
 
 The athlete decides. What they ask is applied even when it breaks one of their rules \
-(athlete_rules): never refuse it, never ask "are you sure?" first. apply_change then returns \
+(athlete_rules), an exercise of forbidden_exercises included: call apply_change, never answer \
+that you cannot, never ask "are you sure?" first. apply_change then returns \
 the rules it breaks (violations): say each one in your reply, naming the rule, and you may \
 offer an allowed alternative from the bank with suggest_change. The alternative is your idea, \
 not the athlete's instruction: never apply it.
@@ -125,6 +127,16 @@ next" or "where am I in the cycle" from the week's and the block's intent, and n
 method changes through update_week (intent: a map part kind → text; send the kinds to set, \
 the others are kept, a kind set to null is removed), update_block and update_cycle, with the \
 ids and versions from programme: applied when the athlete asks, suggested when the idea is yours.
+
+The coaching notes (coaching_notes in the snapshot) are the athlete's method, preferences, \
+constraints and context, written by the athlete or with you: plan, explain and advise from \
+them, and say which note you follow. When the athlete states how they train or want to train, a \
+preference, a constraint or some context to keep, for good or for a period, write it down: \
+add_coaching_note, one idea per note, with valid_from / valid_until when they give a period, \
+and its category: method (how to train: frame, progression, warm-up), preference (what they \
+like or dislike), constraint (a limit: time, sessions per week, equipment, travel), context \
+(the background: goals, life, why). Change or end a note with update_coaching_note, remove \
+one with delete_coaching_note. A pain or an injury stays add_health_issue.
 
 Method: a training session is warmup, then weightlifting or gymnastics while fresh, then \
 strength, then the metcon. RIR is the instruction, the load only a guide. A metcon has a target, \
@@ -288,6 +300,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "today": today,
         "today_weekday": today.strftime("%A"),
         "programme": programme(conn, today),
+        "coaching_notes": coaching_notes(conn, today),
         "sessions_this_week_and_next": sessions,
         "exercise_bank": bank,
         "forbidden_exercises": forbidden_exercises(conn),
@@ -340,6 +353,20 @@ def programme(conn: psycopg.Connection, today: date) -> dict | None:
         "blocks": [{k: v for k, v in b.items() if v is not None} for b in blocks],
         "weeks": [{k: v for k, v in w.items() if v not in (None, {})} for w in weeks],
     }
+
+
+def coaching_notes(conn: psycopg.Connection, today: date) -> list[dict]:
+    """The athlete's method, preferences, constraints and context, written down as notes: those
+    valid on a day of this week or the next (the days the coach changes), with their span, ids
+    and versions. A note open on both sides is permanent."""
+    rows = _rows(
+        conn,
+        "select id, version, category, title, text, valid_from, valid_until from coaching_note"
+        " where (valid_from is null or valid_from <= %s) and (valid_until is null"
+        " or valid_until >= %s) order by category, position, id",
+        (today - timedelta(days=today.weekday()) + timedelta(days=13), today),
+    )
+    return [{k: v for k, v in r.items() if v is not None} for r in rows]
 
 
 def history(conn: psycopg.Connection, conversation_id: str, message_id: int) -> list[BaseMessage]:

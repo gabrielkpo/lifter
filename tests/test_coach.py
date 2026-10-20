@@ -310,6 +310,29 @@ def test_the_snapshot_holds_the_programme_with_its_intents(conn, program):
     assert snapshot(conn, TODAY)["programme"] is None
 
 
+def test_the_snapshot_holds_the_coaching_notes_valid_this_week_and_next(conn, program):
+    def note(title, since=None, until=None, category="method"):
+        conn.execute(
+            "insert into coaching_note (category, title, text, valid_from, valid_until)"
+            " values (%s, %s, 'x', %s, %s)",
+            (category, title, since, until),
+        )
+
+    note("Weekly frame")  # permanent
+    note("Ended", until=date(2026, 3, 3))  # the day before TODAY
+    note("Next week", since=date(2026, 3, 13), category="constraint")  # Friday of next week
+    note("Later", since=date(2026, 3, 16))  # the Monday after next
+    note("Today only", since=TODAY, until=TODAY, category="context")
+    seen = snapshot(conn, TODAY)["coaching_notes"]
+    assert [(n["category"], n["title"]) for n in seen] == [
+        ("constraint", "Next week"),
+        ("context", "Today only"),
+        ("method", "Weekly frame"),
+    ]
+    assert {"id", "version", "text"} <= set(seen[2]) and "valid_from" not in seen[2]
+    assert seen[0]["valid_from"] == date(2026, 3, 13)
+
+
 def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_changes(conn, program):
     sid, version, _ = session(conn, "Legs + Metcon")
     message = say(conn, "Décale la séance jambes au 2026-03-06 stp")

@@ -191,6 +191,21 @@ def no_forbidden_suggestion(conn, p) -> tuple[bool, str]:
     return not hits, f"forbidden in suggestions: {', '.join(hits) or 'none'}"
 
 
+def week_intent(conn, p) -> tuple[bool, str]:
+    """The week's intent holds each word of `contains` (any case) under `key`, or under any
+    key without one: a programme writes its intent per part kind or as one note, and the
+    coach follows the shape it finds."""
+    row = conn.execute(
+        "select intent from training_week where number = %s", (p["week"],)
+    ).fetchone()
+    intent = (row[0] or {}) if row else {}
+    texts = [intent.get(p["key"])] if "key" in p else list(intent.values())
+    ok = any(
+        isinstance(t, str) and all(w.lower() in t.lower() for w in p["contains"]) for t in texts
+    )
+    return ok, f"week {p['week']} intent: {intent!r}"
+
+
 CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "session_day": session_day,
     "unchanged": unchanged,
@@ -203,6 +218,7 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "record": record,
     "planned_line_in_part": planned_line_in_part,
     "no_forbidden_suggestion": no_forbidden_suggestion,
+    "week_intent": week_intent,
 }
 
 

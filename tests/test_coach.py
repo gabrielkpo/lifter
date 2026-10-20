@@ -292,6 +292,24 @@ def test_only_the_athletes_latest_message_can_be_answered(conn, program):
     assert conn.execute("select count(*) from agent_run").fetchone() == (0,)
 
 
+def test_the_snapshot_holds_the_programme_with_its_intents(conn, program):
+    seen = snapshot(conn, TODAY)["programme"]
+    assert seen["cycle"]["name"] == "Synthetic cycle 1" and seen["cycle"]["version"] == 1
+    assert [b["kind"] for b in seen["blocks"]] == ["accumulation", "transmutation", "realisation"]
+    first = seen["blocks"][0]
+    assert first["current"] and first["intent"].startswith("Volume") and first["id"]
+    assert first["strength_sessions_done"] >= 1 and first["target_strength_sessions"] == 12
+    assert not seen["blocks"][1]["current"]
+    weeks = seen["weeks"]
+    assert [(w["number"], w["block"], w["current"]) for w in weeks] == [(1, 1, True), (2, 1, False)]
+    assert weeks[0]["phase"] == "reference" and weeks[0]["intent"]["legs"].startswith("Guided")
+    assert weeks[0]["review"].startswith("Three sessions") and {"id", "version"} <= set(weeks[0])
+    assert "review" not in weeks[1]  # empty fields left out
+    assert snapshot(conn, date(2026, 6, 1))["programme"]["cycle"]["id"] == seen["cycle"]["id"]
+    conn.execute("update cycle set status = 'done'")
+    assert snapshot(conn, TODAY)["programme"] is None
+
+
 def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_changes(conn, program):
     sid, version, _ = session(conn, "Legs + Metcon")
     message = say(conn, "Décale la séance jambes au 2026-03-06 stp")

@@ -313,7 +313,8 @@ def test_exercise_records_reads_what_the_pr_tab_shows(conn, program):
 
     conn.execute(
         "insert into record_definition (name, kind, record_type, unit, exercise_id)"
-        " select 'Leg press 1RM', 'lift', 'rep_max', 'kg', id from exercise where name = 'Leg press'"
+        " select 'Leg press 1RM', 'lift', 'rep_max', 'kg', id from exercise"
+        " where name = 'Leg press'"
     )
     conn.execute(
         "insert into record_entry (definition_id, day, reps, value)"

@@ -1,0 +1,11 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: programme_question
+category: question
+description: 'Where am I in the cycle: answered from the programme, nothing changed.'
+today: 2026-01-18
+messages:
+- Je suis où dans le cycle là ? C'est quoi l'intention de la semaine prochaine et du bloc ?
+expect:
+- check: unchanged
+review: 'Names block 1 (accumulation, volume) and week 3 (volume peak: RIR 2, never to failure on
+  the legs) from the programme, without reading rows; changes nothing.'

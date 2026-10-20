@@ -60,13 +60,13 @@ def coach_setup(env: Mapping[str, str], settings: Settings, *, hosted: bool) -> 
     def model():
         from lifter.agents.coach import mistral_model
 
-        return mistral_model(key, settings.model, settings.max_output_tokens)
+        return mistral_model(key, settings.coach_model, settings.max_output_tokens)
 
     return CoachSetup(
         chat_url=chat,
         coach_url=coach,
         model=model,
-        model_name=settings.model,
+        model_name=settings.coach_model,
         language=settings.coach_language,
         token_budget=settings.run_token_budget,
     )

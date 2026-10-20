@@ -98,6 +98,44 @@ def test_an_instruction_is_applied_with_the_athletes_quote(conn, program):
     assert trace == ("applied", ctx.message_id, f"message:{ctx.message_id}:write:1", "coach")
 
 
+def test_a_partial_intent_keeps_the_weeks_other_part_kinds(conn, program):
+    week_id, version, intent = conn.execute(
+        "select id, version, intent from training_week where number = 1"
+    ).fetchone()
+    assert set(intent) == {"weightlifting", "push", "pull", "legs", "metcon"}
+    ctx, tools = tools_for(conn, "Semaine 1 : jambes en charge guidée, RIR 3, et plus de push.")
+    result = call(
+        tools,
+        "apply_change",
+        operation="update_week",
+        payload={
+            "id": week_id,
+            "expected_version": version,
+            "intent": {"legs": "Charge guidée, RIR 3.", "push": None},
+        },
+        quote="jambes en charge guidée, RIR 3, et plus de push",
+    )
+
+    assert result["ok"]
+    (after,) = conn.execute("select intent from training_week where id = %s", (week_id,)).fetchone()
+    assert after["legs"] == "Charge guidée, RIR 3." and "push" not in after
+    assert {k: after[k] for k in ("weightlifting", "pull", "metcon")} == {
+        k: intent[k] for k in ("weightlifting", "pull", "metcon")
+    }
+    # a suggestion carries the whole map too, so accepting it later changes only what it says
+    suggested = call(
+        tools,
+        "suggest_change",
+        operation="update_week",
+        payload={"id": week_id, "expected_version": version + 1, "intent": {"metcon": "Short."}},
+        rationale="test",
+    )
+    (payload,) = conn.execute(
+        "select payload from proposal where id = %s", (suggested["suggestion_id"],)
+    ).fetchone()
+    assert payload["intent"]["metcon"] == "Short." and payload["intent"]["legs"] == after["legs"]
+
+
 def test_a_quote_the_athlete_did_not_write_changes_nothing(conn, program):
     sid, version, day = session(conn, "Legs + Metcon")
     _, tools = tools_for(conn, "Pourquoi un RIR 3 jeudi ?")  # a question
@@ -303,3 +341,31 @@ def test_an_older_suggestion_is_accepted_only_once_presented_again(conn, program
         tools, "accept_suggestion", suggestion_id=planner, quote=f"ok pour la {planner}"
     )
     assert accepted["ok"] and session(conn, "Legs + Metcon")[2] == "2026-03-06"
+
+
+def test_exercise_records_reads_what_the_pr_tab_shows(conn, program):
+    _, tools = tools_for(conn, "Quel est mon PR au leg press ?")
+    result = call(tools, "exercise_records", exercise="leg press")  # any case
+    assert result["exercise"] == "Leg press"
+    assert result["best_load_per_reps"] and result["recent"]
+
+    conn.execute(
+        "insert into record_definition (name, kind, record_type, unit, exercise_id)"
+        " select 'Leg press 1RM', 'lift', 'rep_max', 'kg', id from exercise"
+        " where name = 'Leg press'"
+    )
+    conn.execute(
+        "insert into record_entry (definition_id, day, reps, value)"
+        " select id, '2026-03-01', 1, 150 from record_definition where name = 'Leg press 1RM'"
+    )
+    (record,) = call(tools, "exercise_records", exercise="Leg press")["records"]
+    assert (record["record"], record["reps"], float(record["value"])) == ("Leg press 1RM", 1, 150.0)
+
+    unknown = call(tools, "exercise_records", exercise="leg")
+    assert not unknown["ok"] and "Leg press" in unknown["error"]
+
+
+def test_exercise_records_close_names_take_the_text_literally(conn, program):
+    _, tools = tools_for(conn, "Mon PR ?")
+    unknown = call(tools, "exercise_records", exercise="leg_")  # a LIKE wildcard, if unescaped
+    assert not unknown["ok"] and "close names: []" in unknown["error"]

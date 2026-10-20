@@ -57,7 +57,7 @@ Authentication on every deployment, production included):
   athlete's message is stored as `lifter_chat` (`LIFTER_CHAT_DATABASE_URL`), which may open a
   conversation and write the athlete's words, nothing else; the coach answers as `lifter_coach`
   (`LIFTER_COACH_DATABASE_URL`), whose writes go through `lifter.operations` and are refused at
-  commit without a trace. The model is Mistral (`MISTRAL_API_KEY`, `LIFTER_MODEL`), in
+  commit without a trace. The model is Mistral (`MISTRAL_API_KEY`, `LIFTER_COACH_MODEL`), in
   `LIFTER_COACH_LANGUAGE`, within `LIFTER_RUN_TOKEN_BUDGET`; without these, the conversation
   answers 503. A turn may take tens of seconds: the API's function and the app's route may run
   60 s (`vercel.json`, `maxDuration`). The owner role, used for migrations, lives in the

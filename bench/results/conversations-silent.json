@@ -2,12 +2,12 @@
   "coach": "silent",
   "model": null,
   "summary": {
-    "runs": 12,
+    "runs": 15,
     "expectations_met_rate": 0.5,
-    "scenarios_fully_met": 4,
+    "scenarios_fully_met": 5,
     "refused_quotes": 0,
     "stopped": 0,
-    "model_calls": 15,
+    "model_calls": 18,
     "input_tokens": 0,
     "output_tokens": 0
   },
@@ -192,8 +192,79 @@
       ]
     },
     {
+      "scenario": "pr_question",
+      "category": "question",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "called_tool exercise_records",
+          "passed": false,
+          "detail": "exercise_records called 0 time(s)"
+        },
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
       "scenario": "question",
       "category": "question",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "record_with_reps",
+      "category": "report",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "record Bench press 80 1",
+          "passed": false,
+          "detail": "records of Bench press: none"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "record_without_reps",
+      "category": "report",
       "run": 1,
       "expectations_met": 1,
       "expectations": 1,

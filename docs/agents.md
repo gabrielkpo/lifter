@@ -101,6 +101,7 @@ catalogue (`agents/tools.py`, `lifter/operations.py`). It has no SQL.
 |---|---|
 | `operation_schema` | The payload schema of one operation, from its Pydantic model |
 | `read_rows` | Rows of a table the operations write, with `id` and `version`, filtered by one column (50 at most); any other table is refused, names are quoted identifiers |
+| `exercise_records` | An exercise's records (PRs), its best logged load per rep count and its last logged days: what the PR tab shows, nothing estimated |
 | `pending_suggestions` | The suggestions waiting for the athlete's choice (listing them presents nothing) |
 | `present_suggestions` | Puts older suggestions (the coach's or the planner's) back in front of the athlete, in this reply |
 | `apply_change` | Any catalogue operation the athlete asked for, with a quote of their message; `undo` is one of them |
@@ -114,7 +115,10 @@ never supplies: the message the quote is checked against, the idempotency key
 (`message:<id>:write:<n>`, from the order of the write calls) and the author. A refused call
 returns its reason to the model (quote, payload, stale row, rule violated), which explains it to
 the athlete; nothing is written. An invalid payload comes back with the operation's payload
-schema, so the model's next try is a fix rather than another guess.
+schema, so the model's next try is a fix rather than another guess. One payload is completed
+by code: `update_week` replaces the week's intent map, and the model sends only the part kinds
+it changes (three times of three on the bench), so `apply_change` and `suggest_change` read the
+week's map back and merge the given kinds into it; a kind set to null is removed.
 
 ## The coach in conversation (ADR 0002)
 
@@ -134,7 +138,11 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
 - **What the coach sees**: a snapshot built by code: today and its weekday; this week's and next
   week's sessions with their week number, ids and versions, their parts with ids and each part's
   lines (exercise, sets, quantity, load, RIR, planned or done, with ids and versions), and whether
-  they are upcoming (today or later, not done nor cancelled); the exercise bank's names by category,
+  they are upcoming (today or later, not done nor cancelled); the programme (the cycle today falls
+  in, its blocks with their intent and strength sessions done, its weeks with their phase, intent
+  per part kind and the athlete's review, the current ones marked, all with ids and versions, so
+  the coach explains a week from the athlete's method and changes it through `update_week`,
+  `update_block` and `update_cycle`); the exercise bank's names by category,
   the exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
   issues not resolved; pending suggestions; the five latest changes of this conversation and the
   five latest of the others, each marked, with their change ids and whether undo can still take them (not undone, not
@@ -186,7 +194,8 @@ uv run lifter run 12            # each attempt, its violations, tokens and secon
 | Variable | Default | |
 |---|---|---|
 | `MISTRAL_API_KEY` | none | Required by `plan-week`; stays in `.env`, never logged |
-| `LIFTER_MODEL` | `mistral-small-latest` | Mistral API model name |
+| `LIFTER_MODEL` | `mistral-small-latest` | Mistral model of the week planner |
+| `LIFTER_COACH_MODEL` | `mistral-medium-latest` | Mistral model of the coach in conversation (`lifter chat`, `bench-chat`, the app); medium follows composed instructions that small misses (docs/bench.md) |
 | `LIFTER_COACH_LANGUAGE` | `English` | Language of the summary and rationales: one of the supported languages, listed in `config.py` (any case), refused otherwise since it is written into the system prompt |
 | `LIFTER_LLM_CONTEXT` | `indicators` | What is sent to the model, below |
 | `LIFTER_RUN_TOKEN_BUDGET` | `60000` | Tokens (input + output) a planner run may use: no new attempt starts past it; the run ends refused, audited as `BudgetExceeded` |
@@ -207,6 +216,8 @@ bound the cost of a run and of a bench pass whatever the model answers.
   training afterwards.
 - `full`: adds what is written about the training: session notes, deviations, week reviews,
   goal and feedback notes, which may describe pain or injuries.
+- The coach in conversation sends its snapshot whatever `LIFTER_LLM_CONTEXT` says: it holds
+  the week reviews and the health issues' descriptions, since the athlete talks about them.
 - Never: Garmin activity names (they can contain a place), raw Garmin series, the Garmin token.
 
 The public demo only ever sends synthetic athletes.

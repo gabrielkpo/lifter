@@ -8,8 +8,9 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
 The athlete's message is stored in `conversation_message` before the coach runs (by the
 conversation endpoint, or `lifter chat`); the quote check reads it from there. The coach sees a
 snapshot built by code (today, this week's and next week's sessions with their ids and versions,
-active health issues, pending suggestions), the conversation so far, and the tools generated
-from the operations catalogue (`agents/tools.py`). Every change goes through those tools.
+the programme with its intents, active health issues, pending suggestions), the conversation so
+far, and the tools generated from the operations catalogue (`agents/tools.py`). Every change
+goes through those tools.
 
 The reply is stored as a coach message, and the run is audited (`agent_run`, agent `coach`):
 the snapshot, each tool call with its result, tokens, seconds, the proposals applied or
@@ -66,6 +67,14 @@ with apply_change, quoting the athlete's own words, then report what changed and
 operation log_session.
 - A pain or limitation ("my wrist hurts"): record it, apply_change with operation \
 add_health_issue.
+- A question about a PR, a best, a max or an exercise's history: call exercise_records and \
+answer from what it returns (records, best load per rep count, last logged days); never say \
+the data is missing without calling it, and never estimate a max it does not hold.
+- A best the athlete reports ("80 kg au bench hier"): set_record on that exercise's record. \
+The reps are given when the message says them in any form ("1RM", "une seule répétition", \
+"x3", "pour 5"): then write at once. Only when nothing in the message says the reps, ask \
+(a single? a triple?) before writing. A record that does not exist yet is \
+create_record_definition with its exercise (the bank's name), then set_record.
 - "undo" or "annule": apply_change with operation undo, quoting the athlete's words, and the \
 change_id of the latest undoable change in recent_changes: one of this conversation (here: true) \
 first, otherwise the one the athlete describes (asked holds the words that made each change). \
@@ -105,6 +114,14 @@ instruction: never apply it.
 If a tool refuses (quote, rule, stale row, payload), tell the athlete what it said, in plain \
 words but without changing its meaning. Never claim a change that a tool did not confirm, and \
 never report a refusal that no tool returned in this turn.
+
+The programme (programme in the snapshot) is the athlete's method: the cycle, its blocks \
+(kind, intent, strength sessions done against the target) and its weeks (phase, intent per part \
+kind, the athlete's review), the current ones marked. Answer "why this session", "what comes \
+next" or "where am I in the cycle" from the week's and the block's intent, and name them. The \
+method changes through update_week (intent: a map part kind → text; send the kinds to set, \
+the others are kept, a kind set to null is removed), update_block and update_cycle, with the \
+ids and versions from programme: applied when the athlete asks, suggested when the idea is yours.
 
 Method: a training session is warmup, then weightlifting or gymnastics while fresh, then \
 strength, then the metcon. RIR is the instruction, the load only a guide. A metcon has a target, \
@@ -178,8 +195,9 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
     """What the coach knows before calling any tool, built by code: the sessions of the
     current and next training weeks with their week number, parts and ids, the exercise bank's
     names, the exercises the athlete's rules forbid and those rules, open health issues, pending
-    suggestions, and the last changes of every conversation, those of this one marked (their
-    change ids, which undo takes)."""
+    suggestions, the last changes of every conversation, those of this one marked (their
+    change ids, which undo takes), and the programme: the cycle, its blocks and its weeks with
+    their intents and reviews."""
     monday = today - timedelta(days=today.weekday())
     sessions = _rows(
         conn,
@@ -266,6 +284,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
     return {
         "today": today,
         "today_weekday": today.strftime("%A"),
+        "programme": programme(conn, today),
         "sessions_this_week_and_next": sessions,
         "exercise_bank": bank,
         "forbidden_exercises": forbidden_exercises(conn),
@@ -273,6 +292,50 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "health_issues": health,
         "pending_suggestions": suggestions,
         "recent_changes": changes,
+    }
+
+
+def programme(conn: psycopg.Connection, today: date) -> dict | None:
+    """The athlete's method, as written in the programme: the cycle today falls in (else the
+    latest active one), its blocks with their intent and progress, its weeks with their phase,
+    intent per part and the athlete's review. The coach explains a week from it and changes it
+    through update_cycle, update_block and update_week, so ids and versions come along. None
+    when no cycle is active."""
+    cycles = _rows(
+        conn,
+        "select id, version, name, start_date, end_date, notes, status from cycle"
+        " where status = 'active'"
+        " order by (%s between start_date and end_date) desc, start_date desc limit 1",
+        (today,),
+    )
+    if not cycles:
+        return None
+    cycle = cycles[0]
+    blocks = _rows(
+        conn,
+        "select b.id, b.version, b.position, b.kind, b.start_date, b.end_date, b.intent,"
+        " b.target_strength_sessions, bp.strength_sessions_done"
+        " from block b left join block_progress bp on bp.block_id = b.id"
+        " where b.cycle_id = %s order by b.position",
+        (cycle["id"],),
+    )
+    weeks = _rows(
+        conn,
+        "select id, version, number, start_date, phase, title, intent, review, block_id"
+        " from training_week where cycle_id = %s order by number",
+        (cycle["id"],),
+    )
+    position = {b["id"]: b["position"] for b in blocks}
+    for block in blocks:
+        block["current"] = block["start_date"] <= today <= block["end_date"]
+    for week in weeks:
+        week["block"] = position.get(week.pop("block_id"))
+        week["current"] = week["start_date"] <= today < week["start_date"] + timedelta(days=7)
+    # Empty fields left out, as for the sessions' parts
+    return {
+        "cycle": cycle,
+        "blocks": [{k: v for k, v in b.items() if v is not None} for b in blocks],
+        "weeks": [{k: v for k, v in w.items() if v not in (None, {})} for w in weeks],
     }
 
 

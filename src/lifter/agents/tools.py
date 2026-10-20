@@ -26,6 +26,7 @@ from typing import Any
 import psycopg
 from langchain_core.tools import BaseTool, StructuredTool
 from psycopg import sql
+from psycopg.rows import dict_row
 from pydantic import BaseModel, Field, ValidationError
 
 from lifter import operations
@@ -58,6 +59,16 @@ def _json(value: Any) -> str:
         return str(v)
 
     return json.dumps(value, default=default, ensure_ascii=False)
+
+
+def _like(text: str) -> str:
+    """The text as a literal inside a LIKE pattern: its %, _ and \\ no longer match anything."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _dict_rows(conn: psycopg.Connection, query: str, params: tuple) -> list[dict]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        return cur.execute(query, params).fetchall()
 
 
 def _refused(reason: str) -> str:
@@ -104,6 +115,10 @@ class PresentSuggestionsArgs(BaseModel):
     suggestion_ids: list[int] = Field(
         min_length=1, description="Ids of older suggestions to show the athlete in your reply"
     )
+
+
+class ExerciseRecordsArgs(BaseModel):
+    exercise: str = Field(description="The exercise's name, as in the exercise bank")
 
 
 class OperationSchemaArgs(BaseModel):
@@ -184,6 +199,46 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         except psycopg.Error as exc:  # a value of the wrong type for the column
             return _refused(f"cannot read {table}: {exc.diag.message_primary or exc}")
         return _json({"table": table, "rows": rows, "truncated": len(rows) == MAX_ROWS})
+
+    def exercise_records(exercise: str) -> str:
+        """What the app's PR tab shows for one exercise, read as is: its records, its best
+        logged load per rep count, and its last logged days. Nothing estimated: a 1RM is a
+        record or a set of 1, never computed."""
+        found = conn.execute(
+            "select id, name from exercise where lower(name) = lower(%s)", (exercise.strip(),)
+        ).fetchone()
+        if found is None:
+            close = [
+                r[0]
+                for r in conn.execute(
+                    "select name from exercise where name ilike %s order by name limit 10",
+                    (f"%{_like(exercise.strip())}%",),
+                ).fetchall()
+            ]
+            return _refused(f"no exercise named {exercise!r} in the bank; close names: {close}")
+        exercise_id, name = found
+        records = _dict_rows(
+            conn,
+            "select d.name as record, d.record_type, d.unit, e.day, e.reps, e.value, e.value_text,"
+            " e.notes from record_definition d join record_entry e on e.definition_id = d.id"
+            " where d.exercise_id = %s or lower(d.name) = lower(%s)"
+            " order by e.day desc, e.id desc limit 20",
+            (exercise_id, name),
+        )
+        best = _dict_rows(
+            conn,
+            "select reps, best_load_kg, day from exercise_best where exercise = %s order by reps",
+            (name,),
+        )
+        recent = _dict_rows(
+            conn,
+            "select day, top_load_kg, reps, sets from exercise_history where exercise = %s"
+            " order by day desc limit 10",
+            (name,),
+        )
+        return _json(
+            {"exercise": name, "records": records, "best_load_per_reps": best, "recent": recent}
+        )
 
     def pending_suggestions() -> str:
         rows = conn.execute(
@@ -280,11 +335,26 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             )
         return None
 
+    def _whole_intent(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """update_week replaces the week's intent map; the model sends the part kinds it
+        changes, so the others are read back and kept (a kind set to null is removed). The
+        model dropped the kinds it did not mention three times of three on the bench."""
+        if operation != "update_week" or not isinstance(payload, dict):
+            return payload
+        given, week_id = payload.get("intent"), payload.get("id")
+        if not isinstance(given, dict) or not isinstance(week_id, int):
+            return payload  # the payload check refuses what is wrong here
+        row = conn.execute("select intent from training_week where id = %s", (week_id,)).fetchone()
+        current = dict(row[0] or {}) if row else {}
+        current.update(given)
+        return {**payload, "intent": {k: v for k, v in current.items() if v is not None}}
+
     def apply_change(
         operation: str, payload: dict[str, Any], quote: str, rationale: str = ""
     ) -> str:
         if operation == "undo" and (refusal := _undo_from_elsewhere(payload, quote)):
             return refusal
+        payload = _whole_intent(operation, payload)
         key = ctx.next_key()
         return _attempt(
             lambda: _applied(
@@ -307,7 +377,11 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
     def suggest_change(operation: str, payload: dict[str, Any], rationale: str) -> str:
         def call() -> str:
             suggestion = operations.suggest(
-                conn, operation, payload, rationale=rationale, author=AUTHOR
+                conn,
+                operation,
+                _whole_intent(operation, payload),
+                rationale=rationale,
+                author=AUTHOR,
             )
             ctx.suggestions.append(suggestion)
             return _json({"ok": True, "suggestion_id": suggestion})
@@ -350,6 +424,14 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             description="Rows of one table, with their id and version (needed by updates and "
             f"deletes): filtered by one column, or the latest {MAX_ROWS}.",
             args_schema=ReadRowsArgs,
+        ),
+        StructuredTool.from_function(
+            exercise_records,
+            name="exercise_records",
+            description="An exercise's records (PRs), its best logged load per rep count and "
+            "its last logged days: what the PR tab shows. Call it for any PR, best, max or "
+            "history question.",
+            args_schema=ExerciseRecordsArgs,
         ),
         StructuredTool.from_function(
             pending_suggestions,

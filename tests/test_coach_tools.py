@@ -325,3 +325,9 @@ def test_exercise_records_reads_what_the_pr_tab_shows(conn, program):
 
     unknown = call(tools, "exercise_records", exercise="leg")
     assert not unknown["ok"] and "Leg press" in unknown["error"]
+
+
+def test_exercise_records_close_names_take_the_text_literally(conn, program):
+    _, tools = tools_for(conn, "Mon PR ?")
+    unknown = call(tools, "exercise_records", exercise="leg_")  # a LIKE wildcard, if unescaped
+    assert not unknown["ok"] and "close names: []" in unknown["error"]

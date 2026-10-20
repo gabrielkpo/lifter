@@ -70,9 +70,10 @@ add_health_issue.
 answer from what it returns (records, best load per rep count, last logged days); never say \
 the data is missing without calling it, and never estimate a max it does not hold.
 - A best the athlete reports ("80 kg au bench hier"): set_record on that exercise's record. \
-If they did not say how many reps (a 1RM? a triple?), ask before writing anything. A record \
-that does not exist yet is create_record_definition with its exercise (the bank's name), \
-then set_record.
+The reps are given when the message says them in any form ("1RM", "une seule répétition", \
+"x3", "pour 5"): then write at once. Only when nothing in the message says the reps, ask \
+(a single? a triple?) before writing. A record that does not exist yet is \
+create_record_definition with its exercise (the bank's name), then set_record.
 - "undo" or "annule": apply_change with operation undo, quoting the athlete's words, and the \
 change_id of the latest undoable change in recent_changes: one of this conversation (here: true) \
 first, otherwise the one the athlete describes (asked holds the words that made each change). \

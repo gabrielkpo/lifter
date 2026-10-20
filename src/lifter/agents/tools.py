@@ -61,6 +61,11 @@ def _json(value: Any) -> str:
     return json.dumps(value, default=default, ensure_ascii=False)
 
 
+def _like(text: str) -> str:
+    """The text as a literal inside a LIKE pattern: its %, _ and \\ no longer match anything."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _dict_rows(conn: psycopg.Connection, query: str, params: tuple) -> list[dict]:
     with conn.cursor(row_factory=dict_row) as cur:
         return cur.execute(query, params).fetchall()
@@ -207,7 +212,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                 r[0]
                 for r in conn.execute(
                     "select name from exercise where name ilike %s order by name limit 10",
-                    (f"%{exercise.strip()}%",),
+                    (f"%{_like(exercise.strip())}%",),
                 ).fetchall()
             ]
             return _refused(f"no exercise named {exercise!r} in the bank; close names: {close}")

@@ -281,6 +281,8 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             "change_id": found[0] if found else None,
             "before": [i.row for i in change.before],
             "after": [i.row for i in change.after],
+            # Applied all the same (the athlete decides): the rules it now breaks, to tell them.
+            "violations": [v.get("message", str(v)) for v in change.violations],
         }
         ctx.changes.append(result)
         return _json(result)

@@ -3,7 +3,8 @@ import { type NextRequest, NextResponse } from "next/server";
 // The app's server reads the Lifter API on behalf of the browser: the API's address, its
 // token and the Vercel protection bypass stay on the server, never in the page.
 // GET on the API's own endpoints; the one write forwarded is a message to the coach
-// (POST /conversations, /conversations/{id}), from this app's own pages only.
+// (POST /conversations, /conversations/{id}, /conversations/{id}/undo), from this app's own
+// pages only.
 const API_URL = process.env.LIFTER_API_URL ?? "http://127.0.0.1:8000";
 const API_TOKEN = process.env.LIFTER_API_TOKEN;
 const BYPASS = process.env.LIFTER_API_BYPASS;
@@ -26,13 +27,29 @@ const ENDPOINTS = new Set([
 ]);
 const SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Where a message may go: a new conversation, one by its id, or the first one (the route of
- * the release before, for an app left open across the deployment). */
+/** Where a message may go: a new conversation, one by its id, the Undo of a change in one, or
+ * the first one (the route of the release before, for an app left open across the deployment). */
 function messagePath(path: string[]): string | null {
-  if (path.length === 1 && (path[0] === "conversations" || path[0] === "conversation")) {
+  if (
+    path.length === 1 &&
+    (path[0] === "conversations" || path[0] === "conversation")
+  ) {
     return path[0];
   }
-  if (path.length === 2 && path[0] === "conversations" && SEGMENT.test(path[1])) {
+  if (
+    path.length === 2 &&
+    path[0] === "conversations" &&
+    SEGMENT.test(path[1])
+  ) {
+    return path.join("/");
+  }
+  // The Undo of a change, applied without the model.
+  if (
+    path.length === 3 &&
+    path[0] === "conversations" &&
+    SEGMENT.test(path[1]) &&
+    path[2] === "undo"
+  ) {
     return path.join("/");
   }
   return null;
@@ -61,7 +78,10 @@ async function forward(url: string, init: RequestInit): Promise<NextResponse> {
       redirect: "manual",
     });
   } catch {
-    return NextResponse.json({ detail: "Lifter API unreachable" }, { status: 504 });
+    return NextResponse.json(
+      { detail: "Lifter API unreachable" },
+      { status: 504 },
+    );
   }
   // Errors other than "not found", "invalid input" and the coach's own (a newer message,
   // its model or the database unavailable) are not passed through in detail, but a refusal
@@ -71,14 +91,20 @@ async function forward(url: string, init: RequestInit): Promise<NextResponse> {
     upstream.status === 403 ||
     (upstream.status >= 300 && upstream.status < 400)
   ) {
-    return NextResponse.json({ detail: "Lifter API refused the request" }, { status: 503 });
+    return NextResponse.json(
+      { detail: "Lifter API refused the request" },
+      { status: 503 },
+    );
   }
   if (!upstream.ok && ![404, 409, 422, 502, 503].includes(upstream.status)) {
     return NextResponse.json({ detail: "Lifter API error" }, { status: 502 });
   }
   return new NextResponse(await upstream.text(), {
     status: upstream.status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+    },
   });
 }
 
@@ -116,11 +142,14 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!ENDPOINTS.has(path[0]) || path.length > 2 || !path.every((s) => SEGMENT.test(s))) {
+  if (
+    !ENDPOINTS.has(path[0]) ||
+    path.length > 2 ||
+    !path.every((s) => SEGMENT.test(s))
+  ) {
     return NextResponse.json({ detail: "not found" }, { status: 404 });
   }
   return forward(`${API_URL}/${path.join("/")}${request.nextUrl.search}`, {
     headers: upstreamHeaders(),
   });
 }
-

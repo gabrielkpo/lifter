@@ -150,7 +150,8 @@ def test_a_quote_the_athlete_did_not_write_changes_nothing(conn, program):
     assert session(conn, "Legs + Metcon")[2] == day
 
 
-def test_a_change_that_breaks_a_rule_is_refused_with_the_rule(conn, program):
+def test_a_change_that_breaks_a_rule_is_applied_with_the_rule(conn, program):
+    # 20/10, the owner: what the athlete asks is applied; the rule it breaks comes back with it.
     part = conn.execute(
         "select sp.id from session_part sp join planned_session p on p.id = sp.session_id"
         " where p.title = 'Legs + Metcon' and sp.kind = 'strength'"
@@ -170,11 +171,11 @@ def test_a_change_that_breaks_a_rule_is_refused_with_the_rule(conn, program):
         },
         quote="Ajoute du back squat 3x5 à 60 kg RIR 2",
     )
-    assert not result["ok"] and result["error"] == "refused by the athlete's rules"
+    assert result["ok"]
     assert any("Back squat" in v for v in result["violations"])
     assert conn.execute(
         "select count(*) from session_line where exercise = 'Back squat'"
-    ).fetchone() == (0,)
+    ).fetchone() == (1,)
 
 
 def test_an_invalid_payload_is_explained_to_the_model(conn, program):

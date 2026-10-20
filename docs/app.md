@@ -34,6 +34,7 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 | `GET /conversations/{id}?limit=50` | A conversation and its latest messages, oldest first: each athlete message with the changes it authorised, each reply with the suggestions it presented; 404 for an unknown id |
 | `POST /conversations` `{text}` | A new conversation, opened by the athlete's first message, then the coach's answer to it (one turn, 1 to 8 model calls). Its id is drawn by the server. 502 if the model is unreachable, 503 if the database is or the coach is not configured; when the conversation was opened all the same, the error's `detail` names it (`conversation_id`) |
 | `POST /conversations/{id}` `{text}` | The athlete's next message in a conversation, then the coach's answer: 404 for an unknown id, 409 if a newer message is waiting in it, 502 and 503 as above |
+| `POST /conversations/{id}/undo` `{change_id}` | The Undo of a change, without the model: stored as the athlete's "annule le changement N", applied by `lifter.operations` (the rules report, never refuse), answered by a short reply: undone and what is in breach again, or the later changes on the same rows to undo first |
 | `GET /conversation`, `POST /conversation` | The first conversation (`main`), for one release after 0.2.2, then removed |
 
 Run locally, the API listens on `127.0.0.1` only, opens its database connection read-only and

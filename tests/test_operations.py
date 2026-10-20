@@ -339,7 +339,8 @@ def test_an_update_with_nothing_to_change_is_refused(conn, program):
 # The rules
 
 
-def test_a_change_that_breaks_a_rule_is_refused_and_nothing_is_written(conn, program):
+def test_a_change_that_breaks_a_rule_is_applied_and_says_so(conn, program):
+    # 20/10, the owner: "si je le demande je puisse tout faire": the rules report, never refuse.
     # A fake guardrail: a session called "Running" breaks the rule (no running).
     def violations(c, week):
         n = c.execute(
@@ -354,22 +355,21 @@ def test_a_change_that_breaks_a_rule_is_refused_and_nothing_is_written(conn, pro
     operations.set_programme_check(violations, introduced)
     week = conn.execute("select id, start_date from training_week order by id limit 1").fetchone()
     count = conn.execute("select count(*) from planned_session").fetchone()[0]
-    with pytest.raises(RuleViolation):
-        do(
-            conn,
-            "create_session",
-            {"day": str(week[1]), "title": "Running", "week_id": week[0]},
-            "ajoute un footing lundi",
-        )
-    assert conn.execute("select count(*) from planned_session").fetchone()[0] == count
-    assert conn.execute("select count(*) from proposal").fetchone()[0] == 0
-    do(
+    change = do(
+        conn,
+        "create_session",
+        {"day": str(week[1]), "title": "Running", "week_id": week[0]},
+        "ajoute un footing lundi",
+    )
+    assert change.violations == [{"message": "running"}]
+    assert conn.execute("select count(*) from planned_session").fetchone()[0] == count + 1
+    bike = do(
         conn,
         "create_session",
         {"day": str(week[1]), "title": "Bike", "week_id": week[0]},
         "ajoute du vélo lundi",
     )
-    assert conn.execute("select count(*) from planned_session").fetchone()[0] == count + 1
+    assert bike.violations == []  # only what a change introduces
 
 
 def running_sessions(c, week):
@@ -410,8 +410,9 @@ def test_a_new_rule_flags_the_planned_sessions_it_breaks_without_being_refused(c
     ).fetchone() == (1,)
 
 
-def test_an_undo_that_brings_back_a_forbidden_session_is_refused(conn, program):
-    # Audit N9: undo goes through the guardrail like any change of the programme.
+def test_an_undo_that_brings_back_a_forbidden_session_is_applied_and_says_so(conn, program):
+    # Audit N9: undo goes through the guardrail like any change of the programme; since 20/10
+    # (the owner's decision) it reports what comes back in breach, it is never refused.
     _, session_id = a_running_session(conn)
     do(conn, "add_rule", {"text": "Pas de course"}, "plus de course à pied pour moi")
     version = conn.execute(
@@ -425,11 +426,41 @@ def test_an_undo_that_brings_back_a_forbidden_session_is_refused(conn, program):
     )
     deleted = change_id(conn)
     operations.set_programme_check(running_sessions, new_items)
-    with pytest.raises(RuleViolation):
-        do(conn, "undo", {"change_id": deleted}, "annule")
+    change = do(conn, "undo", {"change_id": deleted}, "annule")
+    assert change.violations == [{"message": "running"}]
     assert conn.execute(
         "select count(*) from planned_session where id = %s", (session_id,)
-    ).fetchone() == (0,)
+    ).fetchone() == (1,)
+
+
+def test_a_suggestion_that_breaks_a_rule_is_refused_even_accepted(conn, program):
+    # What the athlete asks is applied (20/10); a suggestion of the coach stays the model's idea:
+    # "ok pour la N" does not let it break the athlete's rules.
+    week, _ = a_running_session(conn)
+    do(conn, "add_rule", {"text": "Pas de course"}, "plus de course à pied pour moi")
+    operations.set_programme_check(running_sessions, new_items)
+    pid = suggest(
+        conn,
+        "create_session",
+        {"day": str(date.today()), "title": "Running", "week_id": week},
+        rationale="An easy run.",
+        author="coach",
+    )
+    coach_says(conn, "Je propose un footing, ok ?", [pid])
+    count = conn.execute("select count(*) from planned_session").fetchone()[0]
+    with pytest.raises(RuleViolation):
+        run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote="ok",
+            message_id=say(conn, "ok"),
+            idempotency_key="pick-running",
+            author="coach",
+            proposal_id=pid,
+        )
+    assert conn.execute("select count(*) from planned_session").fetchone()[0] == count
 
 
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):
@@ -997,7 +1028,7 @@ def test_a_record_needs_its_definition(conn, program):
         )
 
 
-def test_the_real_guardrail_refuses_a_forbidden_movement(conn, program):
+def test_the_real_guardrail_reports_a_forbidden_movement(conn, program):
     from lifter.agents.week_check import introduced, violations_for_week
 
     operations.set_programme_check(violations_for_week, introduced)
@@ -1005,16 +1036,16 @@ def test_the_real_guardrail_refuses_a_forbidden_movement(conn, program):
         "select p.id, p.version from session_part p join planned_session s on s.id = p.session_id"
         " where s.week_id is not null and p.kind = 'metcon' order by p.id limit 1"
     ).fetchone()
-    with pytest.raises(RuleViolation):
-        do(
-            conn,
-            "add_line",
-            {"part_id": part_id, "exercise": "Run", "quantity": 400, "unit": "m"},
-            "ajoute 400 m de course dans le metcon",
-        )
+    change = do(
+        conn,
+        "add_line",
+        {"part_id": part_id, "exercise": "Run", "quantity": 400, "unit": "m"},
+        "ajoute 400 m de course dans le metcon",
+    )
+    assert change.violations, "the rule it breaks comes back with the change"
     assert conn.execute(
-        "select version from session_part where id = %s", (part_id,)
-    ).fetchone() == (part_version,)
+        "select count(*) from session_exercise where id = %s", (change.entity_id,)
+    ).fetchone() == (1,)
 
 
 def test_a_suggestion_made_after_the_message_cannot_be_picked_by_it(conn, program):

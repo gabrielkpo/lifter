@@ -29,6 +29,10 @@ const threadOf = (id: string) =>
   `/conversations/${encodeURIComponent(id)}?limit=50`;
 const NONE: ConversationMessage[] = [];
 
+/** The conversation last on screen while the app stays open: coming back to the tab resumes it;
+ * a new one starts when the app opens again, or on "New conversation". */
+let remembered: string | null = null;
+
 /** A conversation on screen: null for a new one, not opened yet. */
 type Loaded = {
   id: string | null;
@@ -61,45 +65,83 @@ function failure(error: unknown): string {
   }
 }
 
-/** **bold** inside a line, as text: the model writes Markdown, nothing of it is HTML. */
+/** **bold**, *italic* and `code` inside a line, as text: the model writes Markdown, nothing
+ * of it is HTML. */
 function inline(text: string): ReactNode[] {
   return text
-    .split(/(\*\*[^*]+\*\*)/g)
-    .map((piece, i) =>
-      piece.startsWith("**") && piece.endsWith("**") && piece.length > 4 ? (
-        <strong key={i}>{piece.slice(2, -2)}</strong>
-      ) : (
-        piece
-      ),
-    );
+    .split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`)/g)
+    .map((piece, i) => {
+      if (piece.length > 4 && piece.startsWith("**") && piece.endsWith("**")) {
+        return <strong key={i}>{piece.slice(2, -2)}</strong>;
+      }
+      if (piece.length > 2 && piece.startsWith("*") && piece.endsWith("*")) {
+        return <em key={i}>{piece.slice(1, -1)}</em>;
+      }
+      if (piece.length > 2 && piece.startsWith("`") && piece.endsWith("`")) {
+        return <code key={i}>{piece.slice(1, -1)}</code>;
+      }
+      return piece;
+    });
 }
 
-/** A reply's text: paragraphs, "- " or "* " lists and **bold**; anything else as written. */
+type Item = { text: string; children: string[] };
+
+/** A reply's text: paragraphs, "#" titles, "- " and "1. " lists (one level of items under an
+ * item, indented), **bold**, *italic* and `code`; anything else as written. */
 function MessageText({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
-  let items: string[] = [];
   let paragraph: string[] = [];
+  let items: Item[] = [];
+  let ordered = false;
   const flush = () => {
     if (paragraph.length) {
       blocks.push(<p key={blocks.length}>{inline(paragraph.join("\n"))}</p>);
       paragraph = [];
     }
     if (items.length) {
+      const List = ordered ? "ol" : "ul";
       blocks.push(
-        <ul key={blocks.length}>
+        <List key={blocks.length}>
           {items.map((item, i) => (
-            <li key={i}>{inline(item)}</li>
+            <li key={i}>
+              {inline(item.text)}
+              {item.children.length > 0 && (
+                <ul>
+                  {item.children.map((child, j) => (
+                    <li key={j}>{inline(child)}</li>
+                  ))}
+                </ul>
+              )}
+            </li>
           ))}
-        </ul>,
+        </List>,
       );
       items = [];
     }
   };
   for (const line of text.split("\n")) {
-    const item = /^\s*[-*]\s+(.*)$/.exec(line);
-    if (item) {
-      if (paragraph.length) flush();
-      items.push(item[1]);
+    const title = /^\s*#{1,6}\s+(.*)$/.exec(line);
+    const item = /^(\s*)(?:([-*•])|(\d+)[.)])\s+(.*)$/.exec(line);
+    if (title) {
+      flush();
+      blocks.push(
+        <p key={blocks.length} className="chat-heading">
+          <strong>{inline(title[1])}</strong>
+        </p>,
+      );
+    } else if (item) {
+      const [, indent, , number, words] = item;
+      if (indent.length >= 2 && items.length) {
+        items[items.length - 1].children.push(words);
+        continue;
+      }
+      if (
+        paragraph.length ||
+        (items.length && ordered !== (number !== undefined))
+      )
+        flush();
+      ordered = number !== undefined;
+      items.push({ text: words, children: [] });
     } else if (!line.trim()) {
       flush();
     } else {
@@ -156,8 +198,15 @@ function Coach() {
 
   const mine = <T,>(tagged: Tagged<T> | null) =>
     tagged?.id === current ? tagged.value : null;
+  // On the tab without a conversation named (back from another tab, or its icon tapped): the
+  // one left open, until "New conversation" forgets it.
+  const resuming = current === null && remembered !== null;
   const messages =
-    loaded.id === current ? loaded.messages : current === null ? NONE : null;
+    loaded.id === current
+      ? loaded.messages
+      : current === null && !resuming
+        ? NONE
+        : null;
   const title = loaded.id === current ? loaded.title : null;
   const sending = mine(turn);
   const notice = mine(said);
@@ -175,6 +224,15 @@ function Coach() {
       setLoadError({ id, value: failed });
     }
   }
+
+  useEffect(() => {
+    if (current !== null) remembered = current;
+    else if (remembered !== null) {
+      router.replace(`/coach?c=${encodeURIComponent(remembered)}`, {
+        scroll: false,
+      });
+    }
+  }, [current, router]);
 
   // An earlier conversation: its thread, from its end.
   useEffect(() => {
@@ -202,6 +260,7 @@ function Coach() {
   const pick = useCallback(
     (id: string | null) => {
       setDrawer(false);
+      if (id === null) remembered = null;
       if (id === current) return;
       pendingScroll.current = "end";
       router.push(
@@ -473,6 +532,9 @@ function Coach() {
                       {" · "}
                       <strong>{change.subject}</strong>
                     </>
+                  )}
+                  {change.detail && (
+                    <span className="chat-change-detail">{change.detail}</span>
                   )}
                   {change.undone && " · undone"}
                 </span>

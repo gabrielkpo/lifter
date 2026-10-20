@@ -391,3 +391,30 @@ def test_a_mobility_session_does_not_take_the_training_activity(conn, bank):
     store_payload(conn, "get_activity", "1", {}, activity(1, PAST, load=80, activity_type="hiit"))
 
     assert (status(conn, mobility), status(conn, training)) == ("missed", "done")
+
+
+def test_a_declared_lift_record_counts_among_the_best_loads(conn, bank):
+    # 20/10: "PR snatch 70 kg" recorded by the coach did not show in the PR tab.
+    session = push_session()
+    session.parts[1].done = [domain.LineIn(exercise="Bench press", sets=1, quantity=1, load_kg=90)]
+    domain.create_session(conn, session)
+    conn.execute(
+        "insert into record_definition (name, kind, record_type, unit)"
+        " values ('bench PRESS', 'lift', 'max_load', 'kg'), ('Row 2k', 'cardio', 'time', null)"
+    )
+    conn.execute(
+        "insert into record_entry (definition_id, day, value) select id, '2026-10-19', 95"
+        " from record_definition where name = 'bench PRESS'"
+    )
+    conn.execute(
+        "insert into record_entry (definition_id, day, value_text) select id, '2026-10-18', '7:30'"
+        " from record_definition where name = 'Row 2k'"
+    )
+
+    bests = conn.execute("select exercise, reps, best_load_kg, day from exercise_best").fetchall()
+    assert bests == [("Bench press", 1, 95, date(2026, 10, 19))]
+    points = conn.execute(
+        "select day, session_id, top_load_kg from exercise_history where exercise = 'Bench press'"
+        " order by day"
+    ).fetchall()
+    assert points[-1] == (date(2026, 10, 19), None, 95)

@@ -32,7 +32,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI",
+    Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
@@ -55,7 +56,8 @@ button {
   max-width: 560px;
   margin: 0 auto;
   min-height: 100dvh;
-  padding: env(safe-area-inset-top) 16px calc(var(--island-space) + env(safe-area-inset-bottom) + 24px);
+  padding: env(safe-area-inset-top) 16px
+    calc(var(--island-space) + env(safe-area-inset-bottom) + 24px);
 }
 
 /* Header: page title on the left, avatar (profile) on the right. */
@@ -413,7 +415,8 @@ button {
   transform: translateX(-50%);
   bottom: calc(var(--island-space) + env(safe-area-inset-bottom) + 10px);
   width: min(528px, calc(100% - 32px));
-  z-index: 9;
+  /* Above the floor (body::after), which a page with this search makes taller. */
+  z-index: 10;
 }
 /* Room for the floating search, so the last rows are never hidden under it. */
 .search-spacer {
@@ -745,7 +748,9 @@ button {
 :root {
   /* Where the coach's input sits: above the tab bar on a phone, at the bottom on a computer,
      right above the keyboard when it is open (--keyboard, set by app/coach). */
-  --chat-input-bottom: calc(var(--island-space) + env(safe-area-inset-bottom));
+  --chat-input-bottom: calc(
+    var(--island-space) + env(safe-area-inset-bottom) + 10px
+  );
 }
 body.keyboard-open {
   --chat-input-bottom: calc(var(--keyboard, 0px) + 8px);
@@ -773,10 +778,15 @@ body.keyboard-open .tabbar {
 }
 .bubble p + p,
 .bubble p + ul,
-.bubble ul + p {
+.bubble p + ol,
+.bubble ul + p,
+.bubble ol + p,
+.bubble ul + ol,
+.bubble ol + ul {
   margin-top: 10px;
 }
-.bubble ul {
+.bubble ul,
+.bubble ol {
   margin: 0;
   padding-left: 20px;
   line-height: 1.45;
@@ -894,9 +904,19 @@ body::before {
     right: 0;
     bottom: 0;
     height: calc(var(--island-space) + env(safe-area-inset-bottom));
-    background: linear-gradient(to top, var(--bg) calc(100% - 12px), transparent);
+    background: linear-gradient(
+      to top,
+      var(--bg) calc(100% - 12px),
+      transparent
+    );
     z-index: 9;
     pointer-events: none;
+  }
+  /* With the floating search (app/prs), the floor reaches above it: no row shows around it. */
+  body:has(.search)::after {
+    height: calc(
+      var(--island-space) + env(safe-area-inset-bottom) + 10px + 52px + 12px
+    );
   }
   body.keyboard-open::after {
     display: none;
@@ -969,7 +989,8 @@ body::before {
   width: min(320px, 85vw);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: calc(env(safe-area-inset-top) + 16px) 12px calc(env(safe-area-inset-bottom) + 16px);
+  padding: calc(env(safe-area-inset-top) + 16px) 12px
+    calc(env(safe-area-inset-bottom) + 16px);
   background: var(--surface);
   border-right: 1px solid var(--border);
   transform: translateX(-100%);
@@ -1034,4 +1055,26 @@ body.drawer-open {
   .drawer-panel {
     transition: none;
   }
+}
+
+/* A reply's own titles and code (app/coach, MessageText). */
+.bubble .chat-heading {
+  margin-top: 4px;
+}
+.bubble code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+.bubble li ul {
+  margin-top: 4px;
+}
+/* What a change did, old to new, under its name (app/coach). */
+.chat-change-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
 }

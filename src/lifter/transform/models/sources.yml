@@ -24,3 +24,5 @@ sources:
       - name: session_part
       - name: session_exercise
       - name: feedback
+      - name: record_definition
+      - name: record_entry

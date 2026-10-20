@@ -3,8 +3,8 @@
 A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private HTTP API
 (FastAPI, `src/lifter/api/`), read-only but for the conversation with the coach. The API reads the same analytics views as the CLI and
 computes nothing of its own. Five tabs: **WOD** (the week, day by day, and each session planned
-against done), **PRs** (best loads by kind and family), **Coach** (the conversations: the tab opens on a new
-one, the history panel on the left resumes any earlier one, named in the address `?c=`; what the
+against done), **PRs** (best loads by kind and family, from the sets logged and the lift records declared to the coach), **Coach** (the conversations: the app opens on a new
+one, kept while it stays open, the history panel on the left resumes any earlier one, named in the address `?c=`; what the
 athlete asks is applied at once and shown under the reply with an undo; the coach's own ideas
 come back as numbered suggestions, accepted with "ok pour N" in the conversation that showed
 them),
@@ -25,8 +25,8 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 | `GET /program` | Cycle and blocks, strength sessions done against the block target |
 | `GET /blocks/{id}` | A block: its weeks and each lift's top load, reps and RIR week by week |
 | `GET /health?days=14` | Daily metrics, Garmin recovery values and alerts |
-| `GET /goals`, `/bests` | Goals with milestones, best logged loads |
-| `GET /history?exercise=` | The heaviest set per day of a movement (PR curves) |
+| `GET /goals`, `/bests` | Goals with milestones, best loads (logged sets and declared lift records) |
+| `GET /history?exercise=` | The heaviest set per day of a movement, a declared record without a session (PR curves) |
 | `GET /profile` | The athlete (age, never the birth date), declared health issues, active rules |
 | `GET /status` | When the Mac's sync last stored or confirmed a Garmin payload (the app's freshness banner) |
 | `GET /proposals?status=pending` | The agents' proposals |

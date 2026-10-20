@@ -60,6 +60,8 @@ class Change(BaseModel):
     # What it is about, in a few words: the exercise of a line, the kind or title of a part,
     # the title and day of a session...
     subject: str | None = None
+    # What it changed on that row, old to new: "RIR 2 → 5 · 60 → 45 kg".
+    detail: str | None = None
     undone: bool = False
 
 
@@ -112,19 +114,70 @@ def _changes(conn: psycopg.Connection, message_ids: list[int]) -> dict[int, list
     ).fetchall()
     out: dict[int, list[Change]] = {}
     for row in rows:
-        images = row.pop("after") + row.pop("before")  # the row as it became, else as it was
-        image = next(
-            (
-                i["row"]
-                for i in images
-                if i["table"] == row["entity"] and i["id"] == row["entity_id"] and i["row"]
-            ),
-            None,
-        )
+        after, before = _image(row.pop("after"), row), _image(row.pop("before"), row)
         out.setdefault(row.pop("message_id"), []).append(
-            Change(**row, subject=_subject(conn, image))
+            Change(
+                **row,
+                subject=_subject(conn, after or before),  # as it became, else as it was
+                detail=_detail(before, after),
+            )
         )
     return out
+
+
+def _image(images: list[dict[str, Any]], change: dict[str, Any]) -> dict[str, Any] | None:
+    """The changed row itself among the rows a change recorded."""
+    return next(
+        (
+            i["row"]
+            for i in images
+            if i["table"] == change["entity"] and i["id"] == change["entity_id"] and i["row"]
+        ),
+        None,
+    )
+
+
+# The fields an athlete reads in a change, in that order, and how each is written.
+DETAIL = (
+    ("day", "{}"),
+    ("sets", "{} sets"),
+    ("quantity", "{} reps"),
+    ("load_kg", "{} kg"),
+    ("rir", "RIR {}"),
+    ("rest_seconds", "{} s rest"),
+    ("title", "{}"),
+    ("kind", "{}"),
+    ("status", "{}"),
+)
+
+
+def _detail(before: dict[str, Any] | None, after: dict[str, Any] | None) -> str | None:
+    """What an update changed on a row, old to new, in a few words."""
+    if not before or not after:
+        return None
+
+    def shown(value: Any, form: str) -> str:
+        if value is None:
+            return "–"
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        return form.format(str(value).replace("_", " "))
+
+    parts = [
+        f"{shown(before.get(key), form)} → {shown(after.get(key), form)}"
+        for key, form in DETAIL
+        if before.get(key) != after.get(key)
+    ]
+    others = [
+        key
+        for key in after
+        if key not in dict(DETAIL)
+        and key not in ("version", "updated_at", "position")
+        and before.get(key) != after.get(key)
+    ]
+    if others:
+        parts.append(", ".join(k.replace("_", " ") for k in others[:2]))
+    return " · ".join(parts)[:120] or None
 
 
 def _subject(conn: psycopg.Connection, row: dict[str, Any] | None) -> str | None:

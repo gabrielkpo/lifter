@@ -71,6 +71,7 @@ def test_a_message_is_answered_and_its_change_shown_under_it(conn, database_url,
     (change,) = body["athlete"]["changes"]
     assert change["operation"] == "move_session" and not change["undone"]
     assert change["subject"].startswith("Legs + Metcon")  # what moved, not just "move session"
+    assert change["detail"].endswith("→ 2026-03-06")  # and where to
     assert body["run_id"] is not None
     thread = api.get("/conversation").json()
     assert [(m["role"], m["id"]) for m in thread] == [
@@ -227,3 +228,12 @@ def test_a_failed_first_turn_says_which_conversation_it_opened(conn, database_ur
     texts = [m["text"] for m in api.get(f"/conversations/{opened}").json()["messages"]]
     assert texts == ["salut coach"]
     assert "mistral.ai" not in reply.text
+
+
+def test_a_change_says_what_it_changed_old_to_new():
+    from lifter.api.conversation import _detail
+
+    before = {"id": 1, "sets": 3, "quantity": 5, "load_kg": 60.0, "rir": 2, "version": 1}
+    after = before | {"load_kg": 45.0, "rir": 5, "version": 2, "notes": "léger"}
+    assert _detail(before, after) == "60 kg → 45 kg · RIR 2 → RIR 5 · notes"
+    assert _detail(None, after) is None  # created: nothing to compare

@@ -325,17 +325,20 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
     assert {"code": "forbid_flag", "text": "No running, no repeated jumps."} in seen[
         "athlete_rules"
     ]
-    assert [
-        (c["change_id"], c["undoable"]) for c in seen["recent_changes_in_this_conversation"]
-    ] == [(moved, True)]
-    assert snapshot(conn, TODAY, "c2")["recent_changes_in_this_conversation"] == []
+    assert [(c["change_id"], c["undoable"], c["here"]) for c in seen["recent_changes"]] == [
+        (moved, True, True)
+    ]
+    # another conversation sees the change too, marked as made elsewhere
+    assert [(c["change_id"], c["here"]) for c in snapshot(conn, TODAY, "c2")["recent_changes"]] == [
+        (moved, False)
+    ]
 
     undo = say(conn, "annule")
     model = ScriptedChat(
         tool_call("apply_change", operation="undo", payload={"change_id": moved}, quote="annule")
     )
     answer(conn, model, undo)
-    changes = snapshot(conn, TODAY, "c1")["recent_changes_in_this_conversation"]
+    changes = snapshot(conn, TODAY, "c1")["recent_changes"]
     assert [(c["operation"], c["undoable"]) for c in changes] == [
         ("undo", False),
         ("move_session", False),
@@ -438,3 +441,34 @@ def test_no_model_call_starts_past_the_deadline_even_after_slow_tools(conn, prog
 
     # started at 0; after call 1 the check reads 15 (go on), before call 2 it reads 30 (stop)
     assert reply.usage.calls == 1 and reply.stopped == "time limit reached (30 s)"
+
+
+def test_changes_elsewhere_never_crowd_out_this_conversations_own(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    message = say(conn, "Décale la séance jambes au 2026-03-06 stp")
+    model = ScriptedChat(
+        tool_call(
+            "apply_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+            quote="Décale la séance jambes au 2026-03-06",
+        ),
+    )
+    moved = answer(conn, model, message).changes[0]["change_id"]
+    for n in range(6):  # six changes in another conversation, after the move
+        text = f"Note une douleur au poignet gauche numéro {n}"
+        other = say(conn, text, "c2")
+        scripted = ScriptedChat(
+            tool_call(
+                "apply_change",
+                operation="add_health_issue",
+                payload={"body_part": "wrist", "kind": "pain", "description": f"pain {n}"},
+                quote=text,
+            )
+        )
+        respond(conn, scripted, conversation_id="c2", message_id=other, today=TODAY)
+
+    changes = snapshot(conn, TODAY, "c1")["recent_changes"]
+    assert [c["change_id"] for c in changes if c["here"]] == [moved]
+    assert sum(not c["here"] for c in changes) == 5
+    assert changes[-1]["asked"] == "Décale la séance jambes au 2026-03-06"

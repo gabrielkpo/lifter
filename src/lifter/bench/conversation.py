@@ -39,6 +39,13 @@ class Note(StrictModel):
     text: str
 
 
+class Message(StrictModel):
+    """An athlete message sent in another conversation than the scenario's main one."""
+
+    text: str = Field(min_length=1)
+    conversation: str = Field(min_length=1)
+
+
 class Check(StrictModel):
     check: str
     params: dict[str, Any] = {}
@@ -57,7 +64,7 @@ class Conversation(StrictModel):
     description: str
     today: date
     notes: list[Note] = []
-    messages: list[str] = Field(min_length=1)
+    messages: list[str | Message] = Field(min_length=1)  # a plain text goes to CONVERSATION
     expect: list[Check] = Field(min_length=1)
     review: str
 
@@ -236,17 +243,23 @@ def run_conversation(
         model = make_model()
         calls = tokens_in = tokens_out = stopped = 0
         replies = []
-        start(conn, id=CONVERSATION, title=conversation.messages[0], source="bench")
-        for text in conversation.messages:
+        for message in conversation.messages:
+            text, conversation_id = (
+                (message, CONVERSATION)
+                if isinstance(message, str)
+                else (message.text, message.conversation)
+            )
+            # idempotent: the first message of each conversation creates it (migration 015)
+            start(conn, id=conversation_id, title=text, source="bench")
             message_id = conn.execute(
                 "insert into conversation_message (conversation_id, role, text)"
                 " values (%s, 'athlete', %s) returning id",
-                (CONVERSATION, text),
+                (conversation_id, text),
             ).fetchone()[0]
             reply = respond(
                 conn,
                 model,
-                conversation_id=CONVERSATION,
+                conversation_id=conversation_id,
                 message_id=message_id,
                 model_name=model_name,
                 language=language,

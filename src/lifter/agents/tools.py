@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field, ValidationError
 from lifter import operations
 from lifter.agents.week_check import introduced, violations_for_week
 from lifter.domain import DomainError
-from lifter.quote import QuoteError
+from lifter.quote import QuoteError, verify_quote
 
 AUTHOR = "coach"
 MAX_ROWS = 50
@@ -257,9 +257,34 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         except DomainError as exc:  # OperationError, StaleRow: refused, nothing written
             return _refused(str(exc))
 
+    def _undo_from_elsewhere(payload: dict[str, Any], quote: str) -> str | None:
+        """An undo of a change made in another conversation needs a quote that names it (the
+        full quote rule): a bare "annule" here only ever undoes a change made here."""
+        change_id = (payload or {}).get("change_id")
+        if not isinstance(change_id, int):
+            return None  # the payload check refuses it
+        # A change with no athlete message behind it counts as made elsewhere too
+        row = conn.execute(
+            "select m.conversation_id from change_log c join proposal p on p.id = c.proposal_id"
+            " left join public.conversation_message m on m.id = p.message_id where c.id = %s",
+            (change_id,),
+        ).fetchone()
+        if row is None or row[0] == ctx.conversation_id:
+            return None  # no such change (operations.run says so), or one made here
+        try:
+            verify_quote(conn, ctx.message_id, quote)  # no short quote for a change made elsewhere
+        except QuoteError:
+            return _refused(
+                f"change {change_id} was made in another conversation: undo it only when the"
+                " athlete names it; ask which change they mean"
+            )
+        return None
+
     def apply_change(
         operation: str, payload: dict[str, Any], quote: str, rationale: str = ""
     ) -> str:
+        if operation == "undo" and (refusal := _undo_from_elsewhere(payload, quote)):
+            return refusal
         key = ctx.next_key()
         return _attempt(
             lambda: _applied(

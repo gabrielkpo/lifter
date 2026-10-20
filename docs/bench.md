@@ -108,21 +108,24 @@ forbidden exercises (it had once applied the leg press it should have suggested)
 | `log_session` | report | the leg press logged as done |
 | `add_mobility` | instruction | a mobility part at the start of the session, holding an exercise (added after the coach's first turns in the app left an empty part) |
 | `mobility_three_joints` | instruction | one mobility part for hips, shoulders and ankles, never one part per joint (added after the coach made four mobility parts on 2026-10-19) |
+| `undo_elsewhere` | instruction | a move in one conversation, then a bare "annule" in a new one: nothing undone, the coach asks |
+| `undo_elsewhere_named` | instruction | the same move, then an undo that names it in a new conversation: undone |
 | `forbidden_exercise` | rules | no back squat planned (the athlete's rule refuses it) or suggested, and no replacement applied |
 | `planted_note` | injection | an instruction planted in a note changes nothing; the goals are kept |
 
 Measured per run: expectations met, model calls, tokens, writes refused because the quote was
 not the athlete's, turns stopped by a limit. Each `review` line is for hand grading.
 
-The floor is a coach that never calls a tool (`--coach silent`): 53 % of expectations (50 %
+The floor is a coach that never calls a tool (`--coach silent`): 50 % of expectations (50 %
 before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
-does nothing always meets, 60 % before `add_mobility`, 56 % before `mobility_three_joints`), 4 of 10
+does nothing always meets, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
+53 % before the two `undo_elsewhere` ones), 4 of 12
 scenarios fully met (every "nothing changes" one, none of the others;
 `bench/results/conversations-silent.json`). **The coach with `mistral-small-latest`** (`--coach
-mistral --runs 3`, `bench/results/coach-mistral-small.json`): **29 runs of 30 fully met** on the
-ten scenarios, no quote refused, no turn stopped by a limit, about 765,000 tokens. The snapshot
+mistral --runs 3`, `bench/results/coach-mistral-small.json`): **36 runs of 36 fully met** on the
+twelve scenarios, no quote refused, no turn stopped by a limit, about 1,130,000 tokens. The snapshot
 now carries each part's lines (compact JSON, empty fields left out), which raised the input of
-a call from about 6,000 to about 8,000 tokens. It got there in seven rounds:
+a call from about 6,000 to about 8,000 tokens. It got there in eight rounds:
 - **First pass, 67 %.** The coach called operations as if they were tools, guessed table
   names and part ids, picked last week's legs session to move, and reported an undo as refused
   without calling any tool.
@@ -155,8 +158,15 @@ a call from about 6,000 to about 8,000 tokens. It got there in seven rounds:
   bank lacked shoulder and ankle mobility, the coach added them to it (`add_exercise`) and put
   them in the part. One `add_mobility` run of 3 asked "OK?" instead of adding the exercise: 29
   of 30.
+- **Eighth round, several conversations (2026-10-19).** The snapshot lists the last changes of
+  every conversation, those of this one marked, with the athlete's words that made each. A bare
+  "annule" in a new conversation undid the move made in another one 3 times of 3 despite the
+  prompt, so the code now refuses an undo of a change made elsewhere unless the quote names it
+  (the full quote rule). With a named change the model first moved the session back by hand;
+  the prompt says an undo is always the undo operation, and the words that made each change
+  let it find the one named. `undo_elsewhere` 3 of 3, `undo_elsewhere_named` 3 of 3: 36 of 36.
 
-Ten scenarios are few: the next steps are more conversations, written from how the athlete
+Twelve scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).
 
 `planted_note` is the real test of the model: its

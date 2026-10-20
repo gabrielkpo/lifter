@@ -2,14 +2,14 @@
   "coach": "mistral",
   "model": "mistral-small-latest",
   "summary": {
-    "runs": 30,
-    "expectations_met_rate": 0.98,
-    "scenarios_fully_met": 29,
+    "runs": 36,
+    "expectations_met_rate": 1.0,
+    "scenarios_fully_met": 36,
     "refused_quotes": 0,
     "stopped": 0,
-    "model_calls": 92,
-    "input_tokens": 759197,
-    "output_tokens": 6432
+    "model_calls": 135,
+    "input_tokens": 1116912,
+    "output_tokens": 9607
   },
   "runs": [
     {
@@ -25,41 +25,19 @@
           "detail": "1 mobility part(s), 1 with a planned line at position 1"
         }
       ],
-      "model_calls": 4,
-      "input_tokens": 34622,
-      "output_tokens": 203,
+      "model_calls": 5,
+      "input_tokens": 45240,
+      "output_tokens": 296,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done.\nAdded **Hip mobility** (5 min) at the start of the **Legs + Metcon** session on **Friday 2026-01-24** (this week)."
+        "La mobilit\u00e9 articulaire \"Hip mobility\" (5 min) a \u00e9t\u00e9 ajout\u00e9e en d\u00e9but de la s\u00e9ance **Legs + Metcon** de cette semaine (2026-01-23)."
       ]
     },
     {
       "scenario": "add_mobility",
       "category": "instruction",
       "run": 2,
-      "expectations_met": 0,
-      "expectations": 1,
-      "outcomes": [
-        {
-          "check": "planned_line_in_part 3 Legs + Metcon mobility 1",
-          "passed": false,
-          "detail": "0 mobility part(s), 0 with a planned line"
-        }
-      ],
-      "model_calls": 3,
-      "input_tokens": 24026,
-      "output_tokens": 129,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "I can\u2019t add \u201cHip mobility\u201d because it has no reps target or RIR in the exercise bank. I\u2019ll use **Hip mobility** with 2 sets \u00d7 1 min and RIR 3. OK?"
-      ]
-    },
-    {
-      "scenario": "add_mobility",
-      "category": "instruction",
-      "run": 3,
       "expectations_met": 1,
       "expectations": 1,
       "outcomes": [
@@ -70,255 +48,277 @@
         }
       ],
       "model_calls": 5,
-      "input_tokens": 44766,
-      "output_tokens": 200,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "Done: the **Legs + Metcon** session on **Friday 2026-01-24** now starts with a **mobility** part (Hip mobility). Scope: this week only."
-      ]
-    },
-    {
-      "scenario": "forbidden_exercise",
-      "category": "rules",
-      "run": 1,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "no_planned_line 3 Legs + Metcon Back squat",
-          "passed": true,
-          "detail": "0 planned line(s) of Back squat"
-        },
-        {
-          "check": "no_forbidden_suggestion",
-          "passed": true,
-          "detail": "forbidden in suggestions: none"
-        },
-        {
-          "check": "unchanged",
-          "passed": true,
-          "detail": "0 change(s) applied"
-        }
-      ],
-      "model_calls": 3,
-      "input_tokens": 24070,
-      "output_tokens": 183,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "I can't add \"Back squat\" because it violates the rule \"No free barbell on the legs.\" I suggest replacing it with \"Leg extension\" (5x5 at 80 kg) for this session. To accept, reply: \"ok pour 5x5 \u00e0 80 kg\"."
-      ]
-    },
-    {
-      "scenario": "forbidden_exercise",
-      "category": "rules",
-      "run": 2,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "no_planned_line 3 Legs + Metcon Back squat",
-          "passed": true,
-          "detail": "0 planned line(s) of Back squat"
-        },
-        {
-          "check": "no_forbidden_suggestion",
-          "passed": true,
-          "detail": "forbidden in suggestions: none"
-        },
-        {
-          "check": "unchanged",
-          "passed": true,
-          "detail": "0 change(s) applied"
-        }
-      ],
-      "model_calls": 3,
-      "input_tokens": 24070,
-      "output_tokens": 190,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "I can't add \"Back squat\" because it is forbidden by your rule: **No free barbell on the legs**. I suggest replacing it with **Leg extension 5x5 at 80 kg** (machine, no free barbell). If you agree, answer \"ok pour leg extension 5x5 \u00e0 80 kg\"."
-      ]
-    },
-    {
-      "scenario": "forbidden_exercise",
-      "category": "rules",
-      "run": 3,
-      "expectations_met": 3,
-      "expectations": 3,
-      "outcomes": [
-        {
-          "check": "no_planned_line 3 Legs + Metcon Back squat",
-          "passed": true,
-          "detail": "0 planned line(s) of Back squat"
-        },
-        {
-          "check": "no_forbidden_suggestion",
-          "passed": true,
-          "detail": "forbidden in suggestions: none"
-        },
-        {
-          "check": "unchanged",
-          "passed": true,
-          "detail": "0 change(s) applied"
-        }
-      ],
-      "model_calls": 3,
-      "input_tokens": 24070,
-      "output_tokens": 155,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "\"Back squat\" is forbidden by your rule \"No free barbell on the legs.\" I suggest **Leg press 5x5 at 125 kg** instead."
-      ]
-    },
-    {
-      "scenario": "ideas_only",
-      "category": "question",
-      "run": 1,
-      "expectations_met": 2,
-      "expectations": 2,
-      "outcomes": [
-        {
-          "check": "unchanged",
-          "passed": true,
-          "detail": "0 change(s) applied"
-        },
-        {
-          "check": "no_forbidden_suggestion",
-          "passed": true,
-          "detail": "forbidden in suggestions: none"
-        }
-      ],
-      "model_calls": 1,
-      "input_tokens": 7617,
-      "output_tokens": 414,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "Voici ce que je sugg\u00e9rerais pour ta semaine 3, en respectant tes r\u00e8gles et tes objectifs :\n\n1. **R\u00e9duire le RIR sur les exercices de force** :\n   - Bench press : passer de RIR 2 \u00e0 RIR 1 (progression naturelle avec +2.5 kg).\n   - Strict press et Dips : m\u00eame ajustement (RIR 1).\n   *Raison* : Tu as d\u00e9j\u00e0 une charge l\u00e9g\u00e8rement augment\u00e9e (+2.5 kg sur le bench press), et un RIR 1 permet de progresser sans risque pour tes articulations.\n\n2. **Ajuster la charge du Power snatch** :\n   - Passer de 40 kg \u00e0 42.5 kg (progression de +2.5 kg, conforme \u00e0 ton r\u00e8gle de progression).\n   *Raison* : Le Power snatch est un mouvement technique o\u00f9 la charge doit monter progressivement pour \u00e9viter les compensations.\n\n3. **Remplacer le Farmer carry** :\n   - Remplacer par **Goblet carry** (24 kg) pour \u00e9viter la charge sur les jambes (r\u00e8gle \"No free barbell on the legs\").\n   *Raison* : Le Goblet carry travaille le m\u00eame gainage et la posture sans risque pour tes jambes.\n\n4. **Ajouter un \u00e9chauffement sp\u00e9cifique pour le Bench press** :\n   - Ajouter 2 s\u00e9ries l\u00e9g\u00e8res de Bench press (5 reps \u00e0 40 kg et 5 reps \u00e0 50 kg) avant les s\u00e9ries pr\u00e9vues.\n   *Raison* : Pr\u00e9parer tes \u00e9paules et ton syst\u00e8me nerveux pour la charge plus lourde.\n\n---\n**Suggestion 1** : Appliquer ces changements pour la semaine 3.\n**Suggestion 2** : Garder la semaine 3 telle quelle et ajuster uniquement la semaine 4 apr\u00e8s un bilan.\n\nDis-moi ce que tu pr\u00e9f\u00e8res (1 ou 2), ou si tu veux d'autres ajustements !"
-      ]
-    },
-    {
-      "scenario": "ideas_only",
-      "category": "question",
-      "run": 2,
-      "expectations_met": 2,
-      "expectations": 2,
-      "outcomes": [
-        {
-          "check": "unchanged",
-          "passed": true,
-          "detail": "0 change(s) applied"
-        },
-        {
-          "check": "no_forbidden_suggestion",
-          "passed": true,
-          "detail": "forbidden in suggestions: none"
-        }
-      ],
-      "model_calls": 1,
-      "input_tokens": 7617,
-      "output_tokens": 243,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "Suggestion 1: \"Remplacer le Power snatch du jeudi par du Push jerk, 5x2 \u00e0 40 kg, RIR 3, pour travailler la puissance sans la charge de snatch sur les jambes.\"\nSuggestion 2: \"Diminuer le RIR des Farmer carry du jeudi \u00e0 2 pour respecter la r\u00e8gle de progression (RIR +2 sur le haut du corps).\"\nSuggestion 3: \"Ajouter un \u00e9chauffement sp\u00e9cifique pour les \u00e9paules avant le Bench press du lundi (mobilit\u00e9 + band pull-apart).\"\nSuggestion 4: \"Remplacer le Leg press du vendredi par du Back squat, 4x8 \u00e0 50 kg, RIR 3, en respectant la r\u00e8gle 'No free barbell on the legs' avec un safety squat bar si disponible.\"\nSuggestion 5: \"Diminuer la charge du Romanian deadlift du vendredi \u00e0 50 kg pour respecter la r\u00e8gle 'No failure on legs' et \u00e9viter la fatigue excessive.\"\n\nQuelle suggestion veux-tu appliquer ? (1, 2, 3, 4 ou 5)"
-      ]
-    },
-    {
-      "scenario": "ideas_only",
-      "category": "question",
-      "run": 3,
-      "expectations_met": 2,
-      "expectations": 2,
-      "outcomes": [
-        {
-          "check": "unchanged",
-          "passed": true,
-          "detail": "0 change(s) applied"
-        },
-        {
-          "check": "no_forbidden_suggestion",
-          "passed": true,
-          "detail": "forbidden in suggestions: none"
-        }
-      ],
-      "model_calls": 1,
-      "input_tokens": 7617,
-      "output_tokens": 96,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "Suggestion 1: \"R\u00e9duire le RIR \u00e0 1 sur les exercices de force de la semaine 3 pour tester la progression sans risque.\"\nSuggestion 2: \"Remplacer le Farmer carry du jeudi par un Goblet carry (24 kg) pour \u00e9viter la charge sur le bas du dos.\"\nSuggestion 3: \"Ajouter un \u00e9chauffement sp\u00e9cifique pour les \u00e9paules avant le Bench press et le Strict press du lundi.\""
-      ]
-    },
-    {
-      "scenario": "log_session",
-      "category": "report",
-      "run": 1,
-      "expectations_met": 1,
-      "expectations": 1,
-      "outcomes": [
-        {
-          "check": "done_line 3 Legs + Metcon Leg press",
-          "passed": true,
-          "detail": "1 done line(s) of Leg press"
-        }
-      ],
-      "model_calls": 3,
-      "input_tokens": 23125,
-      "output_tokens": 199,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "Done for today (2026-01-23).\nLeg press 4x12 @ 100 kg, RIR 2 logged in the strength part."
-      ]
-    },
-    {
-      "scenario": "log_session",
-      "category": "report",
-      "run": 2,
-      "expectations_met": 1,
-      "expectations": 1,
-      "outcomes": [
-        {
-          "check": "done_line 3 Legs + Metcon Leg press",
-          "passed": true,
-          "detail": "1 done line(s) of Leg press"
-        }
-      ],
-      "model_calls": 3,
-      "input_tokens": 23125,
-      "output_tokens": 209,
-      "refused_quotes": 0,
-      "stopped": 0,
-      "replies": [
-        "Done for today (2026-01-23): Legs + Metcon.\n- Leg press 4\u00d712 @100 kg, RIR 2 logged in strength.\n- Knee is fine."
-      ]
-    },
-    {
-      "scenario": "log_session",
-      "category": "report",
-      "run": 3,
-      "expectations_met": 1,
-      "expectations": 1,
-      "outcomes": [
-        {
-          "check": "done_line 3 Legs + Metcon Leg press",
-          "passed": true,
-          "detail": "1 done line(s) of Leg press"
-        }
-      ],
-      "model_calls": 3,
-      "input_tokens": 23200,
+      "input_tokens": 45240,
       "output_tokens": 296,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done.\nLeg press 4x12 @ 100 kg RIR 2 logged for today\u2019s Legs + Metcon."
+        "La s\u00e9ance **Legs + Metcon** de cette semaine (vendredi 24/01) a maintenant une partie **mobilit\u00e9** en d\u00e9but de s\u00e9ance avec **Hip mobility** (5 min)."
+      ]
+    },
+    {
+      "scenario": "add_mobility",
+      "category": "instruction",
+      "run": 3,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "planned_line_in_part 3 Legs + Metcon mobility 1",
+          "passed": true,
+          "detail": "1 mobility part(s), 1 with a planned line at position 1"
+        }
+      ],
+      "model_calls": 4,
+      "input_tokens": 34894,
+      "output_tokens": 200,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Mobilit\u00e9 articulaire ajout\u00e9e au d\u00e9but de la s\u00e9ance **Legs + Metcon** de cette semaine (lundi 20/01).\nChange applied: this week only."
+      ]
+    },
+    {
+      "scenario": "forbidden_exercise",
+      "category": "rules",
+      "run": 1,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "no_planned_line 3 Legs + Metcon Back squat",
+          "passed": true,
+          "detail": "0 planned line(s) of Back squat"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
+        },
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 24271,
+      "output_tokens": 166,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "I can't add \"Back squat\" because it violates the rule: **No free barbell on the legs**. I suggest replacing it with **Leg extension** (5x5 at 80 kg) for this session."
+      ]
+    },
+    {
+      "scenario": "forbidden_exercise",
+      "category": "rules",
+      "run": 2,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "no_planned_line 3 Legs + Metcon Back squat",
+          "passed": true,
+          "detail": "0 planned line(s) of Back squat"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
+        },
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 24271,
+      "output_tokens": 191,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "I can't add \"Back squat\" because it violates your rule: **No free barbell on the legs**. I suggest replacing it with **Leg extension 5x5 at 80 kg** (upper-leg machine, no free barbell). Say \"ok pour Leg extension 5x5 \u00e0 80 kg\" to accept."
+      ]
+    },
+    {
+      "scenario": "forbidden_exercise",
+      "category": "rules",
+      "run": 3,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "no_planned_line 3 Legs + Metcon Back squat",
+          "passed": true,
+          "detail": "0 planned line(s) of Back squat"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
+        },
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 24271,
+      "output_tokens": 158,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "I can't add Back squat because it is forbidden by your rule: \"No free barbell on the legs.\" I suggest Front squat 5x5 at 70 kg instead."
+      ]
+    },
+    {
+      "scenario": "ideas_only",
+      "category": "question",
+      "run": 1,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 7684,
+      "output_tokens": 437,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Voici ce que je sugg\u00e9rerais pour ta semaine 3, en tenant compte de tes r\u00e8gles et de la progression :\n\n**Suggestion 1 (id=1) :**\n- **Bench press** : Passer de 4x8 \u00e0 4x6 \u00e0 67.5 kg (progression +2.5 kg, RIR 2).\n- **Strict press** : Garder 3x8 \u00e0 35 kg (RIR 2).\n- **Dips** : Garder 3x6 (RIR 2).\n\n**Suggestion 2 (id=2) :**\n- **Power snatch** : Passer de 5x2 \u00e0 5x2 \u00e0 42.5 kg (progression +2.5 kg, RIR 3).\n- **Strict pull-up** : Passer de 4x5 \u00e0 4x6 (RIR 2).\n- **Barbell row** : Passer de 4x10 \u00e0 4x10 \u00e0 47.5 kg (progression +2.5 kg, RIR 2).\n\n**Suggestion 3 (id=3) :**\n- **Leg press** : Passer de 4x12 \u00e0 4x10 \u00e0 125 kg (progression +5 kg, RIR 2).\n- **Romanian deadlift** : Passer de 3x10 \u00e0 3x8 \u00e0 65 kg (progression +5 kg, RIR 2).\n- **Leg curl** : Garder 3x12 (RIR 2).\n\n**Suggestions 4 (id=4) :**\n- **Metcons** : Garder les m\u00eames cibles (ex: 15 cal Ski erg + 15 Wall ball + 10 Burpees).\n\n---\nPour accepter une suggestion, r\u00e9ponds avec :\n- **\"ok pour id=X\"** (X = 1, 2, 3 ou 4) pour appliquer la suggestion.\n- **\"annule\"** pour ne rien changer."
+      ]
+    },
+    {
+      "scenario": "ideas_only",
+      "category": "question",
+      "run": 2,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 7684,
+      "output_tokens": 527,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Voici ce que je sugg\u00e9rerais pour ta semaine 3, en tenant compte de tes r\u00e8gles et de ton \u00e9tat actuel :\n\n**Suggestion 1 (id=1)** :\n- **Bench press** : Passer de 4x8 \u00e0 4x6 \u00e0 67.5 kg (progression RIR +2.5 kg).\n- **Strict press** : Passer de 3x8 \u00e0 3x6 \u00e0 37.5 kg (progression RIR +2.5 kg).\n- **Dips** : Passer de 3x6 \u00e0 3x8 \u00e0 poids de corps (RIR 2, pour varier l'intensit\u00e9).\n- **Farmer carry** : Augmenter la distance \u00e0 50 m (progression naturelle pour la force globale).\n\n**Suggestion 2 (id=2)** :\n- **Power snatch** : Passer de 5x2 \u00e0 5x2 \u00e0 42.5 kg (progression RIR +2.5 kg).\n- **Strict pull-up** : Passer de 4x5 \u00e0 4x6 (RIR 2, pour renforcer l'endurance de traction).\n- **Barbell row** : Passer de 4x10 \u00e0 4x8 \u00e0 47.5 kg (progression RIR +2.5 kg).\n\n**Suggestion 3 (id=3)** :\n- **Leg press** : Passer de 4x12 \u00e0 4x10 \u00e0 125 kg (progression RIR +5 kg, mais r\u00e9duire les reps pour respecter la r\u00e8gle *no_failure_on_legs*).\n- **Romanian deadlift** : Passer de 3x10 \u00e0 3x8 \u00e0 65 kg (progression RIR +5 kg).\n- **Leg curl** : Passer de 3x12 \u00e0 3x10 \u00e0 30 kg (progression RIR +5 kg).\n\n**Suggestion 4 (id=4)** :\n- **Snatch pull** : Passer de 4x3 \u00e0 4x3 \u00e0 55 kg (progression RIR +5 kg).\n\n---\n**Pour accepter une suggestion**, r\u00e9ponds avec :\n- *\"ok pour id=X\"* (ex: *\"ok pour 1\"*)\n- *\"non pour id=X\"* pour refuser.\n\nJe peux aussi ajuster d'autres d\u00e9tails si tu veux. Dis-moi ce qui te convient !"
+      ]
+    },
+    {
+      "scenario": "ideas_only",
+      "category": "question",
+      "run": 3,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        },
+        {
+          "check": "no_forbidden_suggestion",
+          "passed": true,
+          "detail": "forbidden in suggestions: none"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 7684,
+      "output_tokens": 231,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Suggestion 1 (id 1):\n- Remplacer le \"Power snatch\" du jeudi par du \"Push jerk\" (autoris\u00e9, pas de jambe libre) et augmenter la charge de 40 kg \u00e0 45 kg (progression +5 kg).\n- Baisser le RIR du \"Strict pull-up\" de 2 \u00e0 3 pour coller \u00e0 la r\u00e8gle de progression.\n\nSuggestion 2 (id 2):\n- Remplacer le \"Leg press\" du vendredi par du \"Romanian deadlift\" (autoris\u00e9, pas de squat libre) et augmenter la charge de 120 kg \u00e0 125 kg (progression +5 kg).\n- Baisser le RIR du \"Romanian deadlift\" de 2 \u00e0 3.\n\nSuggestion 3 (id 3):\n- Ajouter une partie \"mobility\" (10 min) avant le \"Weightlifting + Push\" du lundi, avec un exercice au choix (ex: Hip mobility).\n\nR\u00e9ponds avec l'id de la suggestion que tu pr\u00e9f\u00e8res."
+      ]
+    },
+    {
+      "scenario": "log_session",
+      "category": "report",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "done_line 3 Legs + Metcon Leg press",
+          "passed": true,
+          "detail": "1 done line(s) of Leg press"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 23458,
+      "output_tokens": 302,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Done.\nLeg press 4x12 @ 100 kg RIR 2 logged for today\u2019s Legs + Metcon session."
+      ]
+    },
+    {
+      "scenario": "log_session",
+      "category": "report",
+      "run": 2,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "done_line 3 Legs + Metcon Leg press",
+          "passed": true,
+          "detail": "1 done line(s) of Leg press"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 23437,
+      "output_tokens": 289,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Done: Leg press 4x12 @ 100 kg, RIR 2 logged for today\u2019s Legs + Metcon session."
+      ]
+    },
+    {
+      "scenario": "log_session",
+      "category": "report",
+      "run": 3,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "done_line 3 Legs + Metcon Leg press",
+          "passed": true,
+          "detail": "1 done line(s) of Leg press"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 23437,
+      "output_tokens": 289,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Done: Leg press 4\u00d712 @ 100 kg, RIR 2 logged for today\u2019s Legs + Metcon session."
       ]
     },
     {
@@ -335,12 +335,12 @@
         }
       ],
       "model_calls": 7,
-      "input_tokens": 66825,
-      "output_tokens": 748,
+      "input_tokens": 67592,
+      "output_tokens": 854,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done: a mobility part with Hip mobility, Shoulder mobility and Ankle mobility has been added to the Legs + Metcon session of this week (2026-01-23)."
+        "Done: the Legs + Metcon session on Friday 2026-01-24 now has a mobility part with Hip mobility, Shoulder mobility and Ankle mobility, 3x10 reps each."
       ]
     },
     {
@@ -357,12 +357,12 @@
         }
       ],
       "model_calls": 4,
-      "input_tokens": 35145,
-      "output_tokens": 391,
+      "input_tokens": 35223,
+      "output_tokens": 324,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Mobilit\u00e9 ajout\u00e9e \u00e0 la s\u00e9ance **Legs + Metcon** de cette semaine (2026-01-20).\nScope: cette session uniquement."
+        "Done. Added a mobility part with Hip mobility x3x10 to the Legs + Metcon session of this week (2026-01-23)."
       ]
     },
     {
@@ -379,12 +379,12 @@
         }
       ],
       "model_calls": 7,
-      "input_tokens": 65577,
-      "output_tokens": 630,
+      "input_tokens": 66552,
+      "output_tokens": 825,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Mobility part added to the **Legs + Metcon** session (Friday 2026-01-24), with:\n- Hip mobility\n- Shoulder mobility\n- Ankle mobility"
+        "La s\u00e9ance **Legs + Metcon de cette semaine** (vendredi 24/01) a re\u00e7u une partie **mobilit\u00e9** avec :\n- Hip mobility (3x10)\n- Shoulder mobility (3x10)\n- Ankle mobility (3x10)"
       ]
     },
     {
@@ -405,13 +405,13 @@
           "detail": "applied: move_session"
         }
       ],
-      "model_calls": 3,
-      "input_tokens": 23675,
-      "output_tokens": 132,
+      "model_calls": 4,
+      "input_tokens": 32175,
+      "output_tokens": 186,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier 2026**, pour la semaine 3."
+        "La s\u00e9ance **Legs + Metcon** de cette semaine est d\u00e9cal\u00e9e au **jeudi 22 janvier 2026** (semaine 3)."
       ]
     },
     {
@@ -433,12 +433,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 23675,
-      "output_tokens": 130,
+      "input_tokens": 23876,
+      "output_tokens": 133,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **vendredi 23** au **jeudi 22 janvier 2026**, pour cette semaine uniquement."
+        "La s\u00e9ance **Legs + Metcon** (id 14) a \u00e9t\u00e9 d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier 2026** (semaine 3)."
       ]
     },
     {
@@ -459,13 +459,13 @@
           "detail": "applied: move_session"
         }
       ],
-      "model_calls": 3,
-      "input_tokens": 23675,
-      "output_tokens": 121,
+      "model_calls": 4,
+      "input_tokens": 32179,
+      "output_tokens": 186,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done: the session **Legs + Metcon** (id 14) moved from Friday 23 Jan to **Thursday 22 Jan**, week 3."
+        "La s\u00e9ance **Legs + Metcon** de cette semaine est d\u00e9cal\u00e9e au **jeudi 22 janvier 2026** (semaine 3)."
       ]
     },
     {
@@ -487,12 +487,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 7612,
-      "output_tokens": 95,
+      "input_tokens": 7679,
+      "output_tokens": 197,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01 (vendredi de la semaine 2)** : elle est marqu\u00e9e comme \"missed\" (non faite) dans le planning. Aucune session n'a \u00e9t\u00e9 rapport\u00e9e pour ce jour-l\u00e0. Si tu l'as faite, dis-moi ce que tu as fait (exercices, charges, RIR, ressenti) pour que je la logue. Sinon, on la consid\u00e8re comme non faite."
+        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait pr\u00e9vue le **16/01/2026** (semaine 2), mais elle est marqu\u00e9e comme **missed** (non faite). Voici ce qui \u00e9tait planifi\u00e9 :\n\n**Legs + Metcon**\n- **Strength**\n  - Leg press : 4x12 \u00e0 115 kg, RIR 3\n  - Romanian deadlift : 3x10 \u00e0 55 kg, RIR 3\n  - Leg curl : 3x12, RIR 3\n- **Metcon**\n  - Ski erg : 12 cal\n  - Kettlebell swing : 12 reps \u00e0 20 kg\n\nSi tu l\u2019as faite, dis-moi ce que tu as fait (exercices, charges, RIR) pour que je loge la s\u00e9ance. Sinon, on peut la reprogrammer ou l\u2019annuler."
       ]
     },
     {
@@ -514,12 +514,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 7612,
-      "output_tokens": 198,
+      "input_tokens": 7679,
+      "output_tokens": 99,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01/2026** (semaine 2), intitul\u00e9e **\"Legs + Metcon\"**. Elle \u00e9tait planifi\u00e9e mais marqu\u00e9e comme **missed** (non faite).\n\nVoici ce qui \u00e9tait pr\u00e9vu :\n- **Leg press** : 4x12 \u00e0 115 kg, RIR 3\n- **Romanian deadlift** : 3x10 \u00e0 55 kg, RIR 3\n- **Leg curl** : 3x12, RIR 3\n- **Metcon** :\n  - Ski erg : 12 cal\n  - Kettlebell swing : 12 reps \u00e0 20 kg\n\nSi tu l\u2019as faite et que tu veux la logger, dis-moi ce que tu as r\u00e9ellement fait (charges, RIR, ressenti). Sinon, je peux la reprogrammer ou ajuster."
+        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01/2026** (\"Legs + Metcon\"), mais elle est marqu\u00e9e comme **missed** (non faite) dans le planning. Aucun rapport de s\u00e9ance n'a \u00e9t\u00e9 enregistr\u00e9 pour ce jour.\n\nSi tu l'as faite, dis-moi ce que tu as fait (exercices, charges, RIR, ressenti) et je loge la s\u00e9ance. Sinon, on la laisse comme \"missed\"."
       ]
     },
     {
@@ -541,12 +541,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 7612,
-      "output_tokens": 84,
+      "input_tokens": 7679,
+      "output_tokens": 194,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01 (vendredi de la semaine 2)** : *Legs + Metcon*. Elle \u00e9tait marqu\u00e9e comme **missed** (non faite) dans le planning, donc rien n'a \u00e9t\u00e9 enregistr\u00e9 pour cette session. Si tu l'as faite malgr\u00e9 tout, peux-tu me donner les d\u00e9tails de ce que tu as fait ? Je pourrai alors la logger."
+        "Ta derni\u00e8re s\u00e9ance jambes \u00e9tait le **16/01/2026** (semaine 2), intitul\u00e9e **\"Legs + Metcon\"**. Elle \u00e9tait planifi\u00e9e mais marqu\u00e9e comme **missed** (non faite).\n\nVoici ce qui \u00e9tait pr\u00e9vu :\n- **Leg press** : 4x12 \u00e0 115 kg, RIR 3\n- **Romanian deadlift** : 3x10 \u00e0 55 kg, RIR 3\n- **Leg curl** : 3x12, RIR 3\n- **Metcon** :\n  - Ski erg : 12 cal\n  - Kettlebell swing : 12 reps \u00e0 20 kg\n\nSi tu l\u2019as finalement faite, dis-moi comment \u00e7a s\u2019est pass\u00e9 avec un rapport de s\u00e9ance (\"done, ...\"). Sinon, on peut la reprogrammer ou l\u2019annuler."
       ]
     },
     {
@@ -563,12 +563,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 7621,
-      "output_tokens": 83,
+      "input_tokens": 7688,
+      "output_tokens": 90,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Le RIR 2 sur le bench press cette semaine vient de la r\u00e8gle de progression **RIR met on every set** : tu passes de RIR 3 \u00e0 RIR 2 pour stimuler la charge tout en gardant une marge de s\u00e9curit\u00e9. La charge est d\u00e9j\u00e0 augment\u00e9e (+2.5 kg vs la semaine derni\u00e8re), donc le RIR baisse pour \u00e9quilibrer l\u2019effort."
+        "Le RIR 2 cette semaine sur le bench press (et les autres exercices de force) vient de la r\u00e8gle de progression **\"RIR met on every set\"** : tu passes de RIR 3 \u00e0 RIR 2 pour stimuler une l\u00e9g\u00e8re augmentation de charge (+2.5 kg pour le haut du corps), tout en gardant une marge de s\u00e9curit\u00e9. C\u2019est temporaire pour relancer la progression sans forcer."
       ]
     },
     {
@@ -585,12 +585,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 7621,
-      "output_tokens": 108,
+      "input_tokens": 7688,
+      "output_tokens": 105,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Le RIR 2 sur le *Bench press* cette semaine vient de la r\u00e8gle de **progression** que tu suis : tu passes de RIR 3 \u00e0 RIR 2 pour augmenter l\u00e9g\u00e8rement la charge (ici +2.5 kg, de 62.5 kg \u00e0 65 kg) tout en gardant une marge de s\u00e9curit\u00e9. C\u2019est une fa\u00e7on de stimuler l\u2019adaptation sans forcer \u00e0 l\u2019\u00e9chec. Si tu pr\u00e9f\u00e8res garder RIR 3, je peux ajuster."
+        "Le RIR (Reps in Reserve) est baiss\u00e9 de 3 \u00e0 2 sur le bench press cette semaine pour coller \u00e0 la r\u00e8gle de progression **\"RIR met on every set\"** : apr\u00e8s une semaine de repos (la semaine 2 \u00e9tait enti\u00e8rement \"missed\"), on repart avec un RIR l\u00e9g\u00e8rement plus serr\u00e9 pour stimuler l\u2019adaptation, tout en restant prudent apr\u00e8s une longue pause. La charge est aussi augment\u00e9e (+2.5 kg), ce qui justifie ce RIR r\u00e9duit."
       ]
     },
     {
@@ -607,12 +607,12 @@
         }
       ],
       "model_calls": 1,
-      "input_tokens": 7621,
-      "output_tokens": 85,
+      "input_tokens": 7688,
+      "output_tokens": 104,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Le RIR 2 sur le bench press cette semaine refl\u00e8te la progression pr\u00e9vue par la r\u00e8gle **progression** : tu passes de RIR 3 \u00e0 RIR 2 pour stimuler l\u2019adaptation, tout en gardant une marge pour \u00e9viter l\u2019\u00e9chec. La charge est aussi l\u00e9g\u00e8rement augment\u00e9e (+2.5 kg vs la semaine derni\u00e8re), ce qui justifie ce RIR plus serr\u00e9."
+        "Le RIR 2 sur le bench press cette semaine refl\u00e8te la progression pr\u00e9vue par la r\u00e8gle **\"progression\"** : tu passes de RIR 3 \u00e0 RIR 2 pour stimuler l\u2019adaptation, tout en gardant une marge pour \u00e9viter l\u2019\u00e9chec. La charge est aussi l\u00e9g\u00e8rement augment\u00e9e (+2.5 kg par rapport \u00e0 la semaine derni\u00e8re), ce qui justifie ce RIR plus serr\u00e9. Si tu te sens \u00e0 l\u2019aise, on pourra ajuster la semaine prochaine."
       ]
     },
     {
@@ -633,13 +633,13 @@
           "detail": "applied: move_session, undo"
         }
       ],
-      "model_calls": 5,
-      "input_tokens": 39549,
-      "output_tokens": 174,
+      "model_calls": 6,
+      "input_tokens": 48243,
+      "output_tokens": 238,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** de cette semaine (pr\u00e9vue le vendredi 23) est d\u00e9plac\u00e9e au **jeudi 22 janvier**.",
+        "La s\u00e9ance **Legs + Metcon** de cette semaine est d\u00e9cal\u00e9e du **vendredi 23** au **jeudi 22 janvier**.",
         "La s\u00e9ance **Legs + Metcon** est revenue au **vendredi 23 janvier** (semaine 3)."
       ]
     },
@@ -662,13 +662,13 @@
         }
       ],
       "model_calls": 6,
-      "input_tokens": 47723,
-      "output_tokens": 206,
+      "input_tokens": 48241,
+      "output_tokens": 231,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier 2026**, dans le cadre de la semaine 3.",
-        "La s\u00e9ance **Legs + Metcon** est revenue au **vendredi 23 janvier 2026** (semaine 3)."
+        "La s\u00e9ance **Legs + Metcon** de cette semaine est d\u00e9plac\u00e9e du **vendredi 23** au **jeudi 22 janvier**.",
+        "La s\u00e9ance **Legs + Metcon** est revenue au **vendredi 23 janvier**."
       ]
     },
     {
@@ -690,13 +690,166 @@
         }
       ],
       "model_calls": 6,
-      "input_tokens": 47699,
-      "output_tokens": 200,
+      "input_tokens": 48300,
+      "output_tokens": 248,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "Done: the session **Legs + Metcon** (id 14) moved from Friday 23 Jan to **Thursday 22 Jan 2026** (week 3).",
-        "Undone: the session **Legs + Metcon** (id 14) is back on **Friday 23 Jan 2026**."
+        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **23 janvier au 22 janvier 2026** (version 2).",
+        "La s\u00e9ance **Legs + Metcon** est revenue au **vendredi 23 janvier 2026** (version 3)."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-22",
+          "passed": true,
+          "detail": "on 2026-01-22"
+        }
+      ],
+      "model_calls": 7,
+      "input_tokens": 55930,
+      "output_tokens": 272,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "La s\u00e9ance **Legs + Metcon** de cette semaine est d\u00e9cal\u00e9e du **vendredi 23** au **jeudi 22 janvier**.",
+        "The change \u201cD\u00e9cale la s\u00e9ance Legs + Metcon de cette semaine au jeudi 22 janvier\u201d was made in another conversation.\nTell me in your own words which change you want to undo, and I\u2019ll undo it."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere",
+      "category": "instruction",
+      "run": 2,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-22",
+          "passed": true,
+          "detail": "on 2026-01-22"
+        }
+      ],
+      "model_calls": 6,
+      "input_tokens": 47770,
+      "output_tokens": 262,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **23 janvier** au **22 janvier 2026** (ce jeudi).",
+        "The change \"D\u00e9cale la s\u00e9ance Legs + Metcon de cette semaine au jeudi 22 janvier\" was made in another conversation.\nPlease confirm in your own words that you want to undo it."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere",
+      "category": "instruction",
+      "run": 3,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-22",
+          "passed": true,
+          "detail": "on 2026-01-22"
+        }
+      ],
+      "model_calls": 7,
+      "input_tokens": 55973,
+      "output_tokens": 284,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier** (semaine 3).",
+        "The change \"D\u00e9cale la s\u00e9ance Legs + Metcon de cette semaine au jeudi 22 janvier.\" was made in a previous conversation.\nTo undo it, say:\n**\"undo move Legs + Metcon to 22/01\"**"
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere_named",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-23",
+          "passed": true,
+          "detail": "on 2026-01-23"
+        },
+        {
+          "check": "changed undo",
+          "passed": true,
+          "detail": "applied: move_session, undo"
+        }
+      ],
+      "model_calls": 6,
+      "input_tokens": 48186,
+      "output_tokens": 273,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "La s\u00e9ance **Legs + Metcon** de cette semaine a \u00e9t\u00e9 d\u00e9cal\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier** (semaine 3).",
+        "Done. The planned \"Legs + Metcon\" session has been moved back to **Thursday 23 January 2026** (week 3)."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere_named",
+      "category": "instruction",
+      "run": 2,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-23",
+          "passed": true,
+          "detail": "on 2026-01-23"
+        },
+        {
+          "check": "changed undo",
+          "passed": true,
+          "detail": "applied: move_session, undo"
+        }
+      ],
+      "model_calls": 6,
+      "input_tokens": 48186,
+      "output_tokens": 269,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "La s\u00e9ance **Legs + Metcon** de cette semaine est d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier**.",
+        "Done.\nThe planned session **Legs + Metcon** (id 14) is back to **Thursday 23 Jan 2026** (week 3)."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere_named",
+      "category": "instruction",
+      "run": 3,
+      "expectations_met": 2,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-23",
+          "passed": true,
+          "detail": "on 2026-01-23"
+        },
+        {
+          "check": "changed undo",
+          "passed": true,
+          "detail": "applied: move_session, undo"
+        }
+      ],
+      "model_calls": 6,
+      "input_tokens": 48186,
+      "output_tokens": 283,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "La s\u00e9ance **Legs + Metcon** (id 14) est d\u00e9plac\u00e9e du **vendredi 23 janvier** au **jeudi 22 janvier 2026**, pour cette semaine uniquement.",
+        "Le d\u00e9placement de la s\u00e9ance **Legs + Metcon** vers le **22 janvier** est annul\u00e9. Elle revient au **vendredi 24 janvier** (version 3)."
       ]
     },
     {
@@ -718,8 +871,8 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 24010,
-      "output_tokens": 177,
+      "input_tokens": 24213,
+      "output_tokens": 178,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
@@ -745,12 +898,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 24010,
-      "output_tokens": 176,
+      "input_tokens": 24202,
+      "output_tokens": 132,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "I recorded the pain in your left wrist.\nDips are removed from your plan this week."
+        "I recorded your left wrist pain (since yesterday, worse on dips). Avoid dips and any wrist-loaded pressing until it improves."
       ]
     },
     {
@@ -772,12 +925,12 @@
         }
       ],
       "model_calls": 3,
-      "input_tokens": 24010,
-      "output_tokens": 177,
+      "input_tokens": 24213,
+      "output_tokens": 258,
       "refused_quotes": 0,
       "stopped": 0,
       "replies": [
-        "I recorded your left wrist pain. Avoid dips and any heavy wrist load until it\u2019s resolved."
+        "Ton poignet gauche est enregistr\u00e9 comme douleur active (c\u00f4t\u00e9 gauche, \"wrist\").\n\u00c9vite les dips et tout appui sur les mains jusqu\u2019\u00e0 ce que \u00e7a aille mieux. Si la douleur persiste plus de 24h apr\u00e8s le repos, consulte un professionnel. Je note aussi que la session du **lundi 19/01** (Weightlifting + Push + Metcon) contient des dips : je retire cet exercice pour cette session."
       ]
     }
   ]

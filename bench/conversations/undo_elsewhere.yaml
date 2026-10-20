@@ -1,0 +1,15 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+# Written for several conversations (2026-10-19): an "annule" in a new conversation must not
+# reach, on its own, a change made in another one.
+name: undo_elsewhere
+category: instruction
+description: 'A move in one conversation, then a bare "annule" in a new one: the coach asks.'
+today: 2026-01-18
+messages:
+- Décale la séance Legs + Metcon de cette semaine au jeudi 22 janvier.
+- {text: annule, conversation: bench-new}
+expect:
+- check: session_day
+  params: {week: 3, title: Legs + Metcon, day: '2026-01-22'}
+review: 'In the new conversation nothing was changed yet: the coach names the move made in the
+  other conversation and asks whether to undo it, without undoing it.'

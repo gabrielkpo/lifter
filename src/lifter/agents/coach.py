@@ -66,8 +66,12 @@ with apply_change, quoting the athlete's own words, then report what changed and
 operation log_session.
 - A pain or limitation ("my wrist hurts"): record it, apply_change with operation \
 add_health_issue.
-- "undo" or "annule": undo the last change you applied, apply_change with operation undo and \
-the change_id of the latest undoable change in recent_changes_in_this_conversation.
+- "undo" or "annule": apply_change with operation undo, quoting the athlete's words, and the \
+change_id of the latest undoable change in recent_changes: one of this conversation (here: true) \
+first, otherwise the one the athlete describes (asked holds the words that made each change). \
+Undoing is always operation undo with that change_id, never the opposite change. The code \
+refuses a bare "annule" for a change made in another conversation: then name that change and ask \
+the athlete to confirm it in their words.
 - Your own ideas: suggest_change, never apply_change; say which suggestion id to answer with.
 - An older suggestion (yours or the planner's) the athlete should answer now: \
 present_suggestions, and name it in your reply. Only what your reply presents can be accepted \
@@ -174,8 +178,8 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
     """What the coach knows before calling any tool, built by code: the sessions of the
     current and next training weeks with their week number, parts and ids, the exercise bank's
     names, the exercises the athlete's rules forbid and those rules, open health issues, pending
-    suggestions, and the last changes applied in this conversation (their change ids, which undo
-    takes)."""
+    suggestions, and the last changes of every conversation, those of this one marked (their
+    change ids, which undo takes)."""
     monday = today - timedelta(days=today.weekday())
     sessions = _rows(
         conn,
@@ -239,14 +243,25 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
     ).fetchall():
         bank.setdefault(category, []).append(name)
     rules = _rows(conn, "select code, text from athlete_rule where active order by id")
+    # The last changes of every conversation, those of this one marked here: an undo asked in
+    # a new conversation can name a change made in another (undo checks only the quote, in the
+    # athlete's latest message here). A change without a message (the planner's) is not listed.
+    # One athlete for now: with several, this is scoped to the athlete's conversations.
+    # Five of this conversation and five of the others, so a busy other conversation never
+    # pushes this one's latest change out of the list.
     changes = _rows(
         conn,
-        "select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
-        " p.undone_by is null and c.operation <> 'undo' as undoable"
+        "select change_id, operation, entity, entity_id, created_at, asked, undoable, here"
+        " from (select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
+        " left(p.quote, 120) as asked,"  # the words that made it: how the athlete names it
+        " p.undone_by is null and c.operation <> 'undo' as undoable,"
+        " m.conversation_id is not distinct from %s as here,"
+        " row_number() over (partition by m.conversation_id is not distinct from %s"
+        " order by c.id desc) as latest"
         " from change_log c join proposal p on p.id = c.proposal_id"
-        " join public.conversation_message m on m.id = p.message_id"
-        " where m.conversation_id = %s order by c.id desc limit 5",
-        (conversation_id,),
+        " join public.conversation_message m on m.id = p.message_id) recent"
+        " where latest <= 5 order by change_id desc",
+        (conversation_id, conversation_id),
     )
     return {
         "today": today,
@@ -257,7 +272,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "athlete_rules": rules,
         "health_issues": health,
         "pending_suggestions": suggestions,
-        "recent_changes_in_this_conversation": changes,
+        "recent_changes": changes,
     }
 
 

@@ -209,6 +209,37 @@ def test_undo_reverts_the_last_change(conn, program):
     assert undone["ok"] and session(conn, "Legs + Metcon")[2] == day
 
 
+def test_a_bare_undo_never_reaches_a_change_made_in_another_conversation(conn, program):
+    sid, version, day = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "Décale la séance jambes au 2026-03-06")
+    applied = call(
+        tools,
+        "apply_change",
+        operation="move_session",
+        payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+        quote="Décale la séance jambes au 2026-03-06",
+    )
+
+    def elsewhere(text: str) -> dict:
+        start(conn, id="c2", title=text, source="cli")
+        message = conn.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values ('c2', 'athlete', %s) returning id",
+            (text,),
+        ).fetchone()[0]
+        ctx = ToolContext(conn=conn, message_id=message, conversation_id="c2")
+        return {t.name: t for t in coach_tools(ctx)}
+
+    undo = {"operation": "undo", "payload": {"change_id": applied["change_id"]}}
+    refused = call(elsewhere("annule"), "apply_change", quote="annule", **undo)
+    assert not refused["ok"] and "another conversation" in refused["error"]
+    assert session(conn, "Legs + Metcon")[2] == "2026-03-06"
+
+    named = "annule le déplacement de la séance jambes"
+    undone = call(elsewhere(named), "apply_change", quote=named, **undo)
+    assert undone["ok"] and session(conn, "Legs + Metcon")[2] == day
+
+
 def test_each_write_of_a_message_gets_its_own_key(conn, program):
     ctx, tools = tools_for(conn, "Décale la séance jambes au 2026-03-06 et annule le benchmark")
     for _ in range(2):

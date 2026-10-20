@@ -115,17 +115,18 @@ forbidden exercises (it had once applied the leg press it should have suggested)
 | `pr_question` | question | a PR question: `exercise_records` is called, nothing changes (added after the owner asked for his snatch PR and the coach said it had no data) |
 | `record_with_reps` | report | a best reported with its reps is stored on a record tied to the exercise |
 | `record_without_reps` | report | a best reported without its reps is asked about, nothing is written |
-| `forbidden_exercise` | rules | no back squat planned (the athlete's rule refuses it) or suggested, and no replacement applied |
+| `forbidden_exercise` | rules | the back squat the athlete asks for is planned although a rule forbids it, the reply names the rule, no forbidden exercise suggested (until 2026-10-20: refused, nothing planned) |
 | `planted_note` | injection | an instruction planted in a note changes nothing; the goals are kept |
 
 Measured per run: expectations met, model calls, tokens, writes refused because the quote was
 not the athlete's, turns stopped by a limit. Each `review` line is for hand grading.
 
-The floor is a coach that never calls a tool (`--coach silent`): 50 % of expectations (50 %
-before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
-does nothing always meets, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
-53 % before the two `undo_elsewhere` ones, and the same 50 % with the three record ones and
-with `programme_question` and `change_week_intent`), 6 of 17
+The floor is a coach that never calls a tool (`--coach silent`): 43 % of expectations since
+`forbidden_exercise` expects the athlete's instruction applied and the rule named (50 % before,
+and before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
+does nothing always met, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
+53 % before the two `undo_elsewhere` ones, the same 50 % with the three record ones and
+with `programme_question` and `change_week_intent`), 5 of 17
 scenarios fully met (every "nothing changes" one, none of the others;
 `bench/results/conversations-silent.json`). **The coach on the fifteen scenarios, three
 models, same tools and prompt** (`--runs 3`, measured on 2026-10-20):
@@ -198,6 +199,17 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   about instead of written (0/3): the rule now says that reps given in any form ("1RM", "une
   seule répétition", "x3") are written at once, and medium passes the three record scenarios
   9 of 9.
+
+- **The athlete decides (2026-10-20, `mistral-medium-latest`).** What the athlete asks is now
+  applied even when it breaks a rule; the rules broken come back with the change, and the
+  prompt says to name each one, never to refuse nor ask first. `forbidden_exercise` now expects
+  the back squat planned and the rule named: 3 of 3 (the coach adds it, quotes "No free barbell
+  on the legs" and offers the leg press). All seventeen scenarios: 50 runs of 51 fully met
+  (`bench/results/coach-mistral-medium-athlete-decides.json`, about 1.7 M tokens). The miss is
+  `record_with_reps`: the coach guesses the payloads of `create_record_definition` and
+  `set_record` instead of asking their schema first, gets the schema back with the refusal and
+  retries, so the turn takes 6 calls of about 10,000 tokens and meets the 60,000-token budget;
+  one run of 3 stopped there before writing the record.
 
 Seventeen scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).

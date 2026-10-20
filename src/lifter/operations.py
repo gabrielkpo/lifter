@@ -12,7 +12,12 @@ previous state exactly (ids included).
 3. the payload is validated (unknown fields refused);
 4. the operation is applied; a row whose version changed since the coach read it is refused;
 5. for an operation on the programme, the guardrail's violations on the weeks it touches are
-   computed before and after, and the change is refused if it introduces one;
+   computed before and after; those the change introduces come back with it
+   (`Change.violations`), for the coach to tell the athlete. They never refuse it: what the
+   athlete asks or accepts is applied, undo included (owner's decision of 20/10, "100 % des
+   données doivent pouvoir être modulables si je le demande"). What the models propose of
+   their own stays checked: a coach's suggestion, even accepted, is refused if it introduces
+   one (and the planner's plans are checked by the agents);
 6. the trace: one `proposal` row (applied, with the quote and the message) and one `change_log`
    row. The database refuses the coach's commit without them (009_write_path.sql), and an
    applied proposal's trace cannot be rewritten afterwards (011_trace_integrity.sql).
@@ -68,8 +73,8 @@ class Change(BaseModel):
     after: list[RowImage]
     # Set by `undo`: the proposal whose change was reverted.
     undoes: int | None = None
-    # A change of the athlete's rules is not refused for the sessions already planned that the
-    # new rules flag: they are reported here, for the coach to adapt them.
+    # The athlete's rules this change puts in breach on the weeks it touches: never a refusal
+    # (the athlete decides), reported here for the coach to say them.
     violations: list[dict[str, Any]] = []
 
 
@@ -82,6 +87,9 @@ class StaleRow(OperationError):
 
 
 class RuleViolation(OperationError):
+    """The athlete's rules refuse a model's own idea (a coach's suggestion, even accepted; the
+    agents' checks): what the athlete asks is never refused for them, only reported."""
+
     def __init__(self, violations: list[Any]):
         self.violations = violations
         messages = "; ".join(getattr(v, "message", str(v)) for v in violations)
@@ -105,8 +113,6 @@ class Operation:
     # Changes what is prescribed: checked by the guardrail on `weeks(conn, payload)`.
     programme: bool = False
     weeks: Callable[[psycopg.Connection, Any], set[int]] | None = None
-    # The athlete's rules themselves: what the guardrail then flags is reported, not refused.
-    report: bool = False
     # "ok", "annule": one word is enough (the athlete's whole message).
     short_quote: bool = False
 
@@ -137,7 +143,6 @@ def _register(
     programme: bool = False,
     weeks: Callable | None = None,
     short_quote: bool = False,
-    report: bool = False,
 ):
     def wrap(fn):
         CATALOGUE[name] = Operation(
@@ -148,7 +153,6 @@ def _register(
             programme=programme,
             weeks=weeks,
             short_quote=short_quote,
-            report=report,
         )
         return fn
 
@@ -502,9 +506,6 @@ def _weeks_using_exercise(conn, exercise_id: int) -> set[int]:
     return set().union(*(_week_of_session(conn, s) for s in sessions)) if sessions else set()
 
 
-RULE_OPERATIONS = frozenset({"add_rule", "update_rule", "deactivate_rule"})
-
-
 def _weeks_of_change(conn, p) -> set[int]:
     """The weeks an undo touches: those of the rows it restores or removes."""
     row = conn.execute(
@@ -530,11 +531,6 @@ def _weeks_of_change(conn, p) -> set[int]:
         elif image.table in ("athlete_rule", "exercise"):
             weeks |= _live_weeks(conn)
     return weeks
-
-
-def _undoes_a_rule(conn, change_id: int) -> bool:
-    row = conn.execute("select operation from change_log where id = %s", (change_id,)).fetchone()
-    return row is not None and row[0] in RULE_OPERATIONS
 
 
 # Programme: cycles, blocks, weeks
@@ -1588,7 +1584,6 @@ class AddRule(RuleIn):
     ("athlete_rule",),
     programme=True,
     weeks=lambda c, p: _live_weeks(c),
-    report=True,
 )
 def add_rule(conn, p: AddRule, ctx: Context) -> Change:
     img = _insert(conn, "athlete_rule", p.model_dump())
@@ -1613,7 +1608,6 @@ UpdateRule = _partial("UpdateRule", RuleFields, "Change a rule's text, parameter
     ("athlete_rule",),
     programme=True,
     weeks=lambda c, p: _live_weeks(c),
-    report=True,
 )
 def update_rule(conn, p, ctx: Context) -> Change:
     return _named(
@@ -1634,7 +1628,6 @@ class DeactivateRule(StrictModel):
     ("athlete_rule",),
     programme=True,
     weeks=lambda c, p: _live_weeks(c),
-    report=True,
 )
 def deactivate_rule(conn, p: DeactivateRule, ctx: Context) -> Change:
     return _named(
@@ -1899,9 +1892,12 @@ def _picked(conn, proposal_id: int, conversation_id: str, message_id: int) -> tu
     return found[0], found[1]
 
 
-def _apply_checked(conn, op: Operation, model: Any, ctx: Context) -> Change:
-    """Apply `op`, then hold it to the guardrail on the weeks it touches: a change that
-    introduces a violation is refused, a change of the rules reports it (see Operation)."""
+def _apply_checked(
+    conn, op: Operation, model: Any, ctx: Context, *, suggested: bool = False
+) -> Change:
+    """Apply `op`, then hold it to the guardrail on the weeks it touches: the violations it
+    introduces are reported with it, never a reason to refuse what the athlete asked. A
+    suggestion of the coach (`suggested`), even accepted, is the model's idea: refused."""
     weeks: set[int] = set()
     before: dict[int, list] = {}
     if op.programme:
@@ -1921,8 +1917,7 @@ def _apply_checked(conn, op: Operation, model: Any, ctx: Context) -> Change:
         _ids(conn, "select id from training_week where id = any(%s)", (list(weeks),))
     ):
         new += _programme_check[1](before[week], _programme_check[0](conn, week))
-    report = op.report or (op.name == "undo" and _undoes_a_rule(conn, model.change_id))
-    if new and not report:
+    if new and suggested:
         raise RuleViolation(new)
     if new:
         change = change.model_copy(update={"violations": [_violation(v) for v in new]})
@@ -2007,7 +2002,9 @@ def run(
         verify_quote(conn, message_id, quote, short_ok=op.short_quote or proposal_id is not None)
         model = op.payload.model_validate(payload or {})
         source = "athlete" if author == "athlete" else "agent"
-        change = _apply_checked(conn, op, model, Context(source=source, quote=quote))
+        change = _apply_checked(
+            conn, op, model, Context(source=source, quote=quote), suggested=proposal_id is not None
+        )
         trace = {
             "quote": quote,
             "message_id": message_id,

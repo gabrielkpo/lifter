@@ -25,6 +25,7 @@ MATRIX = {
         "public.raw_garmin_payload": {READ},
         "public.planned_session": {READ},
         "public.proposal": {READ},
+        "public.coaching_note": {READ},
         # Not the agents' audit, the conversation nor the change log (audit N5).
         "public.agent_run": set(),
         "public.agent_step": set(),
@@ -65,6 +66,7 @@ MATRIX = {
         "public.health_issue": {READ, INSERT, UPDATE, DELETE},
         "public.athlete": {READ, INSERT, UPDATE, DELETE},
         "public.record_entry": {READ, INSERT, UPDATE, DELETE},
+        "public.coaching_note": {READ, INSERT, UPDATE, DELETE},
         "public.change_log": {READ, INSERT},
         # Update on the status and trace columns only (column grants).
         "public.proposal": {READ, INSERT},
@@ -95,6 +97,7 @@ MATRIX = {
         "public.change_log": set(),
         "public.planned_session": {READ},
         "public.goal": {READ},
+        "public.coaching_note": {READ},
         "public.raw_garmin_payload": {READ},
         "analytics.daily_metrics": {READ},
     },

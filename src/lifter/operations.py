@@ -1636,6 +1636,75 @@ def deactivate_rule(conn, p: DeactivateRule, ctx: Context) -> Change:
     )
 
 
+# The athlete's method
+
+NoteCategory = Literal["method", "preference", "constraint", "context"]
+
+
+class NoteFields(StrictModel):
+    title: str = Field(min_length=1, max_length=120)
+    text: str = Field(min_length=1)
+    category: NoteCategory = "method"
+    valid_from: date | None = None
+    valid_until: date | None = None
+    position: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def _a_span(self):
+        if self.valid_from and self.valid_until and self.valid_until < self.valid_from:
+            raise ValueError("valid_until is before valid_from")
+        return self
+
+
+class AddCoachingNote(NoteFields):
+    """Write down part of the athlete's method, how he likes to train, a constraint or some
+    context (the weekly frame, the warm-up, "only 3 sessions until 15/11"...): one note per
+    idea, permanent, or valid from and/or until a date. The coach and the planners read the
+    notes valid on the day they plan."""
+
+
+@_register("add_coaching_note", AddCoachingNote, ("coaching_note",))
+def add_coaching_note(conn, p: AddCoachingNote, ctx: Context) -> Change:
+    img = _insert(conn, "coaching_note", p.model_dump())
+    return Change(
+        operation="add_coaching_note",
+        entity="coaching_note",
+        entity_id=img.id,
+        before=[],
+        after=[img],
+    )
+
+
+UpdateCoachingNote = _partial(
+    "UpdateCoachingNote",
+    NoteFields,
+    "Change a note of the athlete's method: its title, text, category, dates or order.",
+)
+
+
+@_register("update_coaching_note", UpdateCoachingNote, ("coaching_note",))
+def update_coaching_note(conn, p, ctx: Context) -> Change:
+    changes = p.changes()
+    current = _existing(conn, "coaching_note", p.id)
+    start = changes.get("valid_from", current["valid_from"])
+    end = changes.get("valid_until", current["valid_until"])
+    if start and end and str(end) < str(start):
+        raise OperationError("valid_until is before valid_from")
+    return _named(
+        _update(conn, "coaching_note", p.id, p.expected_version, changes), "update_coaching_note"
+    )
+
+
+DeleteCoachingNote = _delete_model(
+    "DeleteCoachingNote", "Delete a note of the athlete's method (no longer true)."
+)
+
+
+@_register("delete_coaching_note", DeleteCoachingNote, ("coaching_note",))
+def delete_coaching_note(conn, p, ctx: Context) -> Change:
+    return _named(_delete(conn, "coaching_note", p.id, p.expected_version), "delete_coaching_note")
+
+
 # Exercise bank
 
 

@@ -1069,3 +1069,47 @@ def test_a_suggestion_made_after_the_message_cannot_be_picked_by_it(conn, progra
     assert conn.execute("select status from proposal where id = %s", (pid,)).fetchone() == (
         "pending",
     )
+
+
+def test_a_coaching_note_is_written_changed_and_undone(conn, program):
+    # The athlete's method as data (framing of the agents team, 20/10).
+    before = snapshot(conn)
+    added = do(
+        conn,
+        "add_coaching_note",
+        {
+            "title": "Trois séances",
+            "text": "Jusqu'au 15/11, seulement 3 séances par semaine.",
+            "category": "constraint",
+            "valid_until": "2026-11-15",
+        },
+        "jusqu'au 15/11 je n'ai que 3 séances par semaine",
+    )
+    note = conn.execute(
+        "select category, valid_until, version from coaching_note where id = %s",
+        (added.entity_id,),
+    ).fetchone()
+    assert note == ("constraint", date(2026, 11, 15), 1)
+    with pytest.raises(OperationError, match="before valid_from"):
+        do(
+            conn,
+            "update_coaching_note",
+            {"id": added.entity_id, "expected_version": 1, "valid_from": "2026-12-01"},
+            "commence en décembre",
+        )
+    do(
+        conn,
+        "update_coaching_note",
+        {"id": added.entity_id, "expected_version": 1, "text": "Trois séances, pas de legs."},
+        "trois séances, pas de legs",
+    )
+    do(
+        conn,
+        "delete_coaching_note",
+        {"id": added.entity_id, "expected_version": 2},
+        "oublie cette note",
+    )
+    last = change_id(conn)
+    for target in range(last, last - 3, -1):
+        do(conn, "undo", {"change_id": target}, "annule")
+    assert snapshot(conn) == before

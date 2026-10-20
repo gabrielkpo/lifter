@@ -114,7 +114,10 @@ never supplies: the message the quote is checked against, the idempotency key
 (`message:<id>:write:<n>`, from the order of the write calls) and the author. A refused call
 returns its reason to the model (quote, payload, stale row, rule violated), which explains it to
 the athlete; nothing is written. An invalid payload comes back with the operation's payload
-schema, so the model's next try is a fix rather than another guess.
+schema, so the model's next try is a fix rather than another guess. One payload is completed
+by code: `update_week` replaces the week's intent map, and the model sends only the part kinds
+it changes (three times of three on the bench), so `apply_change` and `suggest_change` read the
+week's map back and merge the given kinds into it; a kind set to null is removed.
 
 ## The coach in conversation (ADR 0002)
 
@@ -134,7 +137,11 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
 - **What the coach sees**: a snapshot built by code: today and its weekday; this week's and next
   week's sessions with their week number, ids and versions, their parts with ids and each part's
   lines (exercise, sets, quantity, load, RIR, planned or done, with ids and versions), and whether
-  they are upcoming (today or later, not done nor cancelled); the exercise bank's names by category,
+  they are upcoming (today or later, not done nor cancelled); the programme (the cycle today falls
+  in, its blocks with their intent and strength sessions done, its weeks with their phase, intent
+  per part kind and the athlete's review, the current ones marked, all with ids and versions, so
+  the coach explains a week from the athlete's method and changes it through `update_week`,
+  `update_block` and `update_cycle`); the exercise bank's names by category,
   the exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
   issues not resolved; pending suggestions; the five latest changes of this conversation and the
   five latest of the others, each marked, with their change ids and whether undo can still take them (not undone, not
@@ -207,6 +214,8 @@ bound the cost of a run and of a bench pass whatever the model answers.
   training afterwards.
 - `full`: adds what is written about the training: session notes, deviations, week reviews,
   goal and feedback notes, which may describe pain or injuries.
+- The coach in conversation sends its snapshot whatever `LIFTER_LLM_CONTEXT` says: it holds
+  the week reviews and the health issues' descriptions, since the athlete talks about them.
 - Never: Garmin activity names (they can contain a place), raw Garmin series, the Garmin token.
 
 The public demo only ever sends synthetic athletes.

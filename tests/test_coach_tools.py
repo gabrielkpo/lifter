@@ -98,6 +98,44 @@ def test_an_instruction_is_applied_with_the_athletes_quote(conn, program):
     assert trace == ("applied", ctx.message_id, f"message:{ctx.message_id}:write:1", "coach")
 
 
+def test_a_partial_intent_keeps_the_weeks_other_part_kinds(conn, program):
+    week_id, version, intent = conn.execute(
+        "select id, version, intent from training_week where number = 1"
+    ).fetchone()
+    assert set(intent) == {"weightlifting", "push", "pull", "legs", "metcon"}
+    ctx, tools = tools_for(conn, "Semaine 1 : jambes en charge guidée, RIR 3, et plus de push.")
+    result = call(
+        tools,
+        "apply_change",
+        operation="update_week",
+        payload={
+            "id": week_id,
+            "expected_version": version,
+            "intent": {"legs": "Charge guidée, RIR 3.", "push": None},
+        },
+        quote="jambes en charge guidée, RIR 3, et plus de push",
+    )
+
+    assert result["ok"]
+    (after,) = conn.execute("select intent from training_week where id = %s", (week_id,)).fetchone()
+    assert after["legs"] == "Charge guidée, RIR 3." and "push" not in after
+    assert {k: after[k] for k in ("weightlifting", "pull", "metcon")} == {
+        k: intent[k] for k in ("weightlifting", "pull", "metcon")
+    }
+    # a suggestion carries the whole map too, so accepting it later changes only what it says
+    suggested = call(
+        tools,
+        "suggest_change",
+        operation="update_week",
+        payload={"id": week_id, "expected_version": version + 1, "intent": {"metcon": "Short."}},
+        rationale="test",
+    )
+    (payload,) = conn.execute(
+        "select payload from proposal where id = %s", (suggested["suggestion_id"],)
+    ).fetchone()
+    assert payload["intent"]["metcon"] == "Short." and payload["intent"]["legs"] == after["legs"]
+
+
 def test_a_quote_the_athlete_did_not_write_changes_nothing(conn, program):
     sid, version, day = session(conn, "Legs + Metcon")
     _, tools = tools_for(conn, "Pourquoi un RIR 3 jeudi ?")  # a question

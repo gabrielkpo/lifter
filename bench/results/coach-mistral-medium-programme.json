@@ -1,0 +1,178 @@
+{
+  "coach": "mistral",
+  "model": "mistral-small-latest",
+  "summary": {
+    "runs": 6,
+    "expectations_met_rate": 1.0,
+    "scenarios_fully_met": 6,
+    "refused_quotes": 0,
+    "stopped": 0,
+    "model_calls": 12,
+    "input_tokens": 111947,
+    "output_tokens": 721
+  },
+  "runs": [
+    {
+      "scenario": "change_week_intent",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "changed update_week",
+          "passed": true,
+          "detail": "applied: update_week"
+        },
+        {
+          "check": "week_intent 3 ['RIR 3']",
+          "passed": true,
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement pour les jambes, RIR 3.'}"
+        },
+        {
+          "check": "week_intent 3 notes ['Highest volume']",
+          "passed": true,
+          "detail": "week 3 intent: {'notes': 'Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement pour les jambes, RIR 3.'}"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 28343,
+      "output_tokens": 139,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Done. Week 3 intent now includes:\n*\"Charge guid\u00e9e seulement pour les jambes, RIR 3.\"*"
+      ]
+    },
+    {
+      "scenario": "change_week_intent",
+      "category": "instruction",
+      "run": 2,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "changed update_week",
+          "passed": true,
+          "detail": "applied: update_week"
+        },
+        {
+          "check": "week_intent 3 ['RIR 3']",
+          "passed": true,
+          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+        },
+        {
+          "check": "week_intent 3 notes ['Highest volume']",
+          "passed": true,
+          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 28347,
+      "output_tokens": 168,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Done. The intent of week 3 (Volume peak) now reads:\n*\"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"*"
+      ]
+    },
+    {
+      "scenario": "change_week_intent",
+      "category": "instruction",
+      "run": 3,
+      "expectations_met": 3,
+      "expectations": 3,
+      "outcomes": [
+        {
+          "check": "changed update_week",
+          "passed": true,
+          "detail": "applied: update_week"
+        },
+        {
+          "check": "week_intent 3 ['RIR 3']",
+          "passed": true,
+          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+        },
+        {
+          "check": "week_intent 3 notes ['Highest volume']",
+          "passed": true,
+          "detail": "week 3 intent: {'notes': \"Highest volume of the block, RIR 2. Never to failure on the legs. Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"}"
+        }
+      ],
+      "model_calls": 3,
+      "input_tokens": 28347,
+      "output_tokens": 143,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Done. Week 3 intent now includes:\n*\"Charge guid\u00e9e seulement, RIR 3, pas d'\u00e9chec.\"*"
+      ]
+    },
+    {
+      "scenario": "programme_question",
+      "category": "question",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 8970,
+      "output_tokens": 99,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Tu es dans le **bloc d'accumulation** (volume), \u00e0 la **semaine 3** (\"Volume peak\") du cycle *Synthetic bench cycle*.\n\n- **Intention de la semaine 3** : *\"Highest volume of the block, RIR 2. Never to failure on the legs.\"*\n- **Intention du bloc** : *\"Volume: 8-12 reps, RIR 3 then 2, long metcons.\"*"
+      ]
+    },
+    {
+      "scenario": "programme_question",
+      "category": "question",
+      "run": 2,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 8970,
+      "output_tokens": 87,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Tu es dans le **bloc d'accumulation** (volume), \u00e0 la **semaine 2** (phase *volume*), qui a pour intention :\n*\"One more set, not more load. RIR 3.\"*\n\nLa semaine prochaine (semaine 3, phase *volume_peak*) a pour intention :\n*\"Highest volume of the block, RIR 2. Never to failure on the legs.\"*"
+      ]
+    },
+    {
+      "scenario": "programme_question",
+      "category": "question",
+      "run": 3,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 8970,
+      "output_tokens": 85,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Tu es dans le **bloc d'accumulation** (volume), \u00e0 la **semaine 2** (phase *volume*), qui vise :\n*\"One more set, not more load. RIR 3.\"*\n\nLa semaine prochaine (semaine 3, phase *volume_peak*) a pour intention :\n*\"Highest volume of the block, RIR 2. Never to failure on the legs.\"*"
+      ]
+    }
+  ]
+}

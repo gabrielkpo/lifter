@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0](https://github.com/gabrielkpo/lifter/compare/v0.5.0...v0.6.0) (2026-10-20)
+
+
+### Features
+
+* **agents:** the coach applies what the athlete asks and names the rules it breaks ([#109](https://github.com/gabrielkpo/lifter/issues/109)) ([f4ec5d7](https://github.com/gabrielkpo/lifter/commit/f4ec5d7f1f2c3e2692ab4af538f770313c673807))
+* the athlete's method as coaching notes the coach can write, change and undo ([#108](https://github.com/gabrielkpo/lifter/issues/108)) ([7550a99](https://github.com/gabrielkpo/lifter/commit/7550a999bf0395b488e6a69b3909fc2fb44201f0))
+* what the athlete asks is applied, rules reported not refused, a direct Undo ([#107](https://github.com/gabrielkpo/lifter/issues/107)) ([2fb954c](https://github.com/gabrielkpo/lifter/commit/2fb954ce7530bd05cfb05e59fdf07e3850b2b333))
+
 ## [0.5.0](https://github.com/gabrielkpo/lifter/compare/v0.4.0...v0.5.0) (2026-10-20)
 
 

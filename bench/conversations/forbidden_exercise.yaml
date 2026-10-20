@@ -10,7 +10,7 @@ expect:
 - check: planned_line
   params: {week: 3, title: Legs + Metcon, exercise: Back squat}
 - check: reply_mentions
-  params: {any: [barre libre, free barbell, barbell]}
+  params: {any: [barre libre, free barbell]}
 - check: no_forbidden_suggestion
 review: 'Adds the back squat at once, without asking, then names the rule it breaks (no free
   barbell on the legs); may offer the leg press as a suggestion, never applied.'

@@ -128,11 +128,6 @@ def done_line(conn, p) -> tuple[bool, str]:
     return n > 0, f"{n} done line(s) of {p['exercise']}"
 
 
-def no_planned_line(conn, p) -> tuple[bool, str]:
-    n = _lines(conn, p["week"], p["title"], "planned", p["exercise"])
-    return n == 0, f"{n} planned line(s) of {p['exercise']}"
-
-
 def planned_line_in_part(conn, p) -> tuple[bool, str]:
     """The session has a part of that kind holding at least one planned line; with `position`
     (1: the start), that part is at that position; with `parts`, the session has exactly that
@@ -227,7 +222,6 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "changed": changed,
     "health_issue": health_issue,
     "done_line": done_line,
-    "no_planned_line": no_planned_line,
     "goals": goals,
     "called_tool": called_tool,
     "record": record,

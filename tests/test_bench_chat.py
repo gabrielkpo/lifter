@@ -59,7 +59,8 @@ def test_an_unknown_check_is_refused():
 def test_the_silent_floor(conn, conversations):
     results = [r for c in conversations.values() for r in run_conversation(conn, c, SilentCoach, 1)]
     totals = summary(results)
-    # it never changes anything: every "nothing changed" expectation passes, no other one
+    # it never changes anything nor replies with a rule: the "nothing changed" expectations pass,
+    # and the "no forbidden suggestion" ones, no other
     assert totals["expectations_met_rate"] == 0.429 and totals["scenarios_fully_met"] == 5
     met = {r.scenario for r in results if r.expectations_met == r.expectations}
     assert met == {

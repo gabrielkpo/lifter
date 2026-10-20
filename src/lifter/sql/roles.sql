@@ -117,11 +117,12 @@ grant usage on sequence proposal_id_seq, agent_run_id_seq, agent_step_id_seq to 
 -- trace columns of a proposal, and the coach's own messages (row-level policy below).
 grant usage on schema public to lifter_write;
 grant select, insert, update, delete on exercise, cycle, block, training_week, planned_session,
-    session_part, session_exercise, goal, goal_milestone, athlete_rule, feedback, athlete,
+    session_part, session_exercise, goal, goal_milestone, athlete_rule, coaching_note, feedback, athlete,
     health_issue, record_definition, record_entry, activity_annotation to lifter_write;
 grant usage on sequence exercise_id_seq, cycle_id_seq, block_id_seq, training_week_id_seq,
     planned_session_id_seq, session_part_id_seq, session_exercise_id_seq, goal_id_seq,
-    goal_milestone_id_seq, athlete_rule_id_seq, feedback_id_seq, health_issue_id_seq,
+    goal_milestone_id_seq, athlete_rule_id_seq, coaching_note_id_seq, feedback_id_seq,
+    health_issue_id_seq,
     record_definition_id_seq, record_entry_id_seq, activity_annotation_id_seq to lifter_write;
 grant insert on change_log, proposal to lifter_write;
 -- Read by the trace check at commit (009), whichever of its roles the coach acts as.

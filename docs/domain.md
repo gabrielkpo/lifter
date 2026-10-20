@@ -45,6 +45,7 @@ Lifter coaches CrossFit only, with one method:
 | `record_entry` | A dated record | `definition_id`, `day`, `reps` (for a rep max), `value` or `value_text`, `source` |
 | `activity_annotation` | A correction or note on a Garmin activity (the raw data is never edited) | `activity_id`, `field`, `value`, `note`, `source` |
 | `athlete_rule` | Permanent rule of the athlete | `code` (a rule the guardrail will check in code, step 3), `text`, `params` |
+| `coaching_note` | The athlete's method as notes: weekly frame, block count, rules not coded, load progression, warm-up, preferences, a constraint for a while | `title`, `text`, `category` (method, preference, constraint, context), `valid_from` / `valid_until` (none: permanent), `position` |
 | `feedback` | Report after a session, or morning check-in | `rpe` (1–10), `fatigue` (1–5), `pain` (0–10) + `pain_location`, `notes` |
 | `proposal` | Change proposed by an agent | `kind`, `payload`, `rationale`, `author`, `status`, `result` |
 
@@ -151,7 +152,7 @@ whole matrix and runs a sync as `lifter_sync` and a proposal as `lifter_agents`.
 ## The coach's write path
 
 The coach changes data only through `lifter.operations` ([ADR 0002](adr/0002-coach-write-path-and-agent-team.md)):
-one typed operation per entity and verb (52 today, every writable table covered, checked in
+one typed operation per entity and verb (55 today, every writable table covered, checked in
 CI), applied by `run()` in one transaction: the message must be the athlete's latest in its
 conversation (the one being answered: an older message, another conversation's or the coach's
 cannot authorise a change), the quote checked against it as stored (`conversation_message`),

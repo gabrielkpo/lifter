@@ -36,12 +36,21 @@ from langgraph.prebuilt import ToolNode
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from lifter import operations
 from lifter.agents.guardrail import forbidden_flags
 from lifter.agents.planner import Usage
 from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 
 AGENT = "coach"
 MAX_STEPS = 8
+# The hosted API runs a turn in a function killed at 60 s. No model call starts after
+# DEADLINE_SECONDS, and one call lasts at most CALL_TIMEOUT_SECONDS: a turn ends, its reply
+# stored and audited, about 10 s before the platform cuts it. 15 s leaves a long reply (several
+# hundred tokens) the time it needs. One attempt per call (max_retries=1: LangChain counts
+# attempts, and would retry only network errors, after at least 4 s); a failed call ends the
+# turn with its error, audited.
+DEADLINE_SECONDS = 35
+CALL_TIMEOUT_SECONDS = 15
 HISTORY = 20  # earlier messages of the conversation the coach sees
 
 SYSTEM_PROMPT = """You are the coach of Lifter, a CrossFit coach. You talk with the athlete \
@@ -57,14 +66,38 @@ with apply_change, quoting the athlete's own words, then report what changed and
 operation log_session.
 - A pain or limitation ("my wrist hurts"): record it, apply_change with operation \
 add_health_issue.
-- "undo" or "annule": undo the last change you applied, apply_change with operation undo and \
-the change_id of the latest undoable change in recent_changes_in_this_conversation.
+- A question about a PR, a best, a max or an exercise's history: call exercise_records and \
+answer from what it returns (records, best load per rep count, last logged days); never say \
+the data is missing without calling it, and never estimate a max it does not hold.
+- A best the athlete reports ("80 kg au bench hier"): set_record on that exercise's record. \
+The reps are given when the message says them in any form ("1RM", "une seule répétition", \
+"x3", "pour 5"): then write at once. Only when nothing in the message says the reps, ask \
+(a single? a triple?) before writing. A record that does not exist yet is \
+create_record_definition with its exercise (the bank's name), then set_record.
+- "undo" or "annule": apply_change with operation undo, quoting the athlete's words, and the \
+change_id of the latest undoable change in recent_changes: one of this conversation (here: true) \
+first, otherwise the one the athlete describes (asked holds the words that made each change). \
+Undoing is always operation undo with that change_id, never the opposite change. The code \
+refuses a bare "annule" for a change made in another conversation: then name that change and ask \
+the athlete to confirm it in their words.
 - Your own ideas: suggest_change, never apply_change; say which suggestion id to answer with.
+- An older suggestion (yours or the planner's) the athlete should answer now: \
+present_suggestions, and name it in your reply. Only what your reply presents can be accepted \
+with the athlete's next message; an expired suggestion comes back once you present it again.
 
 Operations are not tools: every change is apply_change (or suggest_change) with the \
 operation's name. Ask operation_schema for its payload before the first call of an operation.
 
-Finding what the athlete means: sessions, their parts, ids and versions are in the snapshot. A \
+Finish what the athlete asked: adding an exercise is add_line. A session holds one part per \
+kind: an exercise of a kind the session already has goes into that part, and several exercises \
+asked at once are several add_line in the same part; a joint or a body area to work is a note \
+on the line, never a part of its own. Only when the session has no part of that kind, add_part \
+first (code puts it in its place), then add_line in it with the entity_id add_part returned: \
+never leave a new part empty. If the athlete did not name the exercise, take one of the right \
+category from the exercise_bank and say which.
+
+Finding what the athlete means: sessions, their parts and each part's lines (exercise, sets, \
+reps, load, RIR; planned and done), with ids and versions, are in the snapshot. A \
 session to move, change or cancel is an upcoming one (upcoming: true: today or later, not done \
 nor cancelled) unless the athlete names a past day; a session report is about a past or today's \
 session. Two sessions can share a title in different weeks: take the one in the week of the \
@@ -105,8 +138,8 @@ def mistral_model(api_key: str, model: str, max_output_tokens: int = 6000) -> Ch
         model=model,
         api_key=api_key,
         temperature=0.2,
-        timeout=120,
-        max_retries=2,
+        timeout=CALL_TIMEOUT_SECONDS,
+        max_retries=1,
         max_tokens=max_output_tokens,
     )
 
@@ -153,8 +186,8 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
     """What the coach knows before calling any tool, built by code: the sessions of the
     current and next training weeks with their week number, parts and ids, the exercise bank's
     names, the exercises the athlete's rules forbid and those rules, open health issues, pending
-    suggestions, and the last changes applied in this conversation (their change ids, which undo
-    takes)."""
+    suggestions, and the last changes of every conversation, those of this one marked (their
+    change ids, which undo takes)."""
     monday = today - timedelta(days=today.weekday())
     sessions = _rows(
         conn,
@@ -171,11 +204,28 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         " where session_id = any(%s) order by session_id, position",
         ([s["id"] for s in sessions],),
     )
+    # Each part's lines, planned and done: without them a part looks empty to the model, which
+    # then describes or edits a session it has not read.
+    lines = _rows(
+        conn,
+        "select l.id, l.version, l.part_id, l.origin, l.position, e.name as exercise, l.sets,"
+        " l.quantity, l.unit, l.load_kg, l.load_kg_max, l.rir"
+        " from session_exercise l join exercise e on e.id = l.exercise_id"
+        " where l.part_id = any(%s) order by l.part_id, l.origin, l.position",
+        ([p["id"] for p in parts],),
+    )
+    for part in parts:
+        # Empty fields left out: the lines are most of the snapshot's size
+        part["lines"] = [
+            {k: v for k, v in line.items() if k != "part_id" and v is not None}
+            for line in lines
+            if line["part_id"] == part["id"]
+        ]
     for session in sessions:
         # status is the dbt mart's: "missed" is judged on the real date, not on `today`
         session["upcoming"] = session["day"] >= today and session["status"] not in UNMOVABLE
         session["parts"] = [
-            {k: v for k, v in part.items() if k != "session_id"}
+            {k: v for k, v in part.items() if k != "session_id" and v is not None}
             for part in parts
             if part["session_id"] == session["id"]
         ]
@@ -184,21 +234,42 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "select id, version, body_part, side, kind, description, guidance, since, status"
         " from health_issue where status <> 'resolved' order by id",
     )
+    # Pending suggestions, and those that expired in this conversation (present them again to
+    # make them acceptable); presented_in says which coach message last showed each.
     suggestions = _rows(
         conn,
-        "select id, kind as operation, rationale from proposal where status = 'pending'"
+        "select id, kind as operation, rationale, status, presented_in from proposal"
+        " where status = 'pending' or (status = 'expired' and presented_in in"
+        " (select id from public.conversation_message where conversation_id = %s))"
         " order by id",
+        (conversation_id,),
     )
-    bank = [r[0] for r in conn.execute("select name from exercise order by name").fetchall()]
+    # The bank's names grouped by category, so "an exercise of the right kind" can be read
+    bank: dict[str, list[str]] = {}
+    for name, category in conn.execute(
+        "select name, category from exercise order by category, name"
+    ).fetchall():
+        bank.setdefault(category, []).append(name)
     rules = _rows(conn, "select code, text from athlete_rule where active order by id")
+    # The last changes of every conversation, those of this one marked here: an undo asked in
+    # a new conversation can name a change made in another (undo checks only the quote, in the
+    # athlete's latest message here). A change without a message (the planner's) is not listed.
+    # One athlete for now: with several, this is scoped to the athlete's conversations.
+    # Five of this conversation and five of the others, so a busy other conversation never
+    # pushes this one's latest change out of the list.
     changes = _rows(
         conn,
-        "select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
-        " p.undone_by is null and c.operation <> 'undo' as undoable"
+        "select change_id, operation, entity, entity_id, created_at, asked, undoable, here"
+        " from (select c.id as change_id, c.operation, c.entity, c.entity_id, c.created_at,"
+        " left(p.quote, 120) as asked,"  # the words that made it: how the athlete names it
+        " p.undone_by is null and c.operation <> 'undo' as undoable,"
+        " m.conversation_id is not distinct from %s as here,"
+        " row_number() over (partition by m.conversation_id is not distinct from %s"
+        " order by c.id desc) as latest"
         " from change_log c join proposal p on p.id = c.proposal_id"
-        " join public.conversation_message m on m.id = p.message_id"
-        " where m.conversation_id = %s order by c.id desc limit 5",
-        (conversation_id,),
+        " join public.conversation_message m on m.id = p.message_id) recent"
+        " where latest <= 5 order by change_id desc",
+        (conversation_id, conversation_id),
     )
     return {
         "today": today,
@@ -209,7 +280,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "athlete_rules": rules,
         "health_issues": health,
         "pending_suggestions": suggestions,
-        "recent_changes_in_this_conversation": changes,
+        "recent_changes": changes,
     }
 
 
@@ -223,8 +294,14 @@ def history(conn: psycopg.Connection, conversation_id: str, message_id: int) -> 
     return [HumanMessage(text) if role == "athlete" else AIMessage(text) for role, text in rows]
 
 
-def _json(value: Any) -> str:
-    return json.dumps(value, default=str, ensure_ascii=False)
+def _json(value: Any, compact: bool = False) -> str:
+    separators = (",", ":") if compact else None
+    return json.dumps(value, default=str, ensure_ascii=False, separators=separators)
+
+
+def _now() -> float:
+    """The clock the turn's deadline reads (a function, so a test can replace it alone)."""
+    return time.monotonic()
 
 
 def respond(
@@ -239,6 +316,7 @@ def respond(
     trigger: str | None = None,
     token_budget: int | None = None,
     max_steps: int = MAX_STEPS,
+    deadline_seconds: float | None = DEADLINE_SECONDS,
 ) -> CoachReply:
     """Answer the athlete's message `message_id`, already stored in `conversation_message`.
 
@@ -258,7 +336,7 @@ def respond(
     today = today or date.today()
     register_rule_check()
     started_at = datetime.now(UTC)
-    started = time.monotonic()
+    started = _now()
     state_of_mind = snapshot(conn, today, conversation_id)
     ctx = ToolContext(conn=conn, message_id=message_id, conversation_id=conversation_id)
     tools = coach_tools(ctx)
@@ -268,7 +346,14 @@ def respond(
     calls: list[dict] = []  # every tool call and its result, kept even if the run crashes
     tool_node = ToolNode(tools)
 
+    def past_deadline() -> bool:
+        return deadline_seconds is not None and _now() - started >= deadline_seconds
+
     def coach(state: MessagesState) -> dict:
+        # Checked again before every call: the tools since the last check took time too
+        if usage.calls and past_deadline():
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
+            return {"messages": [AIMessage("")]}
         answer = bound.invoke(state["messages"])
         usage.calls += 1
         meta = getattr(answer, "usage_metadata", None) or {}
@@ -292,6 +377,9 @@ def respond(
         if token_budget is not None and usage.total_tokens >= token_budget:
             stopped.append(f"token budget reached: {usage.total_tokens} of {token_budget}")
             return END
+        if past_deadline():
+            stopped.append(f"time limit reached ({deadline_seconds:g} s)")
+            return END
         return "tools"
 
     graph = StateGraph(MessagesState)
@@ -303,7 +391,7 @@ def respond(
 
     system = SYSTEM_PROMPT.format(language=language, today=today.isoformat())
     messages: list[BaseMessage] = [
-        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind)),
+        SystemMessage(system + "\n\nSnapshot:\n" + _json(state_of_mind, compact=True)),
         *history(conn, conversation_id, message_id),
     ]
     run = _Run(conn, ctx, usage, calls, stopped, started_at, started, model_name, trigger)
@@ -313,15 +401,20 @@ def respond(
         "snapshot": state_of_mind,
     }
     try:
-        final = graph.compile().invoke({"messages": messages})["messages"]
+        # max_concurrency 1: the tool calls of one message run one at a time, in the model's
+        # order. ToolNode would run them in parallel threads, and they share one connection, its
+        # transactions and the order of the idempotency keys (ctx.writes).
+        final = graph.compile().invoke({"messages": messages}, {"max_concurrency": 1})["messages"]
     except Exception as exc:
         try:
+            run.context["presented"] = []  # a crashed turn presents nothing
             if ctx.changes:  # the data changed: the athlete must hear it, even from a crash
                 done = ", ".join(c["operation"] for c in ctx.changes)
                 _store_reply(
                     conn,
                     conversation_id,
                     f"(I hit an error after applying: {done}. Ask me to undo if needed.)",
+                    shown=[],  # the athlete saw none of this turn's suggestions
                 )
             if trigger:
                 run.record(f"{type(exc).__name__}: {exc}")
@@ -336,9 +429,10 @@ def respond(
         text = (text + "\n\n" if text else "") + (
             f"(I stopped before finishing: {stopped[0]}. Applied so far: {done}.)"
         )
+    run.context["presented"] = ctx.shown()
     reply = CoachReply(
         text=text,
-        message_id=_store_reply(conn, conversation_id, text or "(no reply)"),
+        message_id=_store_reply(conn, conversation_id, text or "(no reply)", shown=ctx.shown()),
         changes=ctx.changes,
         suggestions=ctx.suggestions,
         usage=usage,
@@ -349,12 +443,21 @@ def respond(
     return reply
 
 
-def _store_reply(conn: psycopg.Connection, conversation_id: str, text: str) -> int:
-    return conn.execute(
-        "insert into conversation_message (conversation_id, role, text)"
-        " values (%s, 'coach', %s) returning id",
-        (conversation_id, text),
-    ).fetchone()[0]
+def _store_reply(
+    conn: psycopg.Connection, conversation_id: str, text: str, *, shown: list[int]
+) -> int:
+    """The coach's message, and the suggestions it presents (audit N7), in one transaction: what
+    it did not present expires, so the athlete's next message can only accept what they saw."""
+    with conn.transaction():
+        message_id = conn.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values (%s, 'coach', %s) returning id",
+            (conversation_id, text),
+        ).fetchone()[0]
+        operations.present(
+            conn, conversation_id=conversation_id, coach_message_id=message_id, proposal_ids=shown
+        )
+    return message_id
 
 
 @dataclass
@@ -389,7 +492,7 @@ class _Run:
                 self.usage.calls,
                 self.usage.input_tokens,
                 self.usage.output_tokens,
-                round(time.monotonic() - self.started, 3),
+                round(_now() - self.started, 3),
                 Jsonb(self.context | {"calls": self.calls}, dumps=_json),
                 Jsonb(self.stopped),
                 proposals + self.ctx.suggestions,

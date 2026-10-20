@@ -7,6 +7,7 @@ from pathlib import Path
 
 from lifter import __version__
 from lifter.config import Settings
+from lifter.conversation import start
 from lifter.db import connect, migrate
 
 METRIC_COLUMNS = (
@@ -505,9 +506,12 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
     if not settings.mistral_api_key:
         print("MISTRAL_API_KEY is not set (see .env.example)")
         return 2
-    model = mistral_model(settings.mistral_api_key, settings.model, settings.max_output_tokens)
+    model = mistral_model(
+        settings.mistral_api_key, settings.coach_model, settings.max_output_tokens
+    )
     try:
         with connect(settings.database_url) as conn:
+            start(conn, id=args.conversation, title=args.message, source="cli")
             message_id = conn.execute(
                 "insert into conversation_message (conversation_id, role, text)"
                 " values (%s, 'athlete', %s) returning id",
@@ -518,7 +522,7 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
                 model,
                 conversation_id=args.conversation,
                 message_id=message_id,
-                model_name=settings.model,
+                model_name=settings.coach_model,
                 language=settings.coach_language,
                 today=args.today,
                 trigger="cli",
@@ -540,7 +544,7 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
         out.append(f"suggestions: {', '.join(map(str, reply.suggestions))}")
     usage = reply.usage
     out.append(
-        f"model {settings.model}: {usage.calls} call(s), {usage.input_tokens} input"
+        f"model {settings.coach_model}: {usage.calls} call(s), {usage.input_tokens} input"
         f" + {usage.output_tokens} output tokens; audit: lifter run {reply.run_id}"
     )
     print("\n".join(printable(line) for line in out))
@@ -713,10 +717,10 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
 
         def make_model():
             return mistral_model(
-                settings.mistral_api_key, settings.model, settings.max_output_tokens
+                settings.mistral_api_key, settings.coach_model, settings.max_output_tokens
             )
 
-        model_name = settings.model
+        model_name = settings.coach_model
     else:
         make_model, model_name = SilentCoach, None
 

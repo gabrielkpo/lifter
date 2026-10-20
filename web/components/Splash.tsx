@@ -29,14 +29,16 @@ export default function Splash() {
   const [settled, setSettled] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
   const bell = useRef<SVGSVGElement>(null);
-  // From the start of the page load, not from hydration: a slow phone does not wait longer.
-  // Kept across renders, so the bell settling does not forget when the last call ended.
+  // When the calls last started or ended, from the start of the page load (not from hydration:
+  // a slow phone does not wait longer). The idle grace counts from the end of the last call, so
+  // a page that chains a second call after a slow first one is waited for too. Kept across
+  // renders, so the bell settling does not forget it.
   const busySince = useRef<number | null>(null);
 
   useEffect(() => {
     busySince.current ??= Date.now() - performance.now();
     return onApiActivity(() => {
-      if (apiActivity().inFlight > 0) busySince.current = Date.now();
+      busySince.current = Date.now();
     });
   }, []);
 

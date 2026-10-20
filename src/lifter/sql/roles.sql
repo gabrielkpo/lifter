@@ -8,13 +8,14 @@
 -- tests/test_roles.py; any change here changes that test.
 --
 --   lifter_read     read everything the app and the agents read (public, analytics), except
---                   the agents' audit, the conversation and the change log
---   lifter_private  read those three as well: the backup only (pg_dump needs every table)
+--                   the agents' audit, the conversations and the change log
+--   lifter_private  read those as well: the backup only (pg_dump needs every table)
 --   lifter_ingest   the Garmin sync: write the raw layer only
 --   lifter_propose  the agents: record proposals and their runs, never decide nor apply
 --   lifter_write    the coach's write path (lifter.operations): the domain tables, the trace,
 --                   the coach's messages; a write without a trace fails at commit (009)
---   lifter_converse the conversation endpoint: store the athlete's messages
+--   lifter_converse the conversation endpoint: start conversations, store the athlete's
+--                   messages
 --
 --   lifter_api      = lifter_read, read-only transactions
 --   lifter_sync     = lifter_ingest
@@ -73,14 +74,17 @@ alter default privileges grant select on tables to lifter_read;
 alter default privileges grant select on sequences to lifter_read;
 alter default privileges grant usage on schemas to lifter_read;
 -- Except what the models saw and said (agent_run, agent_step: context, plans, the guardrail's
--- messages), the athlete's words (conversation_message) and every change with its rows before
--- and after (change_log): health details in all four (ADR 0002, audit N5). The API reads none
--- of them; each goes by name below to the roles that write or need it.
-revoke select on agent_run, agent_step, conversation_message, change_log from lifter_read;
+-- messages), the athlete's words (conversation_message, and the conversations named after them)
+-- and every change with its rows before and after (change_log): health details in all of them
+-- (ADR 0002, audit N5). The API reads none of them; each goes by name below to the roles that
+-- write or need it.
+revoke select on agent_run, agent_step, conversation, conversation_message, change_log
+    from lifter_read;
 
 -- lifter_private: the backup dumps every table, these included.
 grant usage on schema public to lifter_private;
-grant select on agent_run, agent_step, conversation_message, change_log to lifter_private;
+grant select on agent_run, agent_step, conversation, conversation_message, change_log
+    to lifter_private;
 
 -- lifter_ingest: what lifter.sync reads and writes, nothing else. The staging views run with
 -- their owner's rights, so reading them does not open the tables behind them.
@@ -97,7 +101,13 @@ grant select on schema_migrations, schema_views to lifter_ingest;
 
 -- lifter_propose: append proposals and the audit of the runs that made them.
 grant usage on schema public to lifter_propose;
-grant insert on proposal, agent_run, agent_step to lifter_propose;
+-- A proposal only as a pending one: what, why and by whom. Its status, dates, key and result
+-- belong to the write path (lifter_write), so an agent cannot plant an "applied" row nor
+-- backdate a suggestion.
+-- The table-wide insert it held before is revoked first: a grant here never takes one away.
+revoke insert on proposal from lifter_propose;
+grant insert (kind, payload, rationale, author) on proposal to lifter_propose;
+grant insert on agent_run, agent_step to lifter_propose;
 -- Their own runs: `insert ... returning id`, `lifter runs` and the bench read them back.
 grant select on agent_run, agent_step to lifter_propose;
 grant usage on sequence proposal_id_seq, agent_run_id_seq, agent_step_id_seq to lifter_propose;
@@ -116,16 +126,18 @@ grant usage on sequence exercise_id_seq, cycle_id_seq, block_id_seq, training_we
 grant insert on change_log, proposal to lifter_write;
 -- Read by the trace check at commit (009), whichever of its roles the coach acts as.
 grant select on change_log, proposal to lifter_write;
-grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by)
-    on proposal to lifter_write;
+grant update (status, decided_at, applied_at, result, quote, message_id, idempotency_key, undone_by,
+    presented_in) on proposal to lifter_write;
 grant usage on sequence change_log_id_seq, proposal_id_seq to lifter_write;
 -- The conversation it answers (history, the latest athlete message for operations.run).
+grant select on conversation to lifter_write;
 grant select, insert on conversation_message to lifter_write;
 grant usage on sequence conversation_message_id_seq to lifter_write;
 
--- lifter_converse: the athlete's messages, stored before the model runs (row-level policy).
+-- lifter_converse: a new conversation and the athlete's messages, stored before the model runs
+-- (row-level policy). Its last activity is kept by a trigger (015), not by this role.
 grant usage on schema public to lifter_converse;
-grant select, insert on conversation_message to lifter_converse;
+grant select, insert on conversation, conversation_message to lifter_converse;
 grant usage on sequence conversation_message_id_seq to lifter_converse;
 
 -- Who may write which messages: the athlete's words come from the conversation endpoint only,

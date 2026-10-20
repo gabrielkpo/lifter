@@ -8,6 +8,7 @@ import pytest
 
 from lifter import operations
 from lifter.agents.tools import ToolContext, coach_tools, operation_list, register_rule_check
+from lifter.conversation import start
 from lifter.program import load_program, read_program
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -27,6 +28,7 @@ def program(conn):
 
 def say(conn, text: str) -> int:
     """The athlete's message, stored by the conversation endpoint before the model runs."""
+    start(conn, id="c1", title=text, source="cli")
     return conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'athlete', %s) returning id",
@@ -174,6 +176,7 @@ def test_a_suggestion_waits_for_the_athletes_choice(conn, program):
     assert suggested["ok"] and session(conn, "Legs + Metcon")[2] == day  # nothing applied
     pending = call(tools, "pending_suggestions")
     assert [p["id"] for p in pending] == [suggested["suggestion_id"]]
+    coach_replies(conn, "Je propose de la décaler à vendredi.", [suggested["suggestion_id"]])
 
     _, tools = tools_for(conn, f"ok pour la {suggested['suggestion_id']}")
     accepted = call(
@@ -206,6 +209,37 @@ def test_undo_reverts_the_last_change(conn, program):
     assert undone["ok"] and session(conn, "Legs + Metcon")[2] == day
 
 
+def test_a_bare_undo_never_reaches_a_change_made_in_another_conversation(conn, program):
+    sid, version, day = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "Décale la séance jambes au 2026-03-06")
+    applied = call(
+        tools,
+        "apply_change",
+        operation="move_session",
+        payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+        quote="Décale la séance jambes au 2026-03-06",
+    )
+
+    def elsewhere(text: str) -> dict:
+        start(conn, id="c2", title=text, source="cli")
+        message = conn.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values ('c2', 'athlete', %s) returning id",
+            (text,),
+        ).fetchone()[0]
+        ctx = ToolContext(conn=conn, message_id=message, conversation_id="c2")
+        return {t.name: t for t in coach_tools(ctx)}
+
+    undo = {"operation": "undo", "payload": {"change_id": applied["change_id"]}}
+    refused = call(elsewhere("annule"), "apply_change", quote="annule", **undo)
+    assert not refused["ok"] and "another conversation" in refused["error"]
+    assert session(conn, "Legs + Metcon")[2] == "2026-03-06"
+
+    named = "annule le déplacement de la séance jambes"
+    undone = call(elsewhere(named), "apply_change", quote=named, **undo)
+    assert undone["ok"] and session(conn, "Legs + Metcon")[2] == day
+
+
 def test_each_write_of_a_message_gets_its_own_key(conn, program):
     ctx, tools = tools_for(conn, "Décale la séance jambes au 2026-03-06 et annule le benchmark")
     for _ in range(2):
@@ -226,5 +260,74 @@ def test_a_suggestion_made_during_the_turn_cannot_be_accepted_in_it(conn, progra
     accepted = call(
         tools, "accept_suggestion", suggestion_id=suggested["suggestion_id"], quote="ok merci"
     )
-    assert not accepted["ok"] and "made after the athlete's message" in accepted["error"]
+    assert not accepted["ok"] and "not presented" in accepted["error"]
     assert session(conn, "Legs + Metcon")[2] == day
+
+
+def coach_replies(conn, text: str, shown: list[int]) -> int:
+    """The coach's reply as respond() stores it, presenting `shown` (audit N7)."""
+    start(conn, id="c1", title=text, source="cli")
+    message = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c1', 'coach', %s) returning id",
+        (text,),
+    ).fetchone()[0]
+    operations.present(conn, conversation_id="c1", coach_message_id=message, proposal_ids=shown)
+    return message
+
+
+def test_an_older_suggestion_is_accepted_only_once_presented_again(conn, program):
+    # Listing is not presenting: the planner's suggestion becomes acceptable only when the coach
+    # puts it back in front of the athlete (present_suggestions), and expires when it does not.
+    sid, version, _ = session(conn, "Legs + Metcon")
+    planner = operations.suggest(
+        conn,
+        "move_session",
+        {"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+        rationale="Planned by the planner.",
+        author="planner",
+    )
+    ctx, tools = tools_for(conn, "Quelles suggestions sont en attente ?")
+    call(tools, "pending_suggestions")
+    assert ctx.shown() == []
+    coach_replies(conn, "Une suggestion du planificateur attend.", ctx.shown())
+    _, tools = tools_for(conn, f"ok pour la {planner}")
+    refused = call(tools, "accept_suggestion", suggestion_id=planner, quote=f"ok pour la {planner}")
+    assert not refused["ok"] and "not presented" in refused["error"]
+
+    ctx, tools = tools_for(conn, "montre-la moi")
+    assert call(tools, "present_suggestions", suggestion_ids=[planner])["ok"]
+    coach_replies(conn, f"La {planner} : décaler la séance jambes à vendredi.", ctx.shown())
+    _, tools = tools_for(conn, f"ok pour la {planner}")
+    accepted = call(
+        tools, "accept_suggestion", suggestion_id=planner, quote=f"ok pour la {planner}"
+    )
+    assert accepted["ok"] and session(conn, "Legs + Metcon")[2] == "2026-03-06"
+
+
+def test_exercise_records_reads_what_the_pr_tab_shows(conn, program):
+    _, tools = tools_for(conn, "Quel est mon PR au leg press ?")
+    result = call(tools, "exercise_records", exercise="leg press")  # any case
+    assert result["exercise"] == "Leg press"
+    assert result["best_load_per_reps"] and result["recent"]
+
+    conn.execute(
+        "insert into record_definition (name, kind, record_type, unit, exercise_id)"
+        " select 'Leg press 1RM', 'lift', 'rep_max', 'kg', id from exercise"
+        " where name = 'Leg press'"
+    )
+    conn.execute(
+        "insert into record_entry (definition_id, day, reps, value)"
+        " select id, '2026-03-01', 1, 150 from record_definition where name = 'Leg press 1RM'"
+    )
+    (record,) = call(tools, "exercise_records", exercise="Leg press")["records"]
+    assert (record["record"], record["reps"], float(record["value"])) == ("Leg press 1RM", 1, 150.0)
+
+    unknown = call(tools, "exercise_records", exercise="leg")
+    assert not unknown["ok"] and "Leg press" in unknown["error"]
+
+
+def test_exercise_records_close_names_take_the_text_literally(conn, program):
+    _, tools = tools_for(conn, "Mon PR ?")
+    unknown = call(tools, "exercise_records", exercise="leg_")  # a LIKE wildcard, if unescaped
+    assert not unknown["ok"] and "close names: []" in unknown["error"]

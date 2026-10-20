@@ -34,8 +34,16 @@ export default function SessionView({
 
       <div className="parts">
         {session.parts
-          // Nothing prescribed (a warm-up left free): nothing to show in the plan.
-          .filter((part) => mode === "done" || part.planned.length > 0 || part.notes || part.format)
+          // A warm-up left free is not shown; any other part is, empty ones included (one the
+          // coach just added, before its exercises): what changed is always visible.
+          .filter(
+            (part) =>
+              mode === "done" ||
+              part.kind !== "warmup" ||
+              part.planned.length > 0 ||
+              part.notes ||
+              part.format,
+          )
           .map((part) =>
           mode === "plan" ? (
             <PlannedPart key={part.position} part={part} />
@@ -55,7 +63,8 @@ function PlannedPart({ part }: { part: Part }) {
   const target = partTarget(part);
   return (
     <section className="card">
-      <h2>{part.title ?? label(part.kind)}</h2>
+      <h2>{label(part.kind)}</h2>
+      {part.title && <p className="part-title">{part.title}</p>}
       {(format || target) && (
         <p className="small" style={{ marginBottom: 10 }}>
           {[format, target].filter(Boolean).join(" · ")}
@@ -74,9 +83,10 @@ function DonePart({ part }: { part: Part }) {
   return (
     <section className="card">
       <div className="row">
-        <h2>{part.title ?? label(part.kind)}</h2>
+        <h2>{label(part.kind)}</h2>
         {result && <strong>{result}</strong>}
       </div>
+      {part.title && <p className="part-title">{part.title}</p>}
       {(partFormat(part) || target) && (
         <p className="small" style={{ marginBottom: 10 }}>
           {[partFormat(part), target].filter(Boolean).join(" · ")}

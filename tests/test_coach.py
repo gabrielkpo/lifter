@@ -2,14 +2,18 @@
 these tests check everything around it: what it sees, what its tool calls change, the limits,
 the stored reply and the audit."""
 
+import threading
+import time
 from datetime import date
 from pathlib import Path
 
+import psycopg
 import pytest
 from langchain_core.messages import AIMessage, SystemMessage
 
 from lifter import operations
 from lifter.agents.coach import respond, snapshot
+from lifter.conversation import start
 from lifter.program import load_program, read_program
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
@@ -50,6 +54,7 @@ def tool_call(name: str, n: int = 1, **args) -> AIMessage:
 
 
 def say(conn, text: str, conversation: str = "c1") -> int:
+    start(conn, id=conversation, title=text, source="cli")
     return conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values (%s, 'athlete', %s) returning id",
@@ -109,7 +114,7 @@ def test_the_coach_sees_the_snapshot_and_the_conversation(conn, program):
 
     system, *conversation = model.seen[0]
     assert isinstance(system, SystemMessage)
-    assert "Legs + Metcon" in system.content and '"today": "2026-03-04"' in system.content
+    assert "Legs + Metcon" in system.content and '"today":"2026-03-04"' in system.content
     assert [m.content for m in conversation] == [
         "Salut coach",
         "Salut !",
@@ -304,29 +309,36 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
     legs = next(s for s in seen["sessions_this_week_and_next"] if s["id"] == sid)
     assert legs["week"] == 1 and legs["parts"]
     assert legs["status"] == "done" and not legs["upcoming"]  # logged in the example programme
-    assert {"id", "version", "position", "kind", "title"} == set(legs["parts"][0])
+    # empty fields are left out (a part without a title has no "title")
+    assert {"id", "version", "position", "kind", "lines"} <= set(legs["parts"][0])
+    line = next(line for part in legs["parts"] for line in part["lines"])
+    assert line["exercise"] and line["origin"] in ("planned", "done") and line["version"]
     for s in seen["sessions_this_week_and_next"]:
         assert s["upcoming"] == (s["day"] >= TODAY and s["status"] not in ("done", "cancelled"))
     assert any(s["upcoming"] for s in seen["sessions_this_week_and_next"])
-    assert seen["exercise_bank"] == sorted(seen["exercise_bank"]) and seen["exercise_bank"]
+    bank = seen["exercise_bank"]  # names by category
+    assert all(names == sorted(names) for names in bank.values()) and "mobility" in bank
     assert {"exercise": "Back squat", "rule": "No free barbell on the legs."} in seen[
         "forbidden_exercises"
     ]
-    assert "Back squat" in seen["exercise_bank"]  # a report of it can still name it
+    assert "Back squat" in bank["strength"]  # a report of it can still name it
     assert {"code": "forbid_flag", "text": "No running, no repeated jumps."} in seen[
         "athlete_rules"
     ]
-    assert [
-        (c["change_id"], c["undoable"]) for c in seen["recent_changes_in_this_conversation"]
-    ] == [(moved, True)]
-    assert snapshot(conn, TODAY, "c2")["recent_changes_in_this_conversation"] == []
+    assert [(c["change_id"], c["undoable"], c["here"]) for c in seen["recent_changes"]] == [
+        (moved, True, True)
+    ]
+    # another conversation sees the change too, marked as made elsewhere
+    assert [(c["change_id"], c["here"]) for c in snapshot(conn, TODAY, "c2")["recent_changes"]] == [
+        (moved, False)
+    ]
 
     undo = say(conn, "annule")
     model = ScriptedChat(
         tool_call("apply_change", operation="undo", payload={"change_id": moved}, quote="annule")
     )
     answer(conn, model, undo)
-    changes = snapshot(conn, TODAY, "c1")["recent_changes_in_this_conversation"]
+    changes = snapshot(conn, TODAY, "c1")["recent_changes"]
     assert [(c["operation"], c["undoable"]) for c in changes] == [
         ("undo", False),
         ("move_session", False),
@@ -351,3 +363,112 @@ def test_a_forbid_flag_rule_with_odd_params_forbids_nothing_and_breaks_nothing(c
     assert all(
         f["rule"] not in ("Odd.", "Odd too.") for f in snapshot(conn, TODAY)["forbidden_exercises"]
     )
+
+
+def test_the_tool_calls_of_one_message_run_one_at_a_time_in_order(conn, program, monkeypatch):
+    active, seen, lock = [0], [], threading.Lock()
+    real_run = operations.run
+
+    def slow_run(*args, **kwargs):
+        with lock:
+            active[0] += 1
+            seen.append((active[0], kwargs["idempotency_key"]))
+        time.sleep(0.05)
+        try:
+            return real_run(*args, **kwargs)
+        finally:
+            with lock:
+                active[0] -= 1
+
+    monkeypatch.setattr(operations, "run", slow_run)
+    sid, version, _ = session(conn, "Legs + Metcon")
+    message = say(conn, "Décale la séance jambes au 2026-03-06 et note mon poignet qui fait mal")
+    both = AIMessage(
+        "",
+        tool_calls=[
+            {
+                "name": "apply_change",
+                "id": "call_1",
+                "args": {
+                    "operation": "move_session",
+                    "payload": {
+                        "session_id": sid,
+                        "new_day": "2026-03-06",
+                        "expected_version": version,
+                    },
+                    "quote": "Décale la séance jambes au 2026-03-06",
+                },
+            },
+            {
+                "name": "apply_change",
+                "id": "call_2",
+                "args": {
+                    "operation": "add_health_issue",
+                    "payload": {"body_part": "wrist", "kind": "pain", "description": "hurts"},
+                    "quote": "note mon poignet qui fait mal",
+                },
+            },
+        ],
+    )
+    answer(conn, ScriptedChat(both, AIMessage("Fait.")), message)
+
+    assert [n for n, _ in seen] == [1, 1]  # never two at once
+    assert [key.rsplit(":", 1)[1] for _, key in seen] == ["1", "2"]  # in the model's order
+    assert conn.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+
+
+def test_the_run_stops_at_its_deadline_with_its_reply_stored(conn, program):
+    message = say(conn, "Montre-moi mes exercices")
+    looping = [tool_call("read_rows", n, table="exercise") for n in range(10)]
+    reply = answer(conn, ScriptedChat(*looping), message, deadline_seconds=0, trigger="cli")
+
+    assert reply.usage.calls == 1 and reply.stopped == "time limit reached (0 s)"
+    assert "I stopped before finishing" in reply.text
+    stored = conn.execute(
+        "select role from conversation_message where id = %s", (reply.message_id,)
+    )
+    assert stored.fetchone() == ("coach",)
+
+
+def test_no_model_call_starts_past_the_deadline_even_after_slow_tools(conn, program, monkeypatch):
+    from lifter.agents import coach as coach_module
+
+    ticks = iter(range(0, 1000, 15))  # each reading of the clock is 15 s later
+    monkeypatch.setattr(coach_module, "_now", lambda: next(ticks))
+    message = say(conn, "Montre-moi mes exercices")
+    looping = [tool_call("read_rows", n, table="exercise") for n in range(10)]
+    reply = answer(conn, ScriptedChat(*looping), message, deadline_seconds=30, trigger="cli")
+
+    # started at 0; after call 1 the check reads 15 (go on), before call 2 it reads 30 (stop)
+    assert reply.usage.calls == 1 and reply.stopped == "time limit reached (30 s)"
+
+
+def test_changes_elsewhere_never_crowd_out_this_conversations_own(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    message = say(conn, "Décale la séance jambes au 2026-03-06 stp")
+    model = ScriptedChat(
+        tool_call(
+            "apply_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+            quote="Décale la séance jambes au 2026-03-06",
+        ),
+    )
+    moved = answer(conn, model, message).changes[0]["change_id"]
+    for n in range(6):  # six changes in another conversation, after the move
+        text = f"Note une douleur au poignet gauche numéro {n}"
+        other = say(conn, text, "c2")
+        scripted = ScriptedChat(
+            tool_call(
+                "apply_change",
+                operation="add_health_issue",
+                payload={"body_part": "wrist", "kind": "pain", "description": f"pain {n}"},
+                quote=text,
+            )
+        )
+        respond(conn, scripted, conversation_id="c2", message_id=other, today=TODAY)
+
+    changes = snapshot(conn, TODAY, "c1")["recent_changes"]
+    assert [c["change_id"] for c in changes if c["here"]] == [moved]
+    assert sum(not c["here"] for c in changes) == 5
+    assert changes[-1]["asked"] == "Décale la séance jambes au 2026-03-06"

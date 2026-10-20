@@ -739,3 +739,299 @@ button {
   font-weight: 700;
   color: var(--text);
 }
+
+/* The conversation with the coach (app/coach): the athlete on the right, the coach on the left,
+   the input pinned above the tab bar. */
+:root {
+  /* Where the coach's input sits: above the tab bar on a phone, at the bottom on a computer,
+     right above the keyboard when it is open (--keyboard, set by app/coach). */
+  --chat-input-bottom: calc(var(--island-space) + env(safe-area-inset-bottom));
+}
+body.keyboard-open {
+  --chat-input-bottom: calc(var(--keyboard, 0px) + 8px);
+}
+body.keyboard-open .tabbar {
+  display: none;
+}
+/* Its bottom padding follows the input's height (app/coach), so nothing hides under it. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bubble {
+  max-width: 85%;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.bubble p + p,
+.bubble p + ul,
+.bubble ul + p {
+  margin-top: 10px;
+}
+.bubble ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.45;
+}
+.bubble li + li {
+  margin-top: 4px;
+}
+.bubble[data-role="athlete"] {
+  align-self: flex-end;
+  background: var(--surface-2);
+}
+.bubble[data-role="coach"] {
+  align-self: flex-start;
+}
+.chat-change {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--muted);
+}
+.chat-change .chip {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+.chat-input {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--chat-input-bottom);
+  z-index: 5;
+  width: min(536px, calc(100% - 2 * var(--island-gap)));
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 6px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  max-height: 140px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.chat-input .pill:disabled {
+  opacity: 0.4;
+}
+.chat-floor {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  background: linear-gradient(to top, var(--bg) calc(100% - 16px), transparent);
+  pointer-events: none;
+}
+/* Back to the latest message, when the thread is scrolled up. */
+.chat-to-end {
+  position: fixed;
+  right: max(16px, calc((100% - 560px) / 2 + 16px));
+  z-index: 6;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 20px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+@media (min-width: 900px) {
+  :root {
+    --chat-input-bottom: 24px;
+  }
+  .chat-to-end {
+    right: 48px;
+  }
+  .chat-input {
+    left: calc(var(--sidebar) + (100% - var(--sidebar)) / 2);
+    width: min(720px, calc(100% - var(--sidebar) - 80px));
+  }
+}
+
+/* The installed app draws under the phone's status bar: a strip of the page's colour keeps the
+   content from scrolling under the clock and the battery. */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  background: var(--bg);
+  z-index: 50;
+  pointer-events: none;
+}
+/* On a phone, an opaque floor under the floating tab bar: nothing shows through around it. */
+@media (max-width: 899px) {
+  body::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--island-space) + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) calc(100% - 12px), transparent);
+    z-index: 9;
+    pointer-events: none;
+  }
+  body.keyboard-open::after {
+    display: none;
+  }
+}
+/* A session's part: its category on top, its own title under it (app/sessions, WOD). */
+.part-title {
+  margin: -4px 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* The page header's own buttons (app/coach: history, new conversation). */
+.topbar-title,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.icon-button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+/* The conversation on screen, under the header: its first words, on one line. */
+.chat-title {
+  margin: -6px 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The conversations panel (components/ConversationDrawer): it slides in from the left over the
+   page and the tab bar; a tap beside it, or Escape, closes it. */
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.drawer[data-open="true"] {
+  pointer-events: auto;
+}
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.drawer[data-open="true"] .drawer-backdrop {
+  opacity: 1;
+}
+.drawer-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(320px, 85vw);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: calc(env(safe-area-inset-top) + 16px) 12px calc(env(safe-area-inset-bottom) + 16px);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  transform: translateX(-100%);
+  transition: transform 220ms ease;
+  outline: none;
+}
+.drawer[data-open="true"] .drawer-panel {
+  transform: none;
+}
+.drawer-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.drawer-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.drawer-group {
+  margin: 16px 12px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.drawer-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.drawer-item[aria-current="page"] {
+  background: var(--surface-2);
+}
+body.drawer-open {
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop,
+  .drawer-panel {
+    transition: none;
+  }
+}

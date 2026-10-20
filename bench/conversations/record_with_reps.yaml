@@ -1,0 +1,14 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+# Written after the owner's turns of 2026-10-20: a record reported was stored on a definition
+# not tied to the exercise, so the PR tab did not show it.
+name: record_with_reps
+category: report
+description: 'A new best with its reps: stored on a record tied to the exercise.'
+today: 2026-01-18
+messages:
+- Nouveau record hier, 80 kg au bench press en une seule répétition.
+expect:
+- check: record
+  params: {exercise: Bench press, value: 80, reps: 1}
+review: 'Creates the record for the bench press if missing (tied to the exercise), then sets
+  80 kg for 1 rep on 2026-01-17; reports it.'

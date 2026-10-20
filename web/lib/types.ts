@@ -283,3 +283,56 @@ export interface Profile {
   health_issues: HealthIssue[];
   rules: { code: string | null; text: string }[];
 }
+
+/** The conversation with the coach (GET and POST /conversation). */
+export interface ConversationChange {
+  change_id: number;
+  operation: string;
+  entity: string;
+  entity_id: number | null;
+  /** What it is about, in a few words (the exercise of a line, a part's kind or title...). */
+  subject: string | null;
+  undone: boolean;
+}
+
+export interface ConversationSuggestion {
+  id: number;
+  operation: string;
+  rationale: string;
+  status: string;
+}
+
+export interface ConversationMessage {
+  id: number;
+  role: "athlete" | "coach";
+  text: string;
+  created_at: string;
+  /** On an athlete's message: the changes it authorised. */
+  changes: ConversationChange[];
+  /** On a coach's reply: the suggestions it presented. */
+  suggestions: ConversationSuggestion[];
+}
+
+/** A conversation with the coach, as the history panel lists it. */
+export interface Conversation {
+  id: string;
+  /** The start of the athlete's first message. */
+  title: string;
+  source: "app" | "cli" | "bench";
+  created_at: string;
+  last_message_at: string;
+}
+
+export interface ConversationThread {
+  conversation: Conversation;
+  messages: ConversationMessage[];
+}
+
+export interface ConversationReply {
+  conversation_id: string;
+  athlete: ConversationMessage;
+  coach: ConversationMessage;
+  stopped: string | null;
+  run_id: number | null;
+}
+

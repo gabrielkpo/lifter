@@ -6,10 +6,25 @@
 # the free plan; this is the copy we control.
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
+stay_awake "$@"
 LIFTER_LOG="$LIFTER_LOG_DIR/backup.log"
 BACKUP_DIR="$LIFTER_BACKUP_DIR"
 
 load_env backup.env
+# The password goes to pg_dump through its environment, not its arguments, which any process
+# on the Mac can read (ps). postgresql://user:password@host/db?options, percent-decoded.
+if [[ "$DATABASE_URL" =~ ^(postgres(ql)?://)([^:@/]+):([^@]+)@(.+)$ ]]; then
+  encoded="${BASH_REMATCH[4]}"
+  DATABASE_URL="${BASH_REMATCH[1]}${BASH_REMATCH[3]}@${BASH_REMATCH[5]}"
+  # Only %XX sequences are decoded; anything else, backslashes included, is kept as written.
+  PGPASSWORD=""
+  while [[ "$encoded" =~ ^([^%]*)%([0-9A-Fa-f]{2})(.*)$ ]]; do
+    PGPASSWORD+="${BASH_REMATCH[1]}$(printf "\\x${BASH_REMATCH[2]}")"
+    encoded="${BASH_REMATCH[3]}"
+  done
+  PGPASSWORD+="$encoded"
+  export PGPASSWORD
+fi
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 # A run killed in the middle of pg_dump (sleep, shutdown) leaves a partial file: never kept.

@@ -2,16 +2,38 @@
   "coach": "silent",
   "model": null,
   "summary": {
-    "runs": 8,
-    "expectations_met_rate": 0.6,
-    "scenarios_fully_met": 4,
+    "runs": 15,
+    "expectations_met_rate": 0.5,
+    "scenarios_fully_met": 5,
     "refused_quotes": 0,
     "stopped": 0,
-    "model_calls": 9,
+    "model_calls": 18,
     "input_tokens": 0,
     "output_tokens": 0
   },
   "runs": [
+    {
+      "scenario": "add_mobility",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "planned_line_in_part 3 Legs + Metcon mobility 1",
+          "passed": false,
+          "detail": "0 mobility part(s), 0 with a planned line"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
     {
       "scenario": "forbidden_exercise",
       "category": "rules",
@@ -94,6 +116,28 @@
       ]
     },
     {
+      "scenario": "mobility_three_joints",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "planned_line_in_part 3 Legs + Metcon mobility 1",
+          "passed": false,
+          "detail": "0 mobility part(s), 0 with a planned line"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
       "scenario": "move_session",
       "category": "instruction",
       "run": 1,
@@ -148,6 +192,33 @@
       ]
     },
     {
+      "scenario": "pr_question",
+      "category": "question",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "called_tool exercise_records",
+          "passed": false,
+          "detail": "exercise_records called 0 time(s)"
+        },
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
       "scenario": "question",
       "category": "question",
       "run": 1,
@@ -170,7 +241,102 @@
       ]
     },
     {
+      "scenario": "record_with_reps",
+      "category": "report",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "record Bench press 80 1",
+          "passed": false,
+          "detail": "records of Bench press: none"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "record_without_reps",
+      "category": "report",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "unchanged",
+          "passed": true,
+          "detail": "0 change(s) applied"
+        }
+      ],
+      "model_calls": 1,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted."
+      ]
+    },
+    {
       "scenario": "undo",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 1,
+      "expectations": 2,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-23",
+          "passed": true,
+          "detail": "on 2026-01-23"
+        },
+        {
+          "check": "changed undo",
+          "passed": false,
+          "detail": "applied: nothing"
+        }
+      ],
+      "model_calls": 2,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted.",
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere",
+      "category": "instruction",
+      "run": 1,
+      "expectations_met": 0,
+      "expectations": 1,
+      "outcomes": [
+        {
+          "check": "session_day 3 Legs + Metcon 2026-01-22",
+          "passed": false,
+          "detail": "on 2026-01-23"
+        }
+      ],
+      "model_calls": 2,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "refused_quotes": 0,
+      "stopped": 0,
+      "replies": [
+        "Noted.",
+        "Noted."
+      ]
+    },
+    {
+      "scenario": "undo_elsewhere_named",
       "category": "instruction",
       "run": 1,
       "expectations_met": 1,

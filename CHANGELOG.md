@@ -1,5 +1,77 @@
 # Changelog
 
+## [0.4.0](https://github.com/gabrielkpo/lifter/compare/v0.3.0...v0.4.0) (2026-10-20)
+
+
+### Features
+
+* **agents:** the coach sees the changes of every conversation, a bare undo stays where it is asked ([#100](https://github.com/gabrielkpo/lifter/issues/100)) ([c5c7324](https://github.com/gabrielkpo/lifter/commit/c5c73243e7499c6581c897ed6aaa1afa4ecbb92e))
+
+## [0.3.0](https://github.com/gabrielkpo/lifter/compare/v0.2.2...v0.3.0) (2026-10-19)
+
+
+### Features
+
+* several conversations with the coach, a new one on opening and a history panel ([#98](https://github.com/gabrielkpo/lifter/issues/98)) ([1b2ab32](https://github.com/gabrielkpo/lifter/commit/1b2ab328796f669e687f67d295c903f4091e5112))
+
+
+### Bug Fixes
+
+* **agents:** the coach puts an exercise in the part of its kind ([#97](https://github.com/gabrielkpo/lifter/issues/97)) ([68beac9](https://github.com/gabrielkpo/lifter/commit/68beac9fb60b0e3c791c7f6f9067d91cf1e7a55b))
+* **agents:** the guardrail refuses two parts of one kind in a session ([#96](https://github.com/gabrielkpo/lifter/issues/96)) ([fc95e08](https://github.com/gabrielkpo/lifter/commit/fc95e0825c0223f9e0ab431a55d205360731d040))
+
+## [0.2.2](https://github.com/gabrielkpo/lifter/compare/v0.2.1...v0.2.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **agents:** a coach turn ends before the hosted function's 60 s ([#92](https://github.com/gabrielkpo/lifter/issues/92)) ([c3e723d](https://github.com/gabrielkpo/lifter/commit/c3e723d4b15eb86f4b552eb637e4ef5e8c6ca930))
+* **agents:** planner round 3, a missed set and fewer reps never raise the load ([#91](https://github.com/gabrielkpo/lifter/issues/91)) ([38a7d34](https://github.com/gabrielkpo/lifter/commit/38a7d34286ea6c77ac92c7c3e6b6a1193849fa85))
+* **agents:** the coach sees each part's lines and never leaves a new part empty ([#93](https://github.com/gabrielkpo/lifter/issues/93)) ([b3983e4](https://github.com/gabrielkpo/lifter/commit/b3983e43eaf8faf8b15dcedde90e880e1eff93bb))
+* the coach's changes can be undone, one part per kind in a session, a clearer coach screen on a phone ([#95](https://github.com/gabrielkpo/lifter/issues/95)) ([116661d](https://github.com/gabrielkpo/lifter/commit/116661d7c2154d867c6ac5e93ede99935916cd99))
+
+## [0.2.1](https://github.com/gabrielkpo/lifter/compare/v0.2.0...v0.2.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **web:** the coach's thread never hides under the bars, and every planned part is shown ([#89](https://github.com/gabrielkpo/lifter/issues/89)) ([fccfce2](https://github.com/gabrielkpo/lifter/commit/fccfce26381fe600f866763541cc001680225d34))
+
+## [0.2.0](https://github.com/gabrielkpo/lifter/compare/v0.1.3...v0.2.0) (2026-10-19)
+
+
+### Features
+
+* the coach in the app, a conversation where saying it is deciding it ([#86](https://github.com/gabrielkpo/lifter/issues/86)) ([c3a3dc8](https://github.com/gabrielkpo/lifter/commit/c3a3dc84459bb016f95c7b7f0c39316266ddd81e))
+
+
+### Bug Fixes
+
+* **ops:** a sync missed in a dark wake is caught up at the next use of the Mac ([#87](https://github.com/gabrielkpo/lifter/issues/87)) ([7536708](https://github.com/gabrielkpo/lifter/commit/75367087cbf5a4d95be551e9a00cdb62b1742980))
+
+## [0.1.3](https://github.com/gabrielkpo/lifter/compare/v0.1.2...v0.1.3) (2026-10-18)
+
+
+### Bug Fixes
+
+* **agents:** the coach's tool calls run one at a time, in the model's order ([#83](https://github.com/gabrielkpo/lifter/issues/83)) ([c5007e8](https://github.com/gabrielkpo/lifter/commit/c5007e80d093aecb1ec9ea4ff0506a6c38dbd635))
+* the agents lose their table-wide insert on proposals, the Mac stays awake through its jobs ([#85](https://github.com/gabrielkpo/lifter/issues/85)) ([b06cd90](https://github.com/gabrielkpo/lifter/commit/b06cd90cd5292f0ae1003a63b8a802c552840dcb))
+
+## [0.1.2](https://github.com/gabrielkpo/lifter/compare/v0.1.1...v0.1.2) (2026-10-18)
+
+
+### Bug Fixes
+
+* **agents:** the coach sees the forbidden exercises and fixes an invalid payload at once ([#78](https://github.com/gabrielkpo/lifter/issues/78)) ([1fb54c2](https://github.com/gabrielkpo/lifter/commit/1fb54c2b6d51c776e761ff8391e20d5b25203291))
+* suggestions accepted only as presented, every programme change under the guardrail, versioned logs ([#81](https://github.com/gabrielkpo/lifter/issues/81)) ([876ab1c](https://github.com/gabrielkpo/lifter/commit/876ab1c6d8a441a4658a51091e5b7463e250f547))
+* the agents' audit, the conversation and the change log are read only by the roles that need them ([#76](https://github.com/gabrielkpo/lifter/issues/76)) ([7c29179](https://github.com/gabrielkpo/lifter/commit/7c2917946936a3892eb416d7a260aeed1506bc3f))
+* the closing audit's low findings on the app, the API, the Mac and the trace ([#82](https://github.com/gabrielkpo/lifter/issues/82)) ([07a8749](https://github.com/gabrielkpo/lifter/commit/07a874912b8140842548dff9b5b74be64e268bf3))
+
+
+### Documentation
+
+* **bench:** the planner's two review touch-ups, measured on 3 runs ([#77](https://github.com/gabrielkpo/lifter/issues/77)) ([56bcdf8](https://github.com/gabrielkpo/lifter/commit/56bcdf800542c738031ed949fccd6588e1a08ed4))
+
 ## [0.1.1](https://github.com/gabrielkpo/lifter/compare/v0.1.0...v0.1.1) (2026-10-16)
 
 

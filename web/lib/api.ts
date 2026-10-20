@@ -42,12 +42,48 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   }
 }
 
+/** POST `body` as JSON to `path` (the app's server only forwards a message to the coach). */
+export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  track(1);
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        `${response.status} ${response.statusText}`,
+        await openedIn(response),
+      );
+    }
+    return (await response.json()) as T;
+  } finally {
+    track(-1);
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** A conversation the failed call opened all the same (POST /conversations). */
+    readonly conversationId: string | null = null,
   ) {
     super(message);
+  }
+}
+
+/** The conversation a failed message opened, when the API says so in its error. */
+async function openedIn(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as { detail?: { conversation_id?: unknown } };
+    const opened = body.detail?.conversation_id;
+    return typeof opened === "string" ? opened : null;
+  } catch {
+    return null;
   }
 }
 

@@ -24,6 +24,7 @@ from pydantic import Field, field_validator
 from lifter.agents.coach import forbidden_exercises, respond
 from lifter.bench.athlete import base_program
 from lifter.bench.runner import reset
+from lifter.conversation import start
 from lifter.domain import StrictModel
 from lifter.program import load_program
 
@@ -36,6 +37,13 @@ class Note(StrictModel):
     week: int
     title: str
     text: str
+
+
+class Message(StrictModel):
+    """An athlete message sent in another conversation than the scenario's main one."""
+
+    text: str = Field(min_length=1)
+    conversation: str = Field(min_length=1)
 
 
 class Check(StrictModel):
@@ -56,7 +64,7 @@ class Conversation(StrictModel):
     description: str
     today: date
     notes: list[Note] = []
-    messages: list[str] = Field(min_length=1)
+    messages: list[str | Message] = Field(min_length=1)  # a plain text goes to CONVERSATION
     expect: list[Check] = Field(min_length=1)
     review: str
 
@@ -125,6 +133,48 @@ def no_planned_line(conn, p) -> tuple[bool, str]:
     return n == 0, f"{n} planned line(s) of {p['exercise']}"
 
 
+def planned_line_in_part(conn, p) -> tuple[bool, str]:
+    """The session has a part of that kind holding at least one planned line; with `position`
+    (1: the start), that part is at that position; with `parts`, the session has exactly that
+    many parts of the kind."""
+    rows = conn.execute(
+        "select sp.id, sp.position, count(l.id) from session_part sp"
+        " join planned_session s on s.id = sp.session_id"
+        " join training_week w on w.id = s.week_id"
+        " left join session_exercise l on l.part_id = sp.id and l.origin = 'planned'"
+        " where w.number = %s and s.title = %s and sp.kind = %s group by sp.id",
+        (p["week"], p["title"], p["kind"]),
+    ).fetchall()
+    filled = [position for _, position, n in rows if n > 0]
+    ok = bool(filled) and ("position" not in p or p["position"] in filled)
+    ok = ok and ("parts" not in p or len(rows) == p["parts"])
+    where = f" at position {', '.join(map(str, filled))}" if filled else ""
+    return ok, f"{len(rows)} {p['kind']} part(s), {len(filled)} with a planned line{where}"
+
+
+def called_tool(conn, p) -> tuple[bool, str]:
+    """The coach called that tool at least once during the conversation."""
+    (n,) = conn.execute(
+        "select count(*) from agent_run r, jsonb_array_elements(r.context -> 'calls') c"
+        " where r.agent = 'coach' and c ->> 'tool' = %s",
+        (p["tool"],),
+    ).fetchone()
+    return n > 0, f"{p['tool']} called {n} time(s)"
+
+
+def record(conn, p) -> tuple[bool, str]:
+    """A record entry of that value and reps, on a record tied to that exercise."""
+    rows = conn.execute(
+        "select e.value, e.reps from record_entry e"
+        " join record_definition d on d.id = e.definition_id"
+        " join exercise x on x.id = d.exercise_id where x.name = %s",
+        (p["exercise"],),
+    ).fetchall()
+    ok = any(float(v or 0) == p["value"] and r == p["reps"] for v, r in rows)
+    found = ", ".join(f"{v} kg x {r}" for v, r in rows) or "none"
+    return ok, f"records of {p['exercise']}: {found}"
+
+
 def goals(conn, p) -> tuple[bool, str]:
     (n,) = conn.execute("select count(*) from goal").fetchone()
     return n == p["count"], f"{n} goal(s)"
@@ -149,6 +199,9 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "done_line": done_line,
     "no_planned_line": no_planned_line,
     "goals": goals,
+    "called_tool": called_tool,
+    "record": record,
+    "planned_line_in_part": planned_line_in_part,
     "no_forbidden_suggestion": no_forbidden_suggestion,
 }
 
@@ -215,16 +268,23 @@ def run_conversation(
         model = make_model()
         calls = tokens_in = tokens_out = stopped = 0
         replies = []
-        for text in conversation.messages:
+        for message in conversation.messages:
+            text, conversation_id = (
+                (message, CONVERSATION)
+                if isinstance(message, str)
+                else (message.text, message.conversation)
+            )
+            # idempotent: the first message of each conversation creates it (migration 015)
+            start(conn, id=conversation_id, title=text, source="bench")
             message_id = conn.execute(
                 "insert into conversation_message (conversation_id, role, text)"
                 " values (%s, 'athlete', %s) returning id",
-                (CONVERSATION, text),
+                (conversation_id, text),
             ).fetchone()[0]
             reply = respond(
                 conn,
                 model,
-                conversation_id=CONVERSATION,
+                conversation_id=conversation_id,
                 message_id=message_id,
                 model_name=model_name,
                 language=language,

@@ -36,6 +36,25 @@ LIFTER_BACKUP_KEEP_DAYS="${LIFTER_BACKUP_KEEP_DAYS:-30}"
 mkdir -p "$LIFTER_LOG_DIR"
 chmod 700 "$LIFTER_LOG_DIR"
 
+# A scheduled job often starts in a dark wake: on battery, macOS puts the Mac back to sleep within
+# seconds, the connection to the hosted database dies there, and the job fails a quarter of an
+# hour later (17 and 18/10). Each job runs itself again under caffeinate, which holds the Mac
+# awake (idle sleep, and system sleep on power) until the job ends.
+stay_awake() {
+  if [[ -z "${LIFTER_AWAKE:-}" ]]; then
+    export LIFTER_AWAKE=1
+    exec /usr/bin/caffeinate -i -s /bin/bash "$0" "$@"
+  fi
+}
+
+# Someone used the keyboard or the trackpad in the last 10 minutes: the Mac is fully awake, not in
+# a dark wake that macOS ends within seconds on battery, whatever caffeinate asks (19/10).
+user_active() {
+  local idle
+  idle=$(ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print int($NF / 1000000000); exit}')
+  [[ -n "$idle" && "$idle" -lt 600 ]]
+}
+
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$LIFTER_LOG"; }
 
 # A macOS notification: the scheduled jobs run unattended, a failure must be seen.

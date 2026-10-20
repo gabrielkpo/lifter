@@ -9,12 +9,16 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 | Job (launchd) | When | What | Database role |
 |---|---|---|---|
 | `com.lifter.sync` | 07:30 and 21:00 | `lifter sync --days 3 --no-migrate`: last three days from Garmin into the raw layer; the schema is only checked. Then `lifter audit-purge`: the agents' runs older than 90 days lose their context, plans and messages, and keep their metrics (ADR 0002) | `lifter_sync` (writes the raw layer only; may run the purge function, not read the audit) |
+| `com.lifter.sync-catchup` | every hour | `lifter-sync.sh --catch-up`: the same sync, only when the Mac is in use (keyboard or trackpad in the last 10 minutes) and the last successful sync is more than 12 hours old | `lifter_sync` |
 | `com.lifter.backup` | 13:00 | `pg_dump` of the whole database (custom format), kept 30 days, verified with `pg_restore --list` | `lifter_backup` (read-only) |
 | `com.lifter.restore-check` | Sunday 13:30 | restores the latest backup into a throwaway local database and checks the core tables | none on the hosted side |
 
 The sync needs the Garmin MCP server up on `127.0.0.1:8080` (a Docker container: Docker
 Desktop must start at login), and the restore test needs the local Postgres server. A job
-missed while the Mac sleeps runs at wake-up. Logs are in `~/Library/Logs/lifter/`, readable by
+missed while the Mac sleeps runs at wake-up. Each job runs under `caffeinate`, which keeps the Mac
+awake on power; on battery, a job started by a dark wake is put back to sleep within seconds
+whatever it asks, and the sync loses its database connection. Such a failure, with nobody at
+the Mac, raises no notification: the catch-up job syncs at the next use. Logs are in `~/Library/Logs/lifter/`, readable by
 this user only (they can hold full tracebacks).
 
 **Exit codes** of `lifter sync`, which the sync job reads (any code but 0 is a failure): `0`
@@ -24,7 +28,7 @@ server or the database is unreachable or refused the connection.
 
 **Failures.** Every failure raises a macOS notification. macOS only shows it when notifications
 are allowed for Script Editor (`osascript`) and no Focus mode hides them, so a failing sync can
-go unseen: the app also shows a banner on every page when the Garmin data is more than 36 hours
+go unseen: the app also shows a banner on every page when the last Garmin sync is more than 36 hours
 old, and `lifter data-test --freshness` fails past 72 hours.
 
 ## Set up
@@ -65,11 +69,22 @@ Environment variables of the jobs; any of them can go in the optional
 One dump per day, verified with `pg_restore --list`, kept `LIFTER_BACKUP_KEEP_DAYS` days, in a
 folder only this user can read; a dump left half-written by an interrupted run is deleted at the
 next run. **The dumps are not encrypted themselves**: they hold the whole database, health data
-included, and rely on FileVault. A copy that leaves the disk is a plain copy: exclude the folder
-from Time Machine (`tmutil addexclusion` on it) unless the Time Machine disk is encrypted, and
-never sync it to a cloud drive. A dump keeps the database as it was that day, so the agents'
+included, and rely on FileVault. A copy that leaves the disk is a plain copy: `ops/install.sh`
+excludes the folder from Time Machine (`tmutil addexclusion`, sticky), and it must never be
+synced to a cloud drive. `pg_dump` gets the password through its environment, not its command
+line, which any process can read. A dump keeps the database as it was that day, so the agents'
 audit context purged at 90 days (see the sync job) lives on in the dumps for up to
 `LIFTER_BACKUP_KEEP_DAYS` more days.
+
+## Retention
+
+What the athlete said and what changed are kept without limit (owner's decision of 17/10,
+audit N11): the conversations (`conversation`, `conversation_message`), the quotes and rationales of the
+proposals, the change log with its rows before and after (`change_log`), and the health issues
+with the words that reported them. They are the history the coach and the athlete read back, and
+`undo` needs the change log. Only the agents' audit is purged: the context, plans and messages
+of a run go after 90 days, its metrics stay (see the sync job). None of these is readable by the
+API's role (`roles.sql`).
 
 ## Releases and deployment
 
@@ -117,7 +132,7 @@ on Vercel. Until the database and the Mac's `lifter` command match, the sync sto
 `lifter data-test` runs the dbt data tests of the analytics layer (uniqueness, accepted values,
 relationships, Lifter's own rules) against a database, read-only (the build hooks are skipped and the connection's options, a
 read-only transaction included, reach dbt's own connection); `--freshness` also checks
-that Garmin data arrived in the last 36 hours (warning) or 72 hours (error). Contracts are
+that a Garmin sync stored or confirmed data in the last 36 hours (warning) or 72 hours (error). Contracts are
 checked when the layer is built.
 
 ## Restore

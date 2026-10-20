@@ -26,12 +26,13 @@ from typing import Any
 import psycopg
 from langchain_core.tools import BaseTool, StructuredTool
 from psycopg import sql
+from psycopg.rows import dict_row
 from pydantic import BaseModel, Field, ValidationError
 
 from lifter import operations
 from lifter.agents.week_check import introduced, violations_for_week
 from lifter.domain import DomainError
-from lifter.quote import QuoteError
+from lifter.quote import QuoteError, verify_quote
 
 AUTHOR = "coach"
 MAX_ROWS = 50
@@ -60,6 +61,16 @@ def _json(value: Any) -> str:
     return json.dumps(value, default=default, ensure_ascii=False)
 
 
+def _like(text: str) -> str:
+    """The text as a literal inside a LIKE pattern: its %, _ and \\ no longer match anything."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _dict_rows(conn: psycopg.Connection, query: str, params: tuple) -> list[dict]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        return cur.execute(query, params).fetchall()
+
+
 def _refused(reason: str) -> str:
     return _json({"ok": False, "error": reason})
 
@@ -85,6 +96,12 @@ class ToolContext:
     writes: int = 0
     changes: list[dict] = field(default_factory=list)  # what was applied, for the reply
     suggestions: list[int] = field(default_factory=list)  # suggestions recorded this turn
+    # Older suggestions put back in front of the athlete this turn (present_suggestions): with
+    # those recorded this turn, the only ones the athlete's next message can accept.
+    presented: list[int] = field(default_factory=list)
+
+    def shown(self) -> list[int]:
+        return list(dict.fromkeys(self.suggestions + self.presented))
 
     def next_key(self) -> str:
         self.writes += 1
@@ -92,6 +109,16 @@ class ToolContext:
 
 
 # Arguments of each tool, as the model sees them
+
+
+class PresentSuggestionsArgs(BaseModel):
+    suggestion_ids: list[int] = Field(
+        min_length=1, description="Ids of older suggestions to show the athlete in your reply"
+    )
+
+
+class ExerciseRecordsArgs(BaseModel):
+    exercise: str = Field(description="The exercise's name, as in the exercise bank")
 
 
 class OperationSchemaArgs(BaseModel):
@@ -173,6 +200,46 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             return _refused(f"cannot read {table}: {exc.diag.message_primary or exc}")
         return _json({"table": table, "rows": rows, "truncated": len(rows) == MAX_ROWS})
 
+    def exercise_records(exercise: str) -> str:
+        """What the app's PR tab shows for one exercise, read as is: its records, its best
+        logged load per rep count, and its last logged days. Nothing estimated: a 1RM is a
+        record or a set of 1, never computed."""
+        found = conn.execute(
+            "select id, name from exercise where lower(name) = lower(%s)", (exercise.strip(),)
+        ).fetchone()
+        if found is None:
+            close = [
+                r[0]
+                for r in conn.execute(
+                    "select name from exercise where name ilike %s order by name limit 10",
+                    (f"%{_like(exercise.strip())}%",),
+                ).fetchall()
+            ]
+            return _refused(f"no exercise named {exercise!r} in the bank; close names: {close}")
+        exercise_id, name = found
+        records = _dict_rows(
+            conn,
+            "select d.name as record, d.record_type, d.unit, e.day, e.reps, e.value, e.value_text,"
+            " e.notes from record_definition d join record_entry e on e.definition_id = d.id"
+            " where d.exercise_id = %s or lower(d.name) = lower(%s)"
+            " order by e.day desc, e.id desc limit 20",
+            (exercise_id, name),
+        )
+        best = _dict_rows(
+            conn,
+            "select reps, best_load_kg, day from exercise_best where exercise = %s order by reps",
+            (name,),
+        )
+        recent = _dict_rows(
+            conn,
+            "select day, top_load_kg, reps, sets from exercise_history where exercise = %s"
+            " order by day desc limit 10",
+            (name,),
+        )
+        return _json(
+            {"exercise": name, "records": records, "best_load_per_reps": best, "recent": recent}
+        )
+
     def pending_suggestions() -> str:
         rows = conn.execute(
             "select id, kind, payload, rationale, created_at from proposal"
@@ -184,6 +251,20 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                 for r in rows
             ]
         )
+
+    def present_suggestions(suggestion_ids: list[int]) -> str:
+        found = {
+            r[0]
+            for r in conn.execute(
+                "select id from proposal where id = any(%s) and status in ('pending', 'expired')",
+                (suggestion_ids,),
+            ).fetchall()
+        }
+        missing = [i for i in suggestion_ids if i not in found]
+        if missing:
+            return _refused(f"no pending or expired suggestion {missing}")
+        ctx.presented += [i for i in suggestion_ids if i not in ctx.presented]
+        return _json({"ok": True, "presented": ctx.presented})
 
     def _applied(key: str, change: operations.Change) -> str:
         found = conn.execute(
@@ -231,9 +312,34 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         except DomainError as exc:  # OperationError, StaleRow: refused, nothing written
             return _refused(str(exc))
 
+    def _undo_from_elsewhere(payload: dict[str, Any], quote: str) -> str | None:
+        """An undo of a change made in another conversation needs a quote that names it (the
+        full quote rule): a bare "annule" here only ever undoes a change made here."""
+        change_id = (payload or {}).get("change_id")
+        if not isinstance(change_id, int):
+            return None  # the payload check refuses it
+        # A change with no athlete message behind it counts as made elsewhere too
+        row = conn.execute(
+            "select m.conversation_id from change_log c join proposal p on p.id = c.proposal_id"
+            " left join public.conversation_message m on m.id = p.message_id where c.id = %s",
+            (change_id,),
+        ).fetchone()
+        if row is None or row[0] == ctx.conversation_id:
+            return None  # no such change (operations.run says so), or one made here
+        try:
+            verify_quote(conn, ctx.message_id, quote)  # no short quote for a change made elsewhere
+        except QuoteError:
+            return _refused(
+                f"change {change_id} was made in another conversation: undo it only when the"
+                " athlete names it; ask which change they mean"
+            )
+        return None
+
     def apply_change(
         operation: str, payload: dict[str, Any], quote: str, rationale: str = ""
     ) -> str:
+        if operation == "undo" and (refusal := _undo_from_elsewhere(payload, quote)):
+            return refusal
         key = ctx.next_key()
         return _attempt(
             lambda: _applied(
@@ -264,22 +370,8 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         return _attempt(call, operation)
 
     def accept_suggestion(suggestion_id: int, quote: str) -> str:
-        # The athlete can only choose a suggestion shown before their message: one made during
-        # this turn (by a model misled by planted text, say) is never applied with it.
-        shown = conn.execute(
-            "select p.created_at < (select created_at from conversation_message where id = %s)"
-            " from proposal p where p.id = %s",
-            (ctx.message_id, suggestion_id),
-        ).fetchone()
-        if shown is None:
-            return _refused(f"suggestion {suggestion_id} does not exist")
-        if shown[0] is None:
-            return _refused(f"message {ctx.message_id} does not exist")
-        if not shown[0]:
-            return _refused(
-                f"suggestion {suggestion_id} was made after the athlete's message: they have not"
-                " seen it yet"
-            )
+        # Only what the coach's last message presented can be accepted: operations.run refuses
+        # the rest (one made during this turn, by a model misled by planted text, say).
         key = ctx.next_key()
         return _attempt(
             lambda: _applied(
@@ -315,9 +407,25 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             args_schema=ReadRowsArgs,
         ),
         StructuredTool.from_function(
+            exercise_records,
+            name="exercise_records",
+            description="An exercise's records (PRs), its best logged load per rep count and "
+            "its last logged days: what the PR tab shows. Call it for any PR, best, max or "
+            "history question.",
+            args_schema=ExerciseRecordsArgs,
+        ),
+        StructuredTool.from_function(
             pending_suggestions,
             name="pending_suggestions",
             description="The suggestions waiting for the athlete's choice, with their ids.",
+        ),
+        StructuredTool.from_function(
+            present_suggestions,
+            name="present_suggestions",
+            description="Put older suggestions back in front of the athlete: name them in your "
+            "reply. Only what your reply presents (these and the ones you record now) can be "
+            "accepted with their next message; the others expire.",
+            args_schema=PresentSuggestionsArgs,
         ),
         StructuredTool.from_function(
             apply_change,

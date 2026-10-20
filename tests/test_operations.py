@@ -9,6 +9,8 @@ import psycopg
 import pytest
 
 from lifter import operations
+from lifter.conversation import start
+from lifter.db import connect
 from lifter.operations import CATALOGUE, OperationError, RuleViolation, StaleRow, run, suggest
 from lifter.program import load_program, read_program
 from lifter.quote import QuoteError
@@ -25,6 +27,7 @@ NOT_WRITABLE_BY_THE_COACH = {
     "change_log": "the trace, written by run()",
     "agent_run": "the agents' audit",
     "agent_step": "the agents' audit",
+    "conversation": "opened by the conversation endpoint (lifter.conversation.start)",
     "conversation_message": "written by the conversation endpoint",
     "schema_migrations": "schema bookkeeping",
     "schema_views": "schema bookkeeping",
@@ -46,11 +49,24 @@ def program(conn):
 
 def say(conn, text: str) -> int:
     """Store an athlete's message, as the conversation endpoint does; returns its id."""
+    start(conn, id="c1", title=text, source="cli")
     return conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'athlete', %s) returning id",
         (text,),
     ).fetchone()[0]
+
+
+def coach_says(conn, text: str, shown: list[int]) -> int:
+    """Store the coach's reply, which presents the suggestions `shown` (as respond() does)."""
+    start(conn, id="c1", title=text, source="cli")
+    message = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c1', 'coach', %s) returning id",
+        (text,),
+    ).fetchone()[0]
+    operations.present(conn, conversation_id="c1", coach_message_id=message, proposal_ids=shown)
+    return message
 
 
 _keys = iter(range(1, 1_000_000))
@@ -146,6 +162,7 @@ def test_a_quote_not_in_the_athletes_message_is_refused(conn, program):
 
 
 def test_the_coachs_own_message_is_never_a_quote(conn, program):
+    start(conn, id="c1", title="je supprime le bloc 2", source="cli")
     coach = conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c1', 'coach', 'je supprime le bloc 2') returning id"
@@ -167,6 +184,7 @@ def test_only_the_message_being_answered_authorises_a_change(conn, program):
     # Audit N1: a true quote from an older message, or from another conversation, is refused.
     old = say(conn, "supprime la règle sur le rameur")
     say(conn, "comment va mon squat ?")
+    start(conn, id="c2", title="ajoute une règle pas de saut", source="cli")
     other = conn.execute(
         "insert into conversation_message (conversation_id, role, text)"
         " values ('c2', 'athlete', 'ajoute une règle pas de saut') returning id"
@@ -201,6 +219,44 @@ def test_a_retry_with_the_same_key_changes_nothing_more(conn, program):
     assert conn.execute("select count(*) from health_issue").fetchone() == (1,)
     issue = conn.execute("select source, reported_quote from health_issue").fetchone()
     assert issue == ("agent", "j'ai mal au poignet droit")
+
+
+def test_a_retry_racing_the_first_call_applies_nothing_twice(conn, database_url, program):
+    # The same request sent twice at once: the second waits on the first's key, then is refused
+    # cleanly (retrying it then returns the first one's change).
+    import threading
+
+    from lifter.db import connect
+
+    message = say(conn, "pas de saut cette semaine")
+    args = {
+        "conversation_id": "c1",
+        "quote": "pas de saut cette semaine",
+        "message_id": message,
+        "idempotency_key": "race",
+        "author": "coach",
+    }
+    outcome: list = []
+    with connect(database_url) as first, connect(database_url) as second:
+        with first.transaction():
+            run(first, "add_rule", {"text": "Pas de saut"}, **args)
+
+            def retry():
+                try:
+                    outcome.append(run(second, "add_rule", {"text": "Pas de saut"}, **args))
+                except OperationError as exc:
+                    outcome.append(exc)
+
+            thread = threading.Thread(target=retry)
+            thread.start()
+            thread.join(0.5)  # blocked on the first call's key until it commits
+            assert thread.is_alive()
+        thread.join(10)
+    assert isinstance(outcome[0], OperationError) and "another call" in str(outcome[0])
+    assert conn.execute(
+        "select count(*) from athlete_rule where text = 'Pas de saut'"
+    ).fetchone() == (1,)
+    assert run(conn, "add_rule", {"text": "Pas de saut"}, **args).operation == "add_rule"
 
 
 def test_the_profile_is_created_then_changed_at_its_version(conn, program):
@@ -316,12 +372,74 @@ def test_a_change_that_breaks_a_rule_is_refused_and_nothing_is_written(conn, pro
     assert conn.execute("select count(*) from planned_session").fetchone()[0] == count + 1
 
 
+def running_sessions(c, week):
+    """A fake guardrail: each session called "Running" breaks the rule, if the rule is on."""
+    rule = c.execute("select count(*) from athlete_rule where active and text = 'Pas de course'")
+    n = c.execute(
+        "select count(*) from planned_session where week_id = %s and title = 'Running'", (week,)
+    ).fetchone()[0]
+    return ["running"] * n * min(1, rule.fetchone()[0])
+
+
+def new_items(before, after):
+    return after[len(before) :]
+
+
+def a_running_session(conn) -> tuple[int, int]:
+    """A "Running" session in a week that is not over (rules and the bank check those)."""
+    week = conn.execute("select id from training_week order by id limit 1").fetchone()[0]
+    conn.execute("update training_week set start_date = current_date where id = %s", (week,))
+    change = do(
+        conn,
+        "create_session",
+        {"day": str(date.today()), "title": "Running", "week_id": week},
+        "ajoute un footing aujourd'hui",
+    )
+    return week, change.entity_id
+
+
+def test_a_new_rule_flags_the_planned_sessions_it_breaks_without_being_refused(conn, program):
+    # Audit N9: the rules go through the guardrail too; what a new rule flags in sessions already
+    # planned is reported to the coach, which adapts them, rather than refusing the rule.
+    a_running_session(conn)
+    operations.set_programme_check(running_sessions, new_items)
+    change = do(conn, "add_rule", {"text": "Pas de course"}, "plus de course à pied pour moi")
+    assert change.violations == [{"message": "running"}]
+    assert conn.execute(
+        "select count(*) from athlete_rule where text = 'Pas de course'"
+    ).fetchone() == (1,)
+
+
+def test_an_undo_that_brings_back_a_forbidden_session_is_refused(conn, program):
+    # Audit N9: undo goes through the guardrail like any change of the programme.
+    _, session_id = a_running_session(conn)
+    do(conn, "add_rule", {"text": "Pas de course"}, "plus de course à pied pour moi")
+    version = conn.execute(
+        "select version from planned_session where id = %s", (session_id,)
+    ).fetchone()[0]
+    do(
+        conn,
+        "delete_session",
+        {"id": session_id, "expected_version": version},
+        "supprime le footing",
+    )
+    deleted = change_id(conn)
+    operations.set_programme_check(running_sessions, new_items)
+    with pytest.raises(RuleViolation):
+        do(conn, "undo", {"change_id": deleted}, "annule")
+    assert conn.execute(
+        "select count(*) from planned_session where id = %s", (session_id,)
+    ).fetchone() == (0,)
+
+
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):
     operations._programme_check = None
     with pytest.raises(OperationError, match="no rule check"):
         do(conn, "create_session", {"day": "2026-03-05", "title": "X"}, "ajoute une séance")
-    # What is not the programme still can.
-    do(conn, "add_rule", {"text": "Pas de rameur"}, "pas de rameur dans les metcons")
+    # The athlete's rules are part of it now (audit N9); what is not the programme still can.
+    with pytest.raises(OperationError, match="no rule check"):
+        do(conn, "add_rule", {"text": "Pas de rameur"}, "pas de rameur dans les metcons")
+    do(conn, "update_athlete", {"weight_kg": 80}, "je pèse 80 kilos")
 
 
 # Undo
@@ -448,6 +566,114 @@ def test_a_bank_exercise_still_used_cannot_be_deleted(conn, program):
         )
 
 
+def test_a_moved_session_comes_back_with_undo(conn, program):
+    sid, version = conn.execute(
+        "select id, version from planned_session order by id limit 1"
+    ).fetchone()
+    before = snapshot(conn)
+    do(
+        conn,
+        "move_session",
+        {"session_id": sid, "new_day": "2026-03-06", "expected_version": version},
+        "décale la séance au vendredi",
+    )
+    do(conn, "undo", {"change_id": change_id(conn)}, "annule")
+    assert snapshot(conn) == before
+
+
+def test_undo_does_not_detach_what_was_added_under_since(conn, program):
+    # A session put in a week since would lose its week (on delete set null): refused.
+    cycle = conn.execute("select id from cycle order by id limit 1").fetchone()[0]
+    week = do(
+        conn,
+        "create_week",
+        {"cycle_id": cycle, "number": 40, "start_date": "2026-12-07", "phase": "volume"},
+        "ajoute une semaine 40",
+    )
+    created = change_id(conn)
+    do(
+        conn,
+        "create_session",
+        {"day": "2026-12-08", "title": "Extra", "week_id": week.entity_id},
+        "ajoute une séance mardi",
+    )
+    with pytest.raises(StaleRow, match="added since"):
+        do(conn, "undo", {"change_id": created}, "annule")
+
+
+def test_parts_added_one_after_the_other_are_undone_last_first(conn, program):
+    # 19/10: the coach added parts at the top of a session and could undo none of them
+    # (positions briefly duplicated while moving back; versions bumped by each undo).
+    sid = conn.execute(
+        "select session_id from session_part order by session_id limit 1"
+    ).fetchone()[0]
+    present = {
+        r[0] for r in conn.execute("select kind from session_part where session_id = %s", (sid,))
+    }
+    kinds = [k for k in operations.PART_ORDER if k not in present][:3]
+    before = snapshot(conn)
+    for position, kind in enumerate(kinds, start=1):
+        do(
+            conn,
+            "add_part",
+            {"session_id": sid, "kind": kind, "position": position},
+            f"ajoute une partie {kind} en tête",
+        )
+    last = change_id(conn)
+    for target in range(last, last - len(kinds), -1):
+        do(conn, "undo", {"change_id": target}, "annule")
+    assert snapshot(conn) == before
+
+
+def test_a_session_has_one_part_per_kind_in_the_usual_order(conn, program):
+    sid, kinds = conn.execute(
+        "select session_id, array_agg(kind order by position) from session_part"
+        " group by session_id order by session_id limit 1"
+    ).fetchone()
+    with pytest.raises(OperationError, match="already has a"):
+        do(conn, "add_part", {"session_id": sid, "kind": kinds[0]}, "ajoute une autre partie")
+    missing = next(k for k in ("mobility", "warmup") if k not in kinds)
+    # A position against the usual order is ignored: the order decides.
+    do(
+        conn,
+        "add_part",
+        {"session_id": sid, "kind": missing, "position": len(kinds) + 1},
+        "ajoute une partie mobilité à la fin",
+    )
+    order = [
+        r[0]
+        for r in conn.execute(
+            "select kind from session_part where session_id = %s order by position", (sid,)
+        )
+    ]
+    ranks = [operations.PART_ORDER.index(k) for k in order]
+    assert ranks == sorted(ranks), order
+    # Nor can another write make two parts of one kind: changing a kind, creating a session.
+    part = conn.execute(
+        "select id, version from session_part where session_id = %s and kind = %s",
+        (sid, missing),
+    ).fetchone()
+    with pytest.raises(OperationError, match="already has a"):
+        do(
+            conn,
+            "update_part",
+            {"id": part[0], "expected_version": part[1], "kind": kinds[0]},
+            "change le type de la partie",
+        )
+    day = conn.execute("select day from planned_session where id = %s", (sid,)).fetchone()[0]
+    with pytest.raises(OperationError, match="one part per kind"):
+        do(
+            conn,
+            "create_session",
+            {
+                "day": str(day),
+                "title": "Double",
+                "parts": [{"kind": "mobility"}, {"kind": "mobility"}],
+            },
+            "crée une séance avec deux mobilités",
+        )
+
+
 def test_undo_is_refused_once_the_row_changed_again(conn, program):
     goal = conn.execute("select id, version from goal order by id limit 1").fetchone()
     do(
@@ -485,8 +711,8 @@ def test_an_undo_is_done_once_and_never_undone(conn, program):
 
 
 def test_a_session_log_is_undone_in_one_step(conn, program):
-    session_id, part_id = conn.execute(
-        "select p.session_id, p.id from session_part p where p.kind = 'metcon'"
+    session_id, part_id, part_version = conn.execute(
+        "select p.session_id, p.id, p.version from session_part p where p.kind = 'metcon'"
         " order by p.id limit 1"
     ).fetchone()
     before = snapshot(conn)
@@ -495,7 +721,9 @@ def test_a_session_log_is_undone_in_one_step(conn, program):
         "log_session",
         {
             "session_id": session_id,
-            "parts": [{"part_id": part_id, "result_seconds": 600}],
+            "parts": [
+                {"part_id": part_id, "expected_version": part_version, "result_seconds": 600}
+            ],
             "feedback": {"rpe": 8, "pain": 0},
         },
         "fait en 10 minutes, rpe 8",
@@ -505,6 +733,34 @@ def test_a_session_log_is_undone_in_one_step(conn, program):
     ).fetchone() == (600,)
     do(conn, "undo", {"change_id": change_id(conn)}, "annule")
     assert snapshot(conn) == before
+
+
+def test_a_second_log_from_the_same_reading_is_refused(conn, program):
+    # Audit N10: a log overwrites nothing it did not read.
+    session_id, part_id, version = conn.execute(
+        "select p.session_id, p.id, p.version from session_part p where p.kind = 'metcon'"
+        " order by p.id limit 1"
+    ).fetchone()
+    part = {"part_id": part_id, "expected_version": version, "result_seconds": 600}
+    do(conn, "log_session", {"session_id": session_id, "parts": [part]}, "fait en 10 minutes")
+    with pytest.raises(StaleRow):
+        part = part | {"result_seconds": 720}
+        do(conn, "log_session", {"session_id": session_id, "parts": [part]}, "fait en 12 minutes")
+    assert conn.execute(
+        "select result_seconds from session_part where id = %s", (part_id,)
+    ).fetchone() == (600,)
+
+
+def test_parts_reordered_since_they_were_read_are_refused(conn, program):
+    session_id, parts = conn.execute(
+        "select session_id, array_agg(id order by position) from session_part"
+        " group by session_id having count(*) > 1 order by session_id limit 1"
+    ).fetchone()
+    reversed_ = list(reversed(parts))
+    payload = {"session_id": session_id, "part_ids": reversed_, "expected_order": parts}
+    do(conn, "reorder_parts", payload, "inverse les parties de la séance")
+    with pytest.raises(StaleRow):
+        do(conn, "reorder_parts", payload, "inverse les parties de la séance")
 
 
 # Suggestions
@@ -521,6 +777,7 @@ def test_a_suggestion_applies_only_when_the_athlete_picks_it(conn, program):
     assert conn.execute(
         "select count(*) from athlete_rule where text like 'Pas de rameur%'"
     ).fetchone() == (0,)
+    coach_says(conn, "Je propose de retirer le rameur des metcons, ok ?", [pid])
     run(
         conn,
         "",
@@ -547,6 +804,44 @@ def test_a_suggestion_applies_only_when_the_athlete_picks_it(conn, program):
             idempotency_key="pick-again",
             author="coach",
             proposal_id=pid,
+        )
+
+
+def test_ok_accepts_only_what_the_coachs_last_message_presented(conn, program):
+    # Audit N7 (owner's decision of 17/10): no lifetime, the conversation moving on ends it.
+    old = suggest(conn, "add_rule", {"text": "Pas de rameur"}, rationale="Far.", author="coach")
+    coach_says(conn, "Je propose de retirer le rameur, ok ?", [old])
+    say(conn, "parlons plutôt de ma séance de demain")
+    new = suggest(conn, "add_rule", {"text": "Pas de saut"}, rationale="Knee.", author="coach")
+    coach_says(conn, "Demain, pas de saut, ok ?", [new])
+    assert conn.execute("select status from proposal where id = %s", (old,)).fetchone() == (
+        "expired",
+    )
+    with pytest.raises(OperationError, match="expired"):
+        run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote="ok",
+            message_id=say(conn, "ok"),
+            idempotency_key="old",
+            author="coach",
+            proposal_id=old,
+        )
+    # A pending suggestion the last message did not show is refused too (the planner's, say).
+    shown_before = suggest(conn, "add_rule", {"text": "x"}, rationale="Not shown.", author="coach")
+    with pytest.raises(OperationError, match="not presented"):
+        run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote="ok",
+            message_id=say(conn, "ok"),
+            idempotency_key="unshown",
+            author="coach",
+            proposal_id=shown_before,
         )
 
 
@@ -593,6 +888,40 @@ def test_a_pending_suggestion_given_a_quote_by_hand_is_no_trace(conn, database_u
                 coach.execute("insert into athlete_rule (text) values ('sneaky')")
 
 
+def test_the_coach_cannot_update_or_delete_without_a_trace(conn, database_url, program):
+    session = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    with as_role(database_url, "lifter_coach") as coach:
+        for sql in (
+            "update planned_session set title = 'sneaky' where id = %s",
+            "delete from planned_session where id = %s",
+        ):
+            with pytest.raises(psycopg.errors.RaiseException, match="without a trace"):
+                with coach.transaction():
+                    coach.execute(sql, (session,))
+
+
+def test_the_change_log_is_append_only_even_for_the_owner(conn, program):
+    do(conn, "add_rule", {"text": "Pas de saut"}, "pas de saut cette semaine")
+    for sql in ("update change_log set operation = 'x'", "delete from change_log"):
+        with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
+            with conn.transaction():
+                conn.execute(sql)
+
+
+def test_a_role_granted_the_coach_is_held_to_the_trace_too(conn, database_url, program):
+    # Membership through another role (a login role granted lifter_coach) does not escape it.
+    role = f"lifter_coach_alias_{conn.info.backend_pid}"
+    conn.execute(f"create role {role}")
+    conn.execute(f"grant lifter_coach to {role}")
+    try:
+        with as_role(database_url, role) as alias:
+            with pytest.raises(psycopg.errors.RaiseException, match="without a trace"):
+                with alias.transaction():
+                    alias.execute("insert into athlete_rule (text) values ('sneaky')")
+    finally:
+        conn.execute(f"drop role {role}")
+
+
 def test_switching_to_the_group_role_does_not_escape_the_trace(conn, database_url, program):
     with as_role(database_url, "lifter_coach") as coach:
         coach.execute("set role lifter_write")
@@ -603,13 +932,16 @@ def test_switching_to_the_group_role_does_not_escape_the_trace(conn, database_ur
 
 def test_undo_touches_only_the_catalogues_tables(conn, program):
     do(conn, "add_rule", {"text": "Pas de rameur"}, "pas de rameur dans les metcons")
-    conn.execute(
-        "update change_log set after = jsonb_set(after, '{0,table}', '\"schema_views\"')"
-        " where id = %s",
+    # A forged entry (the change log is append-only: a new row, not an edited one).
+    forged = conn.execute(
+        "insert into change_log (proposal_id, operation, entity, entity_id, before, after)"
+        " select proposal_id, operation, entity, entity_id, before,"
+        " jsonb_set(after, '{0,table}', '\"schema_views\"') from change_log where id = %s"
+        " returning id",
         (change_id(conn),),
-    )
+    ).fetchone()[0]
     with pytest.raises(OperationError, match="catalogue's tables"):
-        do(conn, "undo", {"change_id": change_id(conn)}, "annule")
+        do(conn, "undo", {"change_id": forged}, "annule")
 
 
 def test_the_coach_writes_through_the_catalogue(conn, database_url, program):
@@ -636,6 +968,8 @@ def test_the_coach_writes_through_the_catalogue(conn, database_url, program):
 
 def test_only_the_conversation_endpoint_writes_the_athletes_words(database_url):
     insert = "insert into conversation_message (conversation_id, role, text) values ('c', %s, 'x')"
+    with connect(database_url) as owner:
+        start(owner, id="c", title="x", source="cli")
     with as_role(database_url, "lifter_coach") as coach:
         coach.execute(insert, ("coach",))
         with pytest.raises(psycopg.errors.InsufficientPrivilege):

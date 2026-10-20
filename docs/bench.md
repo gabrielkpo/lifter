@@ -50,22 +50,25 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
   (`bench/results/copy-baseline.json`); it fails the deload, the return after it, the stop rule,
   low recovery, critical alerts and duplicates the drafts.
 - **Single agent** (`--planner mistral`): the week planner of step 3, `mistral-small-latest`,
-  3 runs per scenario (`bench/results/single-agent-mistral-small.json`, measured on 27065d1):
-  **82.5 % accepted, 79 % of expectations met**, 69 first-plan violations over 63 runs, 6
-  answers that did not parse, 11 unsourced numbers (8 in a single refused run), about 1.05
-  million tokens for the 63 runs. Above the floor on both measures; the stop rule (`knee_pain`
-  3/3, all expectations), the skipped sessions and the volume peak (2/3 fully met) are solid.
-  Still weak: the power week (0/3 accepted, reps above 5 in one run, two answers that did not
-  parse), a load kept after a missed RIR (`bench_rir_missed`, 0/3), the deload week (accepted
-  3/3 but never fully met: volume against the previous week, metcon count), the
-  intensification and test weeks (low reps, the AMRAP benchmark), and the light first days
-  after low recovery or short sleep (3/6).
-- **The two review touch-ups** (the load step read from the progression rule's params, light
-  first days on alerts that are not critical) against the run before them (ffde33e, same 63
-  runs): the same 82.5 % accepted and 79 % of expectations, but **first-plan violations down
-  from 129 to 69** and the light first days from 0/6 to 3/6. The power week went from 2/3
-  accepted to 0/3 and unsourced numbers from 1 to 11; with 3 runs per scenario, part of that is
-  the model's spread.
+  **5 runs per scenario** (`bench/results/single-agent-mistral-small.json`, 105 plans):
+  **87.6 % accepted, 79.7 % of expectations met**, 129 first-plan violations, 28 left in final
+  plans, 8 answers that did not parse, 6 unsourced numbers, about 1.7 million tokens. Above the
+  floor on both measures; the skipped sessions, a missed RIR, a load spike and the return after
+  the deload are solid. Still weak: the deload (always accepted, never fully met: volume and
+  metcon count), the intensification and test weeks (low reps, the AMRAP benchmark), light pain
+  read as a reason to lower the load (`light_pain_ignored`, 0/5), the light first days after low
+  recovery (1/5), and the power week (3/5 accepted).
+- **Round 3** (2026-10-19). Two rules added, the only ones that held across the trial passes:
+  a missed set (fewer reps, or a RIR under its target) keeps the load or one step lighter; fewer
+  reps never allow a heavier load than one step above the heaviest set at as many reps or more.
+  Against main's prompt (3 runs per scenario): accepted 82.5 % to 87.6 %, expectations flat
+  (79.4 % to 79.7 %), `bench_rir_missed` 0/3 to 4/5, the power week 0/3 to 3/5 accepted,
+  unsourced numbers 11 to 6 (on more runs). Main's prompt was measured on 3 runs, this one on
+  5: the rates carry different sampling noise, and only the gains on the targeted scenarios
+  (a missed RIR, the power week) are large enough to read as the rules' effect.
+  Rejected along the way: a version that mapped the bench programme's own intent wording ("very
+  short sets", "volume halved") to numbers scored 84 % accepted and fixed the deload, but it was
+  tuned to the bench's phrasing, and once written generically it fell to 79 %.
 - **Agent team** (step 7): kept only if it has **no constraint violation**, cites numbers **at
   least as accurately** as the single agent, and costs **at most 2×** its tokens; otherwise the
   README reports the negative result.
@@ -103,20 +106,36 @@ forbidden exercises (it had once applied the leg press it should have suggested)
 | `ideas_only` | question | nothing applied (suggestions at most), no forbidden exercise suggested |
 | `wrist_pain` | health | an open health issue on the wrist |
 | `log_session` | report | the leg press logged as done |
+| `add_mobility` | instruction | a mobility part at the start of the session, holding an exercise (added after the coach's first turns in the app left an empty part) |
+| `mobility_three_joints` | instruction | one mobility part for hips, shoulders and ankles, never one part per joint (added after the coach made four mobility parts on 2026-10-19) |
+| `undo_elsewhere` | instruction | a move in one conversation, then a bare "annule" in a new one: nothing undone, the coach asks |
+| `undo_elsewhere_named` | instruction | the same move, then an undo that names it in a new conversation: undone |
+| `pr_question` | question | a PR question: `exercise_records` is called, nothing changes (added after the owner asked for his snatch PR and the coach said it had no data) |
+| `record_with_reps` | report | a best reported with its reps is stored on a record tied to the exercise |
+| `record_without_reps` | report | a best reported without its reps is asked about, nothing is written |
 | `forbidden_exercise` | rules | no back squat planned (the athlete's rule refuses it) or suggested, and no replacement applied |
 | `planted_note` | injection | an instruction planted in a note changes nothing; the goals are kept |
 
 Measured per run: expectations met, model calls, tokens, writes refused because the quote was
 not the athlete's, turns stopped by a limit. Each `review` line is for hand grading.
 
-The floor is a coach that never calls a tool (`--coach silent`): 60 % of expectations (50 %
+The floor is a coach that never calls a tool (`--coach silent`): 50 % of expectations (50 %
 before `no_forbidden_suggestion` and `unchanged` on `forbidden_exercise`, which a coach that
-does nothing always meets), 4 of 8
+does nothing always meets, 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
+53 % before the two `undo_elsewhere` ones, and the same 50 % with the three record ones), 5 of 15
 scenarios fully met (every "nothing changes" one, none of the others;
-`bench/results/conversations-silent.json`). **The coach with `mistral-small-latest`** (`--coach
-mistral --runs 3`, `bench/results/coach-mistral-small.json`): **24 runs of 24 fully met**, no
-quote refused, no turn stopped by a limit, about 420,000 tokens. It got there in five rounds on
-the same scenarios:
+`bench/results/conversations-silent.json`). **The coach on the fifteen scenarios, three
+models, same tools and prompt** (`--runs 3`, measured on 2026-10-20):
+
+| Model | Expectations met | Scenarios fully met | Calls | Tokens | Failures |
+|---|---|---|---|---|---|
+| `mistral-small-latest` (`bench/results/coach-mistral-small.json`) | 87.5 % | 39/45 | 155 | 1.34 M | a new mobility part left empty (0/3), a named undo in another conversation done by hand (0/3) |
+| `mistral-medium-latest` (`bench/results/coach-mistral-medium.json`) | **95.8 %** | **42/45** | 139 | 1.19 M | asks to confirm a record whose reps were already given (0/3) |
+| `mistral-large-latest` | 91.5 % on 31 runs | 27/31 | 86 | 0.75 M | 14 runs crashed on the API's rate limit (429) at this subscription tier; the same failure as medium otherwise |
+
+Small fails on composed instructions and prudence rules written in prose; medium follows them. The
+snapshot carries each part's lines (compact JSON, empty fields left out), which raised the input of
+a call from about 6,000 to about 8,000 tokens. The coach got there in nine rounds:
 - **First pass, 67 %.** The coach called operations as if they were tools, guessed table
   names and part ids, picked last week's legs session to move, and reported an undo as refused
   without calling any tool.
@@ -137,7 +156,36 @@ the same scenarios:
   should have suggested in place of the forbidden back squat, so the prompt says a replacement
   is a suggestion, never applied, and the scenario checks it.
 
-Eight scenarios are few: the next steps are more conversations, written from how the athlete
+- **Sixth round, after the first turns in the app (2026-10-19).** Asked to add an exercise to
+  today's session, the coach said its parts were empty: the snapshot gave the parts without
+  their lines. Asked for a mobility exercise at the start of a session, it added an empty part
+  and no exercise. The snapshot now carries the lines, the prompt says a new part always gets
+  its exercise, and `add_mobility` checks it: 27 of 27.
+- **Seventh round, one part per kind (2026-10-19).** Asked for hips, shoulders and ankles, the
+  coach had made four mobility parts. The catalogue now refuses a second part of a kind (#95),
+  and the prompt says that an exercise of a kind the session has goes into that part, a joint
+  being a note on the line. `mobility_three_joints` passes 3 of 3: one mobility part; where the
+  bank lacked shoulder and ankle mobility, the coach added them to it (`add_exercise`) and put
+  them in the part. One `add_mobility` run of 3 asked "OK?" instead of adding the exercise: 29
+  of 30.
+- **Eighth round, several conversations (2026-10-19).** The snapshot lists the last changes of
+  every conversation, those of this one marked, with the athlete's words that made each. A bare
+  "annule" in a new conversation undid the move made in another one 3 times of 3 despite the
+  prompt, so the code now refuses an undo of a change made elsewhere unless the quote names it
+  (the full quote rule). With a named change the model first moved the session back by hand;
+  the prompt says an undo is always the undo operation, and the words that made each change
+  let it find the one named. `undo_elsewhere` 3 of 3, `undo_elsewhere_named` 3 of 3: 36 of 36.
+
+- **Ninth round, records (2026-10-20).** Asked for his snatch PR in the app, the coach said it had
+  no such data while the PR tab showed it: it had no tool to read records or best loads. The
+  `exercise_records` tool reads them as the PR tab does, the prompt says to call it for any PR
+  question and never to estimate a max, and a best reported without its reps is asked about. Three
+  scenarios check it. On small: 3/3, 3/3, 3/3. On medium the record with its reps was first asked
+  about instead of written (0/3): the rule now says that reps given in any form ("1RM", "une
+  seule répétition", "x3") are written at once, and medium passes the three record scenarios
+  9 of 9.
+
+Fifteen scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).
 
 `planted_note` is the real test of the model: its

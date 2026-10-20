@@ -14,7 +14,10 @@ Lifter coaches CrossFit only, with one method:
 - **A block is counted in strength sessions done, not in weeks.** It moves on when the count
   is reached, the loads progressed and nothing (pain, swelling) is unresolved.
 - **Every session has the same frame**: warm-up, weightlifting or gymnastics while fresh,
-  strength, then the metcon. Cardio and mobility days have their own parts.
+  strength, then the metcon. Cardio and mobility days have their own parts. A session holds one
+  part per kind (warm-up, mobility, weightlifting, gymnastics, strength, metcon, cardio, in that
+  order), and the exercises go inside it, each with its sets, quantity, load, RIR and notes:
+  `add_part` refuses a kind the session already has.
 - **Every movement is prescribed** as sets x quantity at a load, with a target RIR
   (repetitions in reserve) and a rest. The RIR is the instruction, the load a guide.
 - **A metcon has a target, never a time cap**: a time to beat (For Time) or rounds to reach
@@ -153,9 +156,17 @@ CI), applied by `run()` in one transaction: the message must be the athlete's la
 conversation (the one being answered: an older message, another conversation's or the coach's
 cannot authorise a change), the quote checked against it as stored (`conversation_message`),
 the payload validated, the row version checked
-(`expected_version`), the guardrail on the weeks it touches (only violations it introduces
-refuse it), then the trace: a `proposal` row (applied, with `quote`, `message_id`,
-`idempotency_key`) and a `change_log` row (rows before and after). `undo` rebuilds the
+(`expected_version`; a session log and a reordering of parts too), the guardrail on the weeks it
+touches (only violations it introduces refuse it). Every change of the programme goes through
+it: sessions, parts and lines, weeks, blocks and cycles (the week after a deleted one too, whose
+context changes), the exercise bank (the weeks using the exercise), an undo (the weeks of the
+rows it restores) and the athlete's rules (the weeks not over yet). A rule change is the one
+case not refused: what the new rules flag in sessions already planned comes back with the
+change (`violations`), for the coach to adapt them. Then the trace: a `proposal` row (applied, with `quote`, `message_id`,
+`idempotency_key`) and a `change_log` row (rows before and after). A suggestion is applied only
+with the athlete's message that answers the coach message presenting it (`proposal.presented_in`,
+set by `operations.present` when the coach's reply is stored): it has no lifetime, but one the
+conversation moved past expires, and comes back only if the coach presents it again. `undo` rebuilds the
 previous state from it, ids included, and is refused when those rows changed since. Every
 domain table has a `version` bumped on each update, and the database refuses a commit by the
 coach's role (`lifter_coach`) that wrote without such a trace, and any later change to an

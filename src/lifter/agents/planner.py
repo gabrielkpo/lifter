@@ -43,7 +43,11 @@ when they carry it). Pick an unflagged exercise of the same pattern instead.
 the athlete's progression rule's (its params: upper_kg for the upper body, lower_kg for legs \
 and hinge), above the heaviest set logged at as many reps or more. \
 This holds in every phase: a power, strength or peak week means fewer reps and more sets at \
-that load, never a jump of several steps.
+that load, never a jump of several steps. Fewer reps do not allow a heavier load: a set of 3 is \
+still at most one step above the heaviest set logged at 3 reps or more.
+- A missed set (fewer reps than planned, or a RIR below its target, RIR 0 included) means the \
+load was too heavy: that exercise stays at most at the load of the missed set, or one step \
+lighter, never higher, until a set at that load meets its RIR.
 - Pain: when a feedback reports pain above the stop rule's threshold after a session, every \
 exercise of the patterns that session loaded goes two load steps back from its load that day \
 (the legs after a leg press, and the hinge too if that session loaded a deadlift), never up, \

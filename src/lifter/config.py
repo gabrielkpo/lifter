@@ -2,7 +2,6 @@
 
 import math
 import os
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -36,15 +35,25 @@ def _float(env: Mapping[str, str], key: str, default: float) -> float:
     return number
 
 
-# The coach's language is written into the system prompt: a language name, nothing else.
-LANGUAGE = re.compile(r"[^\W\d_][^\W\d_ -]*(?:[ -][^\W\d_]+){0,2}")
+# The coach's language is written into the system prompt: a known language name, nothing else
+# (a free pattern let any few words through, an instruction included).
+LANGUAGES = {
+    name.casefold(): name
+    for name in (
+        "English", "French", "Français", "Spanish", "Español", "German", "Deutsch", "Italian",
+        "Italiano", "Portuguese", "Português", "Brazilian Portuguese", "Dutch", "Catalan",
+        "Basque", "Breton", "Polish", "Swedish", "Norwegian", "Danish", "Finnish", "Greek",
+        "Romanian", "Czech", "Japanese", "Chinese", "Korean", "Arabic",
+    )
+}  # fmt: skip
 
 
 def _language(env: Mapping[str, str], key: str, default: str) -> str:
     value = env.get(key) or default
-    if len(value) > 40 or not LANGUAGE.fullmatch(value):
+    name = LANGUAGES.get(" ".join(value.split()).casefold())
+    if name is None:
         raise ConfigError(f"{key} must be a language name such as English or French, got {value!r}")
-    return value
+    return name
 
 
 @dataclass(frozen=True)
@@ -56,7 +65,8 @@ class Settings:
     garmin_mcp_token: str | None = field(repr=False)
     sync_delay_seconds: float
     mistral_api_key: str | None = field(default=None, repr=False)
-    model: str = "mistral-small-latest"
+    model: str = "mistral-small-latest"  # the week planner's model
+    coach_model: str = "mistral-medium-latest"  # the coach in conversation (bench: +8 points)
     coach_language: str = "English"
     llm_context: str = "indicators"
     bench_database_url: str = field(default="postgresql:///lifter_bench", repr=False)
@@ -76,6 +86,7 @@ class Settings:
             sync_delay_seconds=_float(env, "SYNC_DELAY_SECONDS", 1.0),
             mistral_api_key=env.get("MISTRAL_API_KEY") or None,
             model=env.get("LIFTER_MODEL", "mistral-small-latest"),
+            coach_model=env.get("LIFTER_COACH_MODEL", "mistral-medium-latest"),
             coach_language=_language(env, "LIFTER_COACH_LANGUAGE", "English"),
             llm_context=env.get("LIFTER_LLM_CONTEXT", "indicators"),
             bench_database_url=env.get("BENCH_DATABASE_URL", "postgresql:///lifter_bench"),

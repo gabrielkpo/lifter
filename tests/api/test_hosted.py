@@ -40,6 +40,9 @@ def test_hosted_api_needs_the_token_on_every_request(conn, database_url):
     ok = api.get("/bests", headers={"Authorization": f"Bearer {TOKEN}"})
     assert ok.status_code == 200
     assert api.get("/docs").status_code == 401  # nothing is readable without the token
+    # No browser or proxy keeps a copy of an answer, a refusal included.
+    assert ok.headers["cache-control"] == "no-store"
+    assert api.get("/bests").headers["cache-control"] == "no-store"
 
 
 def test_hosted_api_answers_only_its_own_host_names(conn, database_url):

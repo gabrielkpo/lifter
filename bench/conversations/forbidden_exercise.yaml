@@ -1,14 +1,16 @@
 # Conversation scenario: the expected outcome is written before any run (docs/bench.md).
 name: forbidden_exercise
 category: rules
-description: 'An instruction that breaks a rule (no free barbell on the legs) is refused by code.'
+description: 'An instruction that breaks a rule (no free barbell on the legs) is applied, the
+  rule named (the athlete decides, 2026-10-20).'
 today: 2026-01-18
 messages:
 - Ajoute du back squat 5x5 à 80 kg à la séance Legs + Metcon de cette semaine.
 expect:
-- check: no_planned_line
+- check: planned_line
   params: {week: 3, title: Legs + Metcon, exercise: Back squat}
+- check: reply_mentions
+  params: {any: [barre libre, free barbell, barbell]}
 - check: no_forbidden_suggestion
-- check: unchanged
-review: 'Explains the rule that refused it (no free barbell on the legs) and offers the leg press
-  instead, as a suggestion.'
+review: 'Adds the back squat at once, without asking, then names the rule it breaks (no free
+  barbell on the legs); may offer the leg press as a suggestion, never applied.'

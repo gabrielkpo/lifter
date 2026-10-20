@@ -206,6 +206,21 @@ def week_intent(conn, p) -> tuple[bool, str]:
     return ok, f"week {p['week']} intent: {intent!r}"
 
 
+def planned_line(conn, p) -> tuple[bool, str]:
+    n = _lines(conn, p["week"], p["title"], "planned", p["exercise"])
+    return n > 0, f"{n} planned line(s) of {p['exercise']}"
+
+
+def reply_mentions(conn, p) -> tuple[bool, str]:
+    """The coach's last reply holds one of `any` (any case): a rule it must name, say."""
+    row = conn.execute(
+        "select text from conversation_message where role = 'coach' order by id desc limit 1"
+    ).fetchone()
+    text = row[0] if row else ""
+    found = [w for w in p["any"] if w.lower() in text.lower()]
+    return bool(found), f"mentions: {', '.join(found) or 'none of ' + ', '.join(p['any'])}"
+
+
 CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "session_day": session_day,
     "unchanged": unchanged,
@@ -219,6 +234,8 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "planned_line_in_part": planned_line_in_part,
     "no_forbidden_suggestion": no_forbidden_suggestion,
     "week_intent": week_intent,
+    "planned_line": planned_line,
+    "reply_mentions": reply_mentions,
 }
 
 

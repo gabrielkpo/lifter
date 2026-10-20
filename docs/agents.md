@@ -88,9 +88,12 @@ Two checks the operations catalogue runs before applying a change made by the co
   counts, and the message is read from `public.conversation_message`, never a temporary table.
 - **Rules on the stored week** (`agents/week_check.py`): `violations_for_week(conn, week_id)`
   runs the guardrail on the week as it is in the database; the catalogue calls it before and
-  after an operation that changes the programme and refuses only what the change introduces
-  (`introduced(before, after)`), so a week that already broke a rule does not block unrelated
-  changes.
+  after an operation that changes the programme and keeps only what the change introduces
+  (`introduced(before, after)`), so a week that already broke a rule is not held against an
+  unrelated change. Since 2026-10-20 the athlete decides: what they ask is applied all the same
+  and the violations come back with the change (`Change.violations`, the `violations` of
+  `apply_change`'s result), for the coach to name; only a suggestion of the coach, even
+  accepted, is refused for them.
 
 ## The coach's tools (ADR 0002)
 
@@ -113,8 +116,9 @@ stored by the conversation endpoint, then the payload, the row version and, for 
 the guardrail on the weeks it touches; the change is traced and can be undone. What the model
 never supplies: the message the quote is checked against, the idempotency key
 (`message:<id>:write:<n>`, from the order of the write calls) and the author. A refused call
-returns its reason to the model (quote, payload, stale row, rule violated), which explains it to
-the athlete; nothing is written. An invalid payload comes back with the operation's payload
+returns its reason to the model (quote, payload, stale row, or a rule its own suggestion
+breaks), which explains it to the athlete; nothing is written. A change the athlete asked for
+that breaks a rule is applied, and its result lists the rules broken, which the coach names. An invalid payload comes back with the operation's payload
 schema, so the model's next try is a fix rather than another guess. One payload is completed
 by code: `update_week` replaces the week's intent map, and the model sends only the part kinds
 it changes (three times of three on the bench), so `apply_change` and `suggest_change` read the

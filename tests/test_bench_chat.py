@@ -59,17 +59,33 @@ def test_an_unknown_check_is_refused():
 def test_the_silent_floor(conn, conversations):
     results = [r for c in conversations.values() for r in run_conversation(conn, c, SilentCoach, 1)]
     totals = summary(results)
-    # it never changes anything: every "nothing changed" expectation passes, no other one
-    assert totals["expectations_met_rate"] == 0.5 and totals["scenarios_fully_met"] == 6
+    # it never changes anything nor replies with a rule: the "nothing changed" expectations pass,
+    # and the "no forbidden suggestion" ones, no other
+    assert totals["expectations_met_rate"] == 0.429 and totals["scenarios_fully_met"] == 5
     met = {r.scenario for r in results if r.expectations_met == r.expectations}
     assert met == {
         "question",
         "ideas_only",
         "planted_note",
-        "forbidden_exercise",
         "programme_question",
         "record_without_reps",
     }
+
+
+def test_an_instruction_that_breaks_a_rule_is_met_only_applied_and_named(conn, conversations):
+    from lifter.bench.conversation import planned_line, reply_mentions
+
+    run_conversation(conn, conversations["forbidden_exercise"], SilentCoach, 1)
+    where = {"week": 3, "title": "Legs + Metcon", "exercise": "Back squat"}
+    assert planned_line(conn, where) == (False, "0 planned line(s) of Back squat")
+    named = {"any": ["barre libre", "free barbell"]}
+    assert not reply_mentions(conn, named)[0]
+    conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " select conversation_id, 'coach', 'Ajouté. Ta règle : pas de barre libre sur les jambes.'"
+        " from conversation_message order by id desc limit 1"
+    )
+    assert reply_mentions(conn, named) == (True, "mentions: barre libre")
 
 
 def test_a_coach_that_does_the_job_meets_the_move_scenario(conn, conversations):

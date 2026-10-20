@@ -237,3 +237,70 @@ def test_a_change_says_what_it_changed_old_to_new():
     after = before | {"load_kg": 45.0, "rir": 5, "version": 2, "notes": "léger"}
     assert _detail(before, after) == "60 kg → 45 kg · RIR 2 → RIR 5 · notes"
     assert _detail(None, after) is None  # created: nothing to compare
+
+
+def moved(conn, database_url, day: str = "2026-03-06"):
+    """A conversation in which the coach moved the legs session to `day`."""
+    sid, version = legs(conn)
+    model = ScriptedChat(
+        tool_call(
+            "apply_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": day, "expected_version": version},
+            quote=f"Décale la séance jambes au {day}",
+        ),
+        AIMessage("C'est fait."),
+    )
+    api = api_with(database_url, lambda: model)
+    body = api.post("/conversations", json={"text": f"Décale la séance jambes au {day}"}).json()
+    return api, body["conversation_id"], body["athlete"]["changes"][0]["change_id"]
+
+
+def test_undo_is_applied_without_the_model(conn, database_url, program):
+    api, conversation, change = moved(conn, database_url)
+    day_before = legs(conn)
+
+    reply = api.post(f"/conversations/{conversation}/undo", json={"change_id": change})
+
+    assert reply.status_code == 200, reply.text
+    body = reply.json()
+    assert body["athlete"]["text"] == f"annule le changement {change}"
+    assert body["coach"]["text"] == "Undone." and body["run_id"] is None
+    assert body["athlete"]["changes"][0]["operation"] == "undo"
+    thread = api.get(f"/conversations/{conversation}").json()["messages"]
+    assert thread[0]["changes"][0]["undone"]  # the move, shown undone under its message
+    assert legs(conn) != day_before
+
+
+def test_an_undo_blocked_by_later_changes_names_them(conn, database_url, program):
+    api, conversation, first = moved(conn, database_url, "2026-03-06")
+    sid, version = legs(conn)
+    model = ScriptedChat(
+        tool_call(
+            "apply_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": "2026-03-07", "expected_version": version},
+            quote="Décale la séance jambes au 2026-03-07",
+        ),
+        AIMessage("C'est fait."),
+    )
+    second = (
+        api_with(database_url, lambda: model)
+        .post(
+            f"/conversations/{conversation}", json={"text": "Décale la séance jambes au 2026-03-07"}
+        )
+        .json()["athlete"]["changes"][0]["change_id"]
+    )
+
+    reply = api.post(f"/conversations/{conversation}/undo", json={"change_id": first}).json()
+
+    assert reply["coach"]["text"] == (
+        f"To undo it, first undo the later changes on the same rows: {second} (the latest first)."
+    )
+    assert reply["athlete"]["changes"] == []
+
+
+def test_undo_in_an_unknown_conversation_is_a_404(conn, database_url, program):
+    api = api_with(database_url, ScriptedChat)
+    assert api.post("/conversations/nope/undo", json={"change_id": 1}).status_code == 404
+    assert api.post("/conversations/nope/undo", json={"change_id": 0}).status_code == 422

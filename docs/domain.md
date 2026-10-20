@@ -157,17 +157,19 @@ conversation (the one being answered: an older message, another conversation's o
 cannot authorise a change), the quote checked against it as stored (`conversation_message`),
 the payload validated, the row version checked
 (`expected_version`; a session log and a reordering of parts too), the guardrail on the weeks it
-touches (only violations it introduces refuse it). Every change of the programme goes through
+touches. Every change of the programme goes through
 it: sessions, parts and lines, weeks, blocks and cycles (the week after a deleted one too, whose
 context changes), the exercise bank (the weeks using the exercise), an undo (the weeks of the
-rows it restores) and the athlete's rules (the weeks not over yet). A rule change is the one
-case not refused: what the new rules flag in sessions already planned comes back with the
-change (`violations`), for the coach to adapt them. Then the trace: a `proposal` row (applied, with `quote`, `message_id`,
+rows it restores) and the athlete's rules (the weeks not over yet). What the athlete asks is never refused for
+the rules (owner's decision of 20/10: everything can change if he asks, undo included): the
+violations a change introduces come back with it (`violations`), for the coach to say them. A
+coach's suggestion stays the model's idea: accepted, it is refused if it introduces one. Then the trace: a `proposal` row (applied, with `quote`, `message_id`,
 `idempotency_key`) and a `change_log` row (rows before and after). A suggestion is applied only
 with the athlete's message that answers the coach message presenting it (`proposal.presented_in`,
 set by `operations.present` when the coach's reply is stored): it has no lifetime, but one the
 conversation moved past expires, and comes back only if the coach presents it again. `undo` rebuilds the
-previous state from it, ids included, and is refused when those rows changed since. Every
+previous state from it, ids included, and is refused when those rows changed since (the
+app's Undo, `POST /conversations/{id}/undo`, then names the later changes to undo first). Every
 domain table has a `version` bumped on each update, and the database refuses a commit by the
 coach's role (`lifter_coach`) that wrote without such a trace, and any later change to an
 applied proposal's trace (`undone_by` aside). A row outside the catalogue that points at a

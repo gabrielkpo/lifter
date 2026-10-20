@@ -364,19 +364,24 @@ function Coach() {
     pendingScroll.current = null;
   }, [messages, sending, toEnd]);
 
-  async function send(text: string) {
-    const words = text.trim();
+  /** A message to the coach; with `undo`, the Undo of that change, applied without the model
+   * (the server stores it as "annule le changement N" and writes the short reply). */
+  async function send(text: string, undo?: number) {
+    const words =
+      undo === undefined ? text.trim() : `annule le changement ${undo}`;
     const where = current;
-    if (!words || turn) return;
+    if (!words || turn || (undo !== undefined && where === null)) return;
     setTurn({ id: where, value: words });
     setSaid(null);
-    setDraft(""); // sent: the input is free at once, the message shows in the thread
+    if (undo === undefined) setDraft(""); // sent: the input is free at once
     try {
       const reply = await postJson<ConversationReply>(
         where === null
           ? "/conversations"
-          : `/conversations/${encodeURIComponent(where)}`,
-        { text: words },
+          : undo === undefined
+            ? `/conversations/${encodeURIComponent(where)}`
+            : `/conversations/${encodeURIComponent(where)}/undo`,
+        undo === undefined ? { text: words } : { change_id: undo },
       );
       if (here.current === where) pendingScroll.current = "reply";
       if (where === null) {
@@ -403,7 +408,8 @@ function Coach() {
         );
       }
     } catch (failed) {
-      setDraft((now) => now || words); // not answered: the words come back to send again
+      // Not answered: the words come back to send again.
+      if (undo === undefined) setDraft((now) => now || words);
       pendingScroll.current = "end";
       // The message, or a reply about a crash, may be stored all the same: in this
       // conversation, or in the one this message opened.
@@ -543,9 +549,7 @@ function Coach() {
                     type="button"
                     className="chip"
                     disabled={turn !== null}
-                    onClick={() =>
-                      void send(`annule le changement ${change.change_id}`)
-                    }
+                    onClick={() => void send("", change.change_id)}
                   >
                     Undo
                   </button>

@@ -52,6 +52,10 @@ class Said(BaseModel):
     text: str = Field(min_length=1, max_length=MAX_TEXT)
 
 
+class Undo(BaseModel):
+    change_id: int = Field(ge=1)
+
+
 class Change(BaseModel):
     change_id: int
     operation: str
@@ -361,6 +365,36 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
         """The athlete's next message in a conversation, and the coach's answer."""
         return turn(said.text, conversation_id)
 
+    @app.post("/conversations/{conversation_id}/undo")
+    def undo_change(asked: Undo, conversation_id: str = Path(pattern=ID_PATTERN)) -> Reply:
+        """The Undo of a change, without the model: stored as the athlete's message ("annule le
+        changement N"), applied by lifter.operations like any instruction (quoted, traced; the
+        rules report what comes back in breach, they never refuse it), and answered by a short
+        reply written here, which says what was undone, or why it could not be."""
+        coach = configured()
+        text = f"annule le changement {asked.change_id}"
+        try:
+            with connect(coach.chat_url) as chat:
+                if not chat.execute(
+                    "select 1 from conversation where id = %s", (conversation_id,)
+                ).fetchone():
+                    raise HTTPException(404, "no such conversation")
+                message_id = chat.execute(
+                    "insert into conversation_message (conversation_id, role, text)"
+                    " values (%s, 'athlete', %s) returning id",
+                    (conversation_id, text),
+                ).fetchone()[0]
+            with connect(coach.coach_url) as conn:
+                answer = _undo(conn, conversation_id, asked.change_id, message_id, text)
+                reply_id = _reply(conn, conversation_id, _said(answer, coach.language))
+                conn.row_factory = dict_row
+                athlete, said = _thread(
+                    conn, conversation_id, "id = any(%s)", ([message_id, reply_id],), 2
+                )
+        except psycopg.Error:
+            raise HTTPException(503, "database unavailable") from None
+        return Reply(conversation_id=conversation_id, athlete=athlete, coach=said)
+
     # The first conversation's routes, for one release (an app left open across the deployment).
     @app.get("/conversation")
     def thread(limit: int = Query(50, ge=1, le=MAX_MESSAGES)) -> list[Message]:
@@ -372,3 +406,99 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
     def say(said: Said) -> Reply:
         """The athlete's message in the first conversation, then the coach's answer."""
         return turn(said.text, CONVERSATION, opened_as=CONVERSATION)
+
+
+def _undo(
+    conn: psycopg.Connection, conversation_id: str, change_id: int, message_id: int, text: str
+) -> tuple[str, list[str] | int | str]:
+    """Undo `change_id` on the athlete's message; what happened, for the reply: ("done", the
+    rules now in breach), ("later", the later changes on the same rows to undo first), or
+    ("refused", why)."""
+    from lifter import operations
+    from lifter.agents.tools import register_rule_check
+
+    register_rule_check()
+    try:
+        change = operations.run(
+            conn,
+            "undo",
+            {"change_id": change_id},
+            conversation_id=conversation_id,
+            quote=text,
+            message_id=message_id,
+            idempotency_key=f"app-undo:{message_id}",
+            author="athlete",
+        )
+    except operations.StaleRow:
+        return "later", _later(conn, change_id)
+    except operations.OperationError as exc:
+        return "refused", str(exc)
+    return "done", [str(v.get("message", v)) for v in change.violations]
+
+
+def _later(conn: psycopg.Connection, change_id: int) -> list[int]:
+    """The changes after `change_id`, not undone, that touched one of its rows: to undo first."""
+    rows = conn.execute(
+        "with mine as (select i ->> 'table' as t, i ->> 'id' as id from change_log c,"
+        " jsonb_array_elements(c.before || c.after) i where c.id = %s)"
+        " select distinct c.id from change_log c join proposal p on p.id = c.proposal_id,"
+        " jsonb_array_elements(c.before || c.after) i"
+        " where c.id > %s and p.undone_by is null and c.operation <> 'undo'"
+        " and (i ->> 'table', i ->> 'id') in (select t, id from mine) order by c.id desc",
+        (change_id, change_id),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def _said(answer: tuple[str, Any], language: str) -> str:
+    """The reply to an Undo, in the coach's language."""
+    kind, what = answer
+    french = language.lower().startswith("fr")
+    if kind == "done":
+        text = "C'est annulé." if french else "Undone."
+        if what:
+            warn = "Attention, à nouveau en infraction : " if french else "Now in breach again: "
+            text += f" {warn}" + " ; ".join(what) + "."
+        return text
+    if kind == "later":
+        if not what:
+            return (
+                "Je n'ai pas pu l'annuler : ces lignes ont changé depuis."
+                if french
+                else "I could not undo it: those rows changed since."
+            )
+        ids = ", ".join(str(i) for i in what)
+        return (
+            f"Pour l'annuler, il faut d'abord annuler les changements faits depuis sur les"
+            f" mêmes lignes : {ids} (du plus récent au plus ancien)."
+            if french
+            else f"To undo it, first undo the later changes on the same rows: {ids}"
+            " (the latest first)."
+        )
+    return f"Je n'ai pas pu l'annuler : {what}" if french else f"I could not undo it: {what}"
+
+
+def _reply(conn: psycopg.Connection, conversation_id: str, text: str) -> int:
+    """The reply to an Undo, as the coach's message: the suggestions the coach's last message
+    presented, still pending, are presented again, so an "ok pour N" still accepts them."""
+    from lifter import operations
+
+    with conn.transaction():
+        shown = [
+            r[0]
+            for r in conn.execute(
+                "select id from proposal where status = 'pending' and presented_in ="
+                " (select max(id) from conversation_message"
+                " where conversation_id = %s and role = 'coach')",
+                (conversation_id,),
+            ).fetchall()
+        ]
+        reply_id = conn.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values (%s, 'coach', %s) returning id",
+            (conversation_id, text),
+        ).fetchone()[0]
+        operations.present(
+            conn, conversation_id=conversation_id, coach_message_id=reply_id, proposal_ids=shown
+        )
+    return reply_id

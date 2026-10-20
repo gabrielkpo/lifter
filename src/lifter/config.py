@@ -65,7 +65,8 @@ class Settings:
     garmin_mcp_token: str | None = field(repr=False)
     sync_delay_seconds: float
     mistral_api_key: str | None = field(default=None, repr=False)
-    model: str = "mistral-small-latest"
+    model: str = "mistral-small-latest"  # the week planner's model
+    coach_model: str = "mistral-medium-latest"  # the coach in conversation (bench: +8 points)
     coach_language: str = "English"
     llm_context: str = "indicators"
     bench_database_url: str = field(default="postgresql:///lifter_bench", repr=False)
@@ -85,6 +86,7 @@ class Settings:
             sync_delay_seconds=_float(env, "SYNC_DELAY_SECONDS", 1.0),
             mistral_api_key=env.get("MISTRAL_API_KEY") or None,
             model=env.get("LIFTER_MODEL", "mistral-small-latest"),
+            coach_model=env.get("LIFTER_COACH_MODEL", "mistral-medium-latest"),
             coach_language=_language(env, "LIFTER_COACH_LANGUAGE", "English"),
             llm_context=env.get("LIFTER_LLM_CONTEXT", "indicators"),
             bench_database_url=env.get("BENCH_DATABASE_URL", "postgresql:///lifter_bench"),

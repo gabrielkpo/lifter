@@ -171,8 +171,6 @@ export default function CoachPage() {
 function Coach() {
   const router = useRouter();
   const current = useSearchParams().get("c");
-  // Back on the tab without a conversation named: the one left open, if any.
-  const [resume] = useState(() => (current === null ? remembered : null));
   const [drawer, setDrawer] = useState(false);
   // The conversation last loaded or opened, and what happened to the one on screen: each says
   // which conversation it belongs to, so another one never shows it.
@@ -200,7 +198,9 @@ function Coach() {
 
   const mine = <T,>(tagged: Tagged<T> | null) =>
     tagged?.id === current ? tagged.value : null;
-  const resuming = resume !== null && current === null;
+  // On the tab without a conversation named (back from another tab, or its icon tapped): the
+  // one left open, until "New conversation" forgets it.
+  const resuming = current === null && remembered !== null;
   const messages =
     loaded.id === current
       ? loaded.messages
@@ -227,14 +227,12 @@ function Coach() {
 
   useEffect(() => {
     if (current !== null) remembered = current;
-  }, [current]);
-  useEffect(() => {
-    if (resume !== null) {
-      router.replace(`/coach?c=${encodeURIComponent(resume)}`, {
+    else if (remembered !== null) {
+      router.replace(`/coach?c=${encodeURIComponent(remembered)}`, {
         scroll: false,
       });
     }
-  }, [resume, router]);
+  }, [current, router]);
 
   // An earlier conversation: its thread, from its end.
   useEffect(() => {

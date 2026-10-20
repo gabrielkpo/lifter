@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0](https://github.com/gabrielkpo/lifter/compare/v0.4.0...v0.5.0) (2026-10-20)
+
+
+### Features
+
+* **agents:** the coach has its own model setting, mistral-medium-latest by default ([#104](https://github.com/gabrielkpo/lifter/issues/104)) ([536093c](https://github.com/gabrielkpo/lifter/commit/536093c863a8aef796af2d12921cbe723a0e8c30))
+* **agents:** the coach reads an exercise's records and bests, and asks for the reps of a best ([#103](https://github.com/gabrielkpo/lifter/issues/103)) ([3b211ec](https://github.com/gabrielkpo/lifter/commit/3b211ec8e8c7ecb4e266952d5b576932b6abe436))
+* **agents:** the coach sees the programme, its blocks and weeks with their intents ([#105](https://github.com/gabrielkpo/lifter/issues/105)) ([f6b0f34](https://github.com/gabrielkpo/lifter/commit/f6b0f341dd852388d8eba5e8b619a31b2aa0ddb4))
+
+
+### Bug Fixes
+
+* the coach tab keeps its conversation, declared records in PRs, what each change did, bars apart ([#102](https://github.com/gabrielkpo/lifter/issues/102)) ([953f85a](https://github.com/gabrielkpo/lifter/commit/953f85a873bb1da3391a7b3c3f9708660e745c30))
+
+
+### Documentation
+
+* **adr:** 0003 health constraints belong to each athlete, gathered by the coach ([#79](https://github.com/gabrielkpo/lifter/issues/79)) ([87a638d](https://github.com/gabrielkpo/lifter/commit/87a638d24ece3da1deffd1f00c137e96f4c9fb4a))
+
 ## [0.4.0](https://github.com/gabrielkpo/lifter/compare/v0.3.0...v0.4.0) (2026-10-20)
 
 

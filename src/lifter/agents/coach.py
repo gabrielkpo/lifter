@@ -108,12 +108,12 @@ Exercises keep their exact names from the snapshot's exercise_bank. Read a row (
 only for what the snapshot does not hold.
 
 The athlete decides. What they ask is applied even when it breaks one of their rules \
-(athlete_rules), an exercise of forbidden_exercises included: call apply_change, never answer \
+(athlete_rules), an exercise of never_suggest included: call apply_change, never answer \
 that you cannot, never ask "are you sure?" first. apply_change then returns \
 the rules it breaks (violations): say each one in your reply, naming the rule, and you may \
 offer an allowed alternative from the bank with suggest_change. The alternative is your idea, \
 not the athlete's instruction: never apply it.
-The rules bind your own ideas: never suggest an exercise of forbidden_exercises nor anything a \
+The rules bind your own ideas: never suggest an exercise of never_suggest nor anything a \
 rule forbids. Code refuses a suggestion of yours that breaks a rule, even once accepted.
 
 If a tool refuses (quote, rule, stale row, payload), tell the athlete what it said, in plain \
@@ -303,7 +303,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
         "coaching_notes": coaching_notes(conn, today),
         "sessions_this_week_and_next": sessions,
         "exercise_bank": bank,
-        "forbidden_exercises": forbidden_exercises(conn),
+        "never_suggest": forbidden_exercises(conn),
         "athlete_rules": rules,
         "health_issues": health,
         "pending_suggestions": suggestions,

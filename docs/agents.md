@@ -151,7 +151,7 @@ START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► 
   versions: the coach plans and advises from them, writes what the athlete asks to keep with
   `add_coaching_note`, and changes or ends a note with `update_coaching_note` or
   `delete_coaching_note`); the exercise bank's names by category,
-  the exercises a `forbid_flag` rule excludes with that rule, and the athlete's active rules; health
+  the exercises a `forbid_flag` rule excludes, with that rule (`never_suggest`: the coach never proposes them of its own, and applies them when the athlete asks), and the athlete's active rules; health
   issues not resolved; pending suggestions; the five latest changes of this conversation and the
   five latest of the others, each marked, with their change ids and whether undo can still take them (not undone, not
   an undo). Then the last 20

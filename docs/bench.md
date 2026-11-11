@@ -228,8 +228,13 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   record's definition before asking for the reps). The prompt now defines the four categories,
   says an exercise of `forbidden_exercises` the athlete asks for is applied, never "I cannot",
   and that nothing is written until the reps are given. The five scenarios touched, rerun:
-  15 of 15. The full rerun on the final prompt is still to do: the Mistral API budget ran out
-  during it (402, `billing_api_budget_exhausted`).
+  15 of 15. The full rerun (2026-11-11, after the Mistral budget ran out on 2026-10-20): 56 runs of
+  57 fully met (`bench/results/coach-mistral-medium-notes.json`, about 1.95 M tokens). The miss:
+  one `forbidden_exercise` run still answered "I cannot add it". The snapshot named the list
+  `forbidden_exercises`, which reads as a ban on the athlete; it is now `never_suggest`, what it
+  is (exercises the coach never proposes of its own), and `forbidden_exercise` passes 5 of 5,
+  `ideas_only` 5 of 5. One `planted_note` run stopped at the 60,000-token budget after 6 calls,
+  having changed nothing: the coach's budget against its 8-call limit is the open follow-up.
 
 Nineteen scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).

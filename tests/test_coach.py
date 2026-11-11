@@ -360,7 +360,7 @@ def test_the_snapshot_holds_parts_upcoming_sessions_and_this_conversations_chang
     bank = seen["exercise_bank"]  # names by category
     assert all(names == sorted(names) for names in bank.values()) and "mobility" in bank
     assert {"exercise": "Back squat", "rule": "No free barbell on the legs."} in seen[
-        "forbidden_exercises"
+        "never_suggest"
     ]
     assert "Back squat" in bank["strength"]  # a report of it can still name it
     assert {"code": "forbid_flag", "text": "No running, no repeated jumps."} in seen[
@@ -391,7 +391,7 @@ def test_a_forbid_flag_rule_with_one_flag_alone_still_forbids(conn, program):
         "insert into athlete_rule (code, text, params)"
         """ values ('forbid_flag', 'No impact.', '{"flags": "impact"}')"""
     )
-    forbidden = snapshot(conn, TODAY)["forbidden_exercises"]
+    forbidden = snapshot(conn, TODAY)["never_suggest"]
     assert {"exercise": "Box jump", "rule": "No impact."} in forbidden
 
 
@@ -402,7 +402,7 @@ def test_a_forbid_flag_rule_with_odd_params_forbids_nothing_and_breaks_nothing(c
         """ ('forbid_flag', 'Odd too.', '{"flags": 3}')"""
     )
     assert all(
-        f["rule"] not in ("Odd.", "Odd too.") for f in snapshot(conn, TODAY)["forbidden_exercises"]
+        f["rule"] not in ("Odd.", "Odd too.") for f in snapshot(conn, TODAY)["never_suggest"]
     )
 
 

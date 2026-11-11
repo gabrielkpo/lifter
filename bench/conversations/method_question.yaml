@@ -1,0 +1,13 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: method_question
+category: question
+description: 'A question on the method is answered from the coaching notes; nothing changed.'
+today: 2026-01-18
+messages:
+- Rappelle-moi comment je dois m'échauffer avant le bench, et quand je peux monter la charge.
+expect:
+- check: unchanged
+- check: reply_mentions
+  params: {any: [Ramp]}
+review: 'Gives the Ramp warm-up (three sets building to the first working load) and the load
+  progression (only when every set met its RIR) from the notes, naming them; changes nothing.'

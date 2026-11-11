@@ -66,7 +66,7 @@ another athlete's protection.
 The athlete-specific flags (`free_barbell_legs`) disappear: what they stood for becomes a
 constraint (Decision 2). Generic facts (`running`, `impact`) become demands.
 
-Transition: `forbid_flag` rules keep working (guardrail, the coach's `forbidden_exercises`) until
+Transition: `forbid_flag` rules keep working (guardrail, the coach's `never_suggest`) until
 every one of them is rewritten as a constraint; the guardrail checks both meanwhile, and
 `forbid_flag` is removed only once no active rule uses it.
 

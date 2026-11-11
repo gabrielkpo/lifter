@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/gabrielkpo/lifter/compare/v0.6.0...v0.7.0) (2026-11-11)
+
+
+### Features
+
+* **agents:** the coach reads and writes the athlete's coaching notes ([#111](https://github.com/gabrielkpo/lifter/issues/111)) ([cfdde6a](https://github.com/gabrielkpo/lifter/commit/cfdde6af57f4a9fe8336c05af2f0a8dbad50e6a3))
+
 ## [0.6.0](https://github.com/gabrielkpo/lifter/compare/v0.5.0...v0.6.0) (2026-10-20)
 
 

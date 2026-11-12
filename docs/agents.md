@@ -99,9 +99,10 @@ Two checks the operations catalogue runs before applying a change made by the co
   it waits and the athlete confirms in their next message: then it is applied and the
   violations come back with it (`Change.violations`). A suggestion of the coach, even accepted,
   is refused for them. The athlete's own action (the app's Undo button) is applied at once.
-- **The suggestion picked** is the one the athlete's message numbers ("ok pour 12" never
-  accepts 13), or the only one the coach's last message showed when it numbers none; with two
-  shown and no number, the coach must ask which.
+- **The suggestion picked** is the one the athlete's message numbers, among the suggestions
+  this conversation showed ("ok pour 12" never accepts 13); a number that is no such suggestion
+  (a load, a day) names none. With no number it must be the only one the coach's last message
+  showed; with two shown and no number, the coach must ask which.
 
 ## The coach's tools (ADR 0002)
 

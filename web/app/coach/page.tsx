@@ -58,7 +58,7 @@ function failure(error: unknown): string {
       return "This message cannot be sent as it is (too long, or with a character the coach refuses).";
     case 429: {
       // Refused before anything was stored or spent: the API says why (its budget, its pace).
-      const why = error instanceof ApiError ? error.detail : null;
+      const why = error instanceof ApiError ? error.detail?.replace(/[\s.!?]+$/, "") : null;
       const said = why ? `${why.charAt(0).toUpperCase()}${why.slice(1)}.` : "The coach is resting.";
       return `${said} Your message was not sent.`;
     }

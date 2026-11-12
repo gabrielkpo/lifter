@@ -11,7 +11,9 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "no-referrer" },
+          // Nothing to other sites. Not "no-referrer": with it, a form (sign-in, sign-out)
+          // posts "Origin: null", and the server refuses a POST that is not from its own pages.
+          { key: "Referrer-Policy", value: "same-origin" },
           { key: "X-Frame-Options", value: "DENY" },
         ],
       },

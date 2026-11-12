@@ -199,11 +199,15 @@ def propose_plan(conn: psycopg.Connection, plan: WeekPlan, ctx: PlanningContext)
     ids = []
     with conn.transaction():
         for session_id in plan.cancel_session_ids:
+            row = conn.execute(
+                "select version from planned_session where id = %s", (session_id,)
+            ).fetchone()
             ids.append(
                 domain.propose(
                     conn,
                     "cancel_session",
-                    {"session_id": session_id},
+                    # with its version, so the coach can accept it through lifter.operations
+                    {"session_id": session_id, "expected_version": row[0] if row else None},
                     rationale=f"Replaced by the plan of week {ctx.target_week.number}: "
                     + plan.summary,
                     author=AUTHOR,

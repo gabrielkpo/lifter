@@ -367,7 +367,7 @@ def cmd_proposals(settings: Settings, args: argparse.Namespace) -> int:
         (
             ["pending"]
             if not args.all
-            else ["pending", "approved", "rejected", "applied", "failed"],
+            else ["pending", "approved", "rejected", "applied", "failed", "expired"],
         ),
     )
 
@@ -446,10 +446,33 @@ def cmd_feedback(settings: Settings, args: argparse.Namespace) -> int:
     )
 
 
+def _domain_can_apply(domain, kind: str, payload: dict) -> bool:
+    """The terminal applies a proposal through lifter.domain: its kind and payload must be the
+    domain's (the planner's), not the operations catalogue's (the coach's)."""
+    model = domain.PROPOSAL_PAYLOADS.get(kind)
+    if model is None:
+        return False
+    try:
+        model.model_validate(payload)
+    except ValueError:  # pydantic's ValidationError
+        return False
+    return True
+
+
 def cmd_proposal_decide(settings: Settings, args: argparse.Namespace) -> int:
     from lifter import domain
 
     def decide(conn):
+        row = conn.execute(
+            "select kind, payload from proposal where id = %s", (args.id,)
+        ).fetchone()
+        if row is not None and not _domain_can_apply(domain, row[0], row[1]):
+            # A suggestion of the coach (lifter.operations' payloads): answered in the
+            # conversation, where it is checked and traced; here it would only fail
+            raise domain.DomainError(
+                f"proposal {args.id} ({row[0]}) is the coach's suggestion: answer it in the"
+                " conversation with the coach"
+            )
         domain.decide(conn, args.id, approve=args.decision == "approve")
         if args.decision == "reject":
             return f"proposal {args.id} rejected"

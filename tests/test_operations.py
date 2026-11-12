@@ -732,6 +732,16 @@ def test_replace_refuses_to_delete_what_was_written_since_unless_forced(conn, pr
     with pytest.raises(DomainError, match="rules not in the file"):
         load_program(conn, read_program(EXAMPLE), replace=True)
     assert load_program(conn, read_program(EXAMPLE), replace=True, force=True)
+    # Nothing written since that load: a second replace needs no force.
+    assert load_program(conn, read_program(EXAMPLE), replace=True)
+    sid = conn.execute(
+        "select id from planned_session where source = 'program' order by id limit 1"
+    ).fetchone()[0]
+    conn.execute(
+        "insert into feedback (day, planned_session_id, rpe) values ('2026-03-02', %s, 7)", (sid,)
+    )
+    with pytest.raises(DomainError, match="feedback on the program's sessions"):
+        load_program(conn, read_program(EXAMPLE), replace=True)
 
 
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):

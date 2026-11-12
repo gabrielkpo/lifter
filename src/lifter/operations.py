@@ -349,8 +349,8 @@ def _content(row: dict[str, Any]) -> dict[str, Any]:
 
 def _unchanged(current: dict[str, Any], stored: dict[str, Any]) -> bool:
     """The row still holds what the change left, on the columns the change recorded: a column
-    a migration added since is not a change of the athlete's."""
-    return all(current.get(k) == v for k, v in _content(stored).items())
+    a migration added or dropped since is not a change of the athlete's."""
+    return all(current[k] == v for k, v in _content(stored).items() if k in current)
 
 
 def _recorded(conn, table: str, image: dict[str, Any], *, without_id: bool = False) -> str:

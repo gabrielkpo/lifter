@@ -128,17 +128,29 @@ def read_program(path: Path) -> ProgramIn:
 
 
 def what_replace_deletes(conn: psycopg.Connection, program: ProgramIn) -> dict[str, int]:
-    """What `replace` would delete that the new program file does not write back: the rules
-    added since (by the coach or by hand), and the coach's traced changes, whose undo would
-    then be refused (a logged session included)."""
-    kept = [(r.code, r.text) for r in program.rules]
+    """What `replace` would delete or detach that the new program file does not write back:
+    the rules it does not hold as they are now (added, changed or switched off since), the
+    athlete's feedback on the program's sessions, and the coach's traced changes since the
+    current program was loaded, whose undo would then be refused."""
+    kept = [(r.code, r.text, r.params, True) for r in program.rules]
     rules = sum(
         1
-        for code, text in conn.execute("select code, text from athlete_rule").fetchall()
-        if (code, text) not in kept
+        for row in conn.execute("select code, text, params, active from athlete_rule").fetchall()
+        if tuple(row) not in kept
     )
-    (changes,) = conn.execute("select count(*) from change_log").fetchone()
-    lost = {"rules not in the file": rules, "changes made through the coach": changes}
+    (feedback,) = conn.execute(
+        "select count(*) from feedback f join planned_session s on s.id = f.planned_session_id"
+        " where s.source = 'program'"
+    ).fetchone()
+    (changes,) = conn.execute(
+        "select count(*) from change_log"
+        " where created_at > (select coalesce(max(created_at), '-infinity') from cycle)"
+    ).fetchone()
+    lost = {
+        "rules not in the file as they are now": rules,
+        "feedback on the program's sessions": feedback,
+        "changes made through the coach since the program was loaded": changes,
+    }
     return {name: n for name, n in lost.items() if n}
 
 
@@ -147,7 +159,8 @@ def load_program(
 ) -> dict[str, int]:
     """Write the program to the database in one transaction; returns what was created.
     `replace` refuses, unless `force`, when it would delete what was written since the file
-    (logged sessions, feedback, rules, traced changes whose undo would then be refused)."""
+    (feedback, rules, the coach's traced changes, logs included, whose undo would then be
+    refused)."""
     with conn.transaction():
         existing = conn.execute("select count(*) from cycle").fetchone()[0]
         if existing and not replace:

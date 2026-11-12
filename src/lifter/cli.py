@@ -934,8 +934,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--replace",
         action="store_true",
         help="delete what the previous program file created first (cycle, its sessions, goals"
-        " and rules), then load; refused when it would delete logs, rules or changes made"
-        " since, unless --force",
+        " and rules), then load; refused when it would delete rules, feedback or the coach's"
+        " changes made since, unless --force",
     )
     load.add_argument(
         "--force",

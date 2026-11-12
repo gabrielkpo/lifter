@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from lifter.api.app import create_app
 from lifter.api.conversation import CoachSetup
 from lifter.config import Settings
+from lifter.db import as_role
 
 LOCAL_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000"
 VERCEL_HOST_VARIABLES = ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL")
@@ -56,12 +57,23 @@ def create_app_from_env(env: Mapping[str, str] | None = None) -> FastAPI:
     )
 
 
+def coach_urls(settings: Settings, *, hosted: bool) -> tuple[str | None, str | None]:
+    """The conversation's and the coach's database URLs. Without their own URLs, locally,
+    DATABASE_URL acting as lifter_chat and lifter_coach: the coach never writes as the owner,
+    so the database's trace check and row policies hold here too."""
+    local = None if hosted else settings.database_url
+    return (
+        settings.chat_database_url or (local and as_role(local, "lifter_chat")),
+        settings.coach_database_url or (local and as_role(local, "lifter_coach")),
+    )
+
+
 def coach_setup(settings: Settings, *, hosted: bool) -> CoachSetup | None:
     """The coach's roles and model. Hosted, each role has its own URL (LIFTER_CHAT_DATABASE_URL
     as lifter_chat, LIFTER_COACH_DATABASE_URL as lifter_coach); locally, the API's database
-    serves both. Without them or without MISTRAL_API_KEY, the conversation is off (503)."""
-    chat = settings.chat_database_url or (None if hosted else settings.database_url)
-    coach = settings.coach_database_url or (None if hosted else settings.database_url)
+    serves both, its sessions acting as those roles. Without them or without MISTRAL_API_KEY,
+    the conversation is off (503)."""
+    chat, coach = coach_urls(settings, hosted=hosted)
     key = settings.mistral_api_key
     if not (chat and coach and key):
         return None

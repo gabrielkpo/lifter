@@ -356,12 +356,19 @@ def create_app(
         ).fetchall()
 
     @app.get("/proposals")
-    def proposals(conn: Conn, status: models.ProposalStatus = "pending") -> list[models.Proposal]:
-        """The agents' proposals with a given status, oldest first."""
+    def proposals(
+        conn: Conn,
+        status: models.ProposalStatus = "pending",
+        limit: int = Query(50, ge=1, le=100),
+        after: int = Query(0, ge=0),
+    ) -> list[models.Proposal]:
+        """The agents' proposals with a given status, oldest first, a page at a time (`after`:
+        the last id of the previous page). Never their result (rows before and after a change)
+        nor the athlete's words: the API's role cannot read them."""
         return conn.execute(
-            "select id, kind, payload, rationale, author, status, result, created_at,"
-            " decided_at, applied_at from proposal where status = %s order by id",
-            (status,),
+            "select id, kind, payload, rationale, author, status, created_at, decided_at,"
+            " applied_at from proposal where status = %s and id > %s order by id limit %s",
+            (status, after, limit),
         ).fetchall()
 
     register(app, coach)

@@ -78,6 +78,21 @@ def test_rows_are_read_from_the_catalogues_tables_only(conn, program):
     assert "no column" in call(tools, "read_rows", table="exercise", column="name; --")["error"]
 
 
+def test_read_rows_never_returns_who_the_athlete_is_nor_the_words_of_a_health_issue(conn, program):
+    conn.execute(
+        "insert into athlete (id, first_name, birth_date, weight_kg)"
+        " values (1, 'Sam', '1990-05-01', 80)"
+        " on conflict (id) do update set first_name = 'Sam', birth_date = '1990-05-01'"
+    )
+    _, tools = tools_for(conn, "hello there")
+    (athlete,) = call(tools, "read_rows", table="athlete")["rows"]
+    assert "weight_kg" in athlete and not {"first_name", "birth_date"} & set(athlete)
+    refused = call(tools, "read_rows", table="athlete", column="first_name", value="Sam")
+    assert "no column" in refused["error"]
+    issues = call(tools, "read_rows", table="health_issue")["rows"]
+    assert all("reported_quote" not in issue for issue in issues)
+
+
 def test_an_instruction_is_applied_with_the_athletes_quote(conn, program):
     sid, version, _ = session(conn, "Legs + Metcon")
     ctx, tools = tools_for(conn, "Décale la séance jambes au 2026-03-06 stp")

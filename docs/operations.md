@@ -84,8 +84,8 @@ proposals, the change log with its rows before and after (`change_log`), and the
 with the words that reported them. They are the history the coach and the athlete read back, and
 `undo` needs the change log. Only the agents' audit is purged: the context, plans and messages
 of a run go after 90 days, its metrics stay (see the sync job). The API's role cannot read the
-conversations nor the change log (`roles.sql`); it can still read the proposals, quotes
-included, which a later change restricts to the columns the app needs.
+conversations, the change log, nor a proposal's result or the words that authorised it (`quote`,
+`message_id`): it reads only a proposal's other columns (`roles.sql`).
 
 ## Releases and deployment
 

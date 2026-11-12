@@ -49,6 +49,14 @@ def readable_tables() -> set[str]:
     return {t for op in operations.CATALOGUE.values() for t in op.writes}
 
 
+# Columns read_rows never returns, so they never reach the model (and the audit of its run):
+# who the athlete is, rather than how they train, and the words a health issue was reported in.
+HIDDEN_COLUMNS: dict[str, frozenset[str]] = {
+    "athlete": frozenset({"first_name", "birth_date"}),
+    "health_issue": frozenset({"reported_quote"}),
+}
+
+
 def _json(value: Any) -> str:
     def default(v: Any) -> Any:
         if isinstance(v, date | datetime):
@@ -185,12 +193,13 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
     ) -> str:
         if table not in readable_tables():
             return _refused(f"{table!r} cannot be read: use a table of the operation list")
-        columns = set(operations._columns(conn, table))
-        query = sql.SQL("select to_jsonb(t) from {} t").format(sql.Identifier(table))
-        params: list[Any] = []
+        hidden = HIDDEN_COLUMNS.get(table, frozenset())
+        columns = set(operations._columns(conn, table)) - hidden
+        query = sql.SQL("select to_jsonb(t) - %s::text[] from {} t").format(sql.Identifier(table))
+        params: list[Any] = [sorted(hidden)]
         if column is not None:
             if column not in columns:
-                return _refused(f"{table} has no column {column!r}")
+                return _refused(f"{table} has no column {column!r} the coach may read")
             query += sql.SQL(" where {} = %s").format(sql.Identifier(column))
             params.append(value)
         query += sql.SQL(" order by id desc limit {}").format(sql.Literal(MAX_ROWS))

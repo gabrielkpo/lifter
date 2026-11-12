@@ -24,7 +24,8 @@ MATRIX = {
     "lifter_api": {
         "public.raw_garmin_payload": {READ},
         "public.planned_session": {READ},
-        "public.proposal": {READ},
+        # Column grants only: not a proposal's result nor the words that authorised it
+        "public.proposal": set(),
         "public.coaching_note": {READ},
         # Not the agents' audit, the conversation nor the change log (audit N5).
         "public.agent_run": set(),
@@ -81,15 +82,15 @@ MATRIX = {
     "lifter_chat": {
         "public.conversation": {READ, INSERT},
         "public.conversation_message": {READ, INSERT},
-        "public.proposal": {READ},
+        "public.proposal": set(),  # column grants
         "public.agent_run": set(),
         "public.change_log": set(),
         "public.planned_session": {READ},
         "analytics.daily_metrics": {READ},
     },
     "lifter_agents": {
-        # Insert on its kind, payload, rationale and author only (column grants).
-        "public.proposal": {READ},
+        # Read and insert on some columns only (column grants).
+        "public.proposal": set(),
         "public.agent_run": {READ, INSERT},
         "public.agent_step": {READ, INSERT},
         "public.conversation": set(),
@@ -340,3 +341,15 @@ def test_the_backup_dumps_tables_under_row_level_security(conn):
     script = (Path(__file__).parent.parent / "ops" / "lifter-backup.sh").read_text()
     assert secured, "no table has row-level security: drop this test or the flag"
     assert "--enable-row-security" in script
+
+
+def test_the_read_role_sees_a_proposal_but_never_its_result_nor_the_athletes_words(conn):
+    column = "select has_column_privilege('lifter_api', 'proposal', %s, 'SELECT')"
+    for visible in ("id", "kind", "payload", "rationale", "status", "presented_in"):
+        assert conn.execute(column, (visible,)).fetchone() == (True,), visible
+    for hidden in ("result", "quote", "message_id", "idempotency_key"):
+        assert conn.execute(column, (hidden,)).fetchone() == (False,), hidden
+    # The coach still reads everything it needs, and the backup everything
+    for role in ("lifter_coach", "lifter_backup"):
+        full = "select has_table_privilege(%s, 'public.proposal', 'SELECT')"
+        assert conn.execute(full, (role,)).fetchone() == (True,), role

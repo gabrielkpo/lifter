@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { fromThisApp } from "@/lib/origin";
 
 // The app's server reads the Lifter API on behalf of the browser: the API's address, its
 // token and the Vercel protection bypass stay on the server, never in the page.
@@ -120,7 +121,7 @@ export async function POST(
   if (target === null) {
     return NextResponse.json({ detail: "not found" }, { status: 404 });
   }
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!fromThisApp(request)) {
     return NextResponse.json({ detail: "forbidden" }, { status: 403 });
   }
   if (!request.headers.get("content-type")?.startsWith("application/json")) {

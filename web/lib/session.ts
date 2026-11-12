@@ -78,11 +78,29 @@ export async function passphraseMatches(secrets: SessionSecrets, given: string):
   return crypto.subtle.verify("HMAC", secrets.key, expected, label(given));
 }
 
-/** Where to go once signed in: a path of this app only, never another site. */
+/** Where to go once signed in: a page of this app, never another site, the sign-in itself, an
+ * /auth form target or an /api answer. Resolved the way the browser will (the URL parser drops
+ * tabs and newlines and reads "\\" as "/"), then checked. */
 export function safeNext(next: string | null | undefined): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return "/";
-  if (next === LOGIN_PATH || next.startsWith(`${LOGIN_PATH}?`)) return "/";
-  return next;
+  if (!next || !next.startsWith("/")) return "/";
+  const base = "http://app.invalid";
+  let url: URL;
+  try {
+    url = new URL(next, base);
+  } catch {
+    return "/";
+  }
+  const path = url.pathname;
+  if (
+    url.origin !== base ||
+    path === LOGIN_PATH ||
+    path.startsWith("/auth/") ||
+    path === "/api" ||
+    path.startsWith("/api/")
+  ) {
+    return "/";
+  }
+  return `${path}${url.search}`;
 }
 
 /** Paths anyone may load: the sign-in page and what it needs, and the files a phone fetches to

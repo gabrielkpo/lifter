@@ -66,7 +66,7 @@ test("only the exact passphrase signs in", async () => {
 test("after signing in, the app goes to one of its own pages only", () => {
   assert.equal(safeNext("/coach?c=abc"), "/coach?c=abc");
   assert.equal(safeNext("/sessions/12"), "/sessions/12");
-  for (const elsewhere of [null, undefined, "", "https://evil.example", "//evil.example", "/\\evil.example", "coach", "/login", "/login?next=/wod"]) {
+  for (const elsewhere of [null, undefined, "", "https://evil.example", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "coach", "/login", "/login?next=/wod", "/auth/logout", "/auth/login", "/api/profile", "/api"]) {
     assert.equal(safeNext(elsewhere), "/", String(elsewhere));
   }
 });

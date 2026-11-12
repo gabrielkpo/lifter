@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { fromThisApp } from "@/lib/origin";
 import {
   cookieName,
   issueSession,
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
  * SESSION_SECONDS, then the page asked for; a wrong one goes back to the form. */
 export async function POST(request: NextRequest) {
   // Only from this app's own sign-in page.
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!fromThisApp(request)) {
     return NextResponse.json({ detail: "forbidden" }, { status: 403 });
   }
   if (

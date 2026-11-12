@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { fromThisApp } from "@/lib/origin";
 import { cookieName, LOGIN_PATH } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /** Sign this device out (the profile page): its session cookie is dropped. */
 export async function POST(request: NextRequest) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!fromThisApp(request)) {
     return NextResponse.json({ detail: "forbidden" }, { status: 403 });
   }
   const secure = request.nextUrl.protocol === "https:";

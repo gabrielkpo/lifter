@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.0](https://github.com/gabrielkpo/lifter/compare/v0.7.0...v0.8.0) (2026-11-12)
+
+
+### Features
+
+* **web:** the app's own sign-in, a passphrase and a signed session cookie ([#120](https://github.com/gabrielkpo/lifter/issues/120)) ([d59d90d](https://github.com/gabrielkpo/lifter/commit/d59d90d06badd3868d1ed8f4d653ccd5247041bd))
+
+
+### Bug Fixes
+
+* **agents:** a destructive or rule-breaking change waits for the athlete's confirmation ([#122](https://github.com/gabrielkpo/lifter/issues/122)) ([21432ce](https://github.com/gabrielkpo/lifter/commit/21432ce547dd45869d16705a6b30034a892b1162))
+
+
+### Documentation
+
+* the README and docs describe main as it is, with the bench results ([#123](https://github.com/gabrielkpo/lifter/issues/123)) ([1253017](https://github.com/gabrielkpo/lifter/commit/12530173437be7003cccc0fc9f72232ddcf85876))
+
 ## [0.7.0](https://github.com/gabrielkpo/lifter/compare/v0.6.0...v0.7.0) (2026-11-11)
 
 

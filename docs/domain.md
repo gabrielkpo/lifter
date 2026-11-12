@@ -76,7 +76,10 @@ done before the cycle, outside any week.
   `create_session` (a whole session, with its parts and lines), `move_session`,
   `cancel_session`, `create_goal`. The athlete decides at the terminal
   (`lifter proposal approve|reject ID`): an approved proposal is applied by code, once, or
-  recorded as `failed` with the reason.
+  recorded as `failed` with the reason. The coach can also present them in the conversation,
+  where the athlete's answer applies them through `lifter.operations` (a cancellation carries
+  the session's version for that); `proposal approve` refuses a suggestion of the coach, which
+  is answered in the conversation.
 - **The coach in conversation writes through `lifter.operations`** (see "The coach's write
   path" below): what the athlete's quoted words ask is applied at once and traced; a
   destructive or rule-breaking change, and the coach's own ideas, wait as pending proposals for

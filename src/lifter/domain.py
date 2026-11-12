@@ -156,6 +156,9 @@ class MoveSession(StrictModel):
 
 class CancelSession(StrictModel):
     session_id: int
+    # The session's version when the planner proposed: the coach accepts the proposal through
+    # lifter.operations, whose cancel_session refuses a session changed since (StaleRow).
+    expected_version: int | None = None
 
 
 class MilestoneIn(StrictModel):

@@ -367,7 +367,7 @@ def cmd_proposals(settings: Settings, args: argparse.Namespace) -> int:
         (
             ["pending"]
             if not args.all
-            else ["pending", "approved", "rejected", "applied", "failed"],
+            else ["pending", "approved", "rejected", "applied", "failed", "expired"],
         ),
     )
 
@@ -450,6 +450,14 @@ def cmd_proposal_decide(settings: Settings, args: argparse.Namespace) -> int:
     from lifter import domain
 
     def decide(conn):
+        row = conn.execute("select kind from proposal where id = %s", (args.id,)).fetchone()
+        if row is not None and row[0] not in domain.PROPOSAL_PAYLOADS:
+            # A suggestion of the coach (lifter.operations): answered in the conversation,
+            # where it is checked and traced; here it would only fail
+            raise domain.DomainError(
+                f"proposal {args.id} ({row[0]}) is the coach's suggestion: answer it in the"
+                " conversation with the coach"
+            )
         domain.decide(conn, args.id, approve=args.decision == "approve")
         if args.decision == "reject":
             return f"proposal {args.id} rejected"

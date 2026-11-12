@@ -152,3 +152,16 @@ def test_a_malformed_setting_is_reported_without_a_traceback(monkeypatch, capsys
     monkeypatch.setenv("LIFTER_RUN_TOKEN_BUDGET", "60k")
     assert main(["runs"]) == 2
     assert "LIFTER_RUN_TOKEN_BUDGET must be a whole number, got '60k'" in capsys.readouterr().out
+
+
+def test_a_coach_suggestion_is_never_approved_at_the_terminal(
+    monkeypatch, capsys, conn, database_url
+):
+    from lifter.operations import suggest
+
+    pid = suggest(conn, "add_rule", {"text": "No row."}, rationale="Idea.", author="coach")
+    assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 1
+    assert "answer it in the conversation" in capsys.readouterr().out
+    assert conn.execute("select status from proposal where id = %s", (pid,)).fetchone() == (
+        "pending",
+    )

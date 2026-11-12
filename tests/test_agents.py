@@ -424,6 +424,52 @@ def test_a_plan_can_replace_a_draft_session(conn, program):
     assert result.accepted and kinds[0] == ("cancel_session",)
 
 
+def test_the_planners_cancellation_can_be_accepted_through_the_coach(conn, program):
+    from lifter import operations
+    from lifter.agents.tools import register_rule_check
+    from lifter.conversation import start
+
+    draft = domain.create_session(
+        conn, domain.SessionIn(day=date(2026, 3, 10), title="Draft", week_id=2)
+    )
+    run_week_planner(
+        conn,
+        Scripted(good_plan(cancel_session_ids=[draft])),
+        week_number=2,
+        today=TODAY,
+        propose=True,
+    )
+    (cancel,) = conn.execute("select id from proposal where kind = 'cancel_session'").fetchone()
+    start(conn, id="c1", title="x", source="cli")
+    shown = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c1', 'coach', 'Le planificateur propose d''annuler le brouillon.') returning id"
+    ).fetchone()[0]
+    operations.present(conn, conversation_id="c1", coach_message_id=shown, proposal_ids=[cancel])
+    yes = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('c1', 'athlete', %s) returning id",
+        (f"ok pour {cancel}",),
+    ).fetchone()[0]
+    register_rule_check()
+    try:
+        operations.run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote=f"ok pour {cancel}",
+            message_id=yes,
+            idempotency_key="k-cancel",
+            author="coach",
+            proposal_id=cancel,
+        )
+    finally:
+        operations._programme_check = None
+    status = conn.execute("select status from planned_session where id = %s", (draft,))
+    assert status.fetchone() == ("cancelled",)
+
+
 # The Mistral planner, without calling Mistral
 
 

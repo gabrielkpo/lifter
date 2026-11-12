@@ -24,7 +24,7 @@ Lifter coaches CrossFit only, with one method:
   (AMRAP).
 - **The week is programmed every weekend** from the review of the past week (sessions done or
   skipped, real loads and RIR, notes, pain, patterns not trained) and from the week's phase.
-  That review is what the week planner agent will start from (step 3).
+  That review is what the week planner agent starts from.
 
 ## Tables
 
@@ -39,12 +39,12 @@ Lifter coaches CrossFit only, with one method:
 | `session_exercise` | Exercise line of a part | `origin` (`planned` or `done`), `exercise_id`, `sets`, `quantity` + `unit` (reps, cal, m, s, min), `load_kg` (+ `load_kg_max` for a range), `rir`, `rest_seconds`, `notes` |
 | `goal` | Goal | `kind` (strength, skill, benchmark, other), `exercise_id`, `unit`, baseline and target (a value or a text, e.g. "first rep without a band"), `target_date`, `source` |
 | `goal_milestone` | Dated step toward a goal | `day`, `label` (e.g. end of block 1), `value` or `value_text` |
-| `athlete` | The athlete (one row) | birth date, height, weight and its date, level, training since, sessions per week, `training_places`, life `context` (on-call duty) |
+| `athlete` | The athlete (one row) | birth date, height, weight and its date, level, training since, sessions per week, `training_places`, life `context` (e.g. shift work) |
 | `health_issue` | A pain, injury or limitation the athlete declared | `body_part`, `side`, `kind`, `description`, `guidance` (what the coach must respect), `since`, `status` (active, monitoring, resolved), `source`, `reported_quote` |
 | `record_definition` | Something that can hold a record (PR tab) | `name`, `kind` (lift, gym, cardio, benchmark), `family`, `record_type` (rep_max, max_reps, max_load, max_distance, max_time, time, rounds), `unit`, `exercise_id` |
 | `record_entry` | A dated record | `definition_id`, `day`, `reps` (for a rep max), `value` or `value_text`, `source` |
 | `activity_annotation` | A correction or note on a Garmin activity (the raw data is never edited) | `activity_id`, `field`, `value`, `note`, `source` |
-| `athlete_rule` | Permanent rule of the athlete | `code` (a rule the guardrail will check in code, step 3), `text`, `params` |
+| `athlete_rule` | Permanent rule of the athlete | `code` (a rule the guardrail checks in code), `text`, `params` |
 | `coaching_note` | The athlete's method as notes: weekly frame, block count, rules not coded, load progression, warm-up, preferences, a constraint for a while | `title`, `text`, `category` (method, preference, constraint, context), `valid_from` / `valid_until` (none: permanent), `position` |
 | `feedback` | Report after a session, or morning check-in | `rpe` (1–10), `fatigue` (1–5), `pain` (0–10) + `pain_location`, `notes` |
 | `proposal` | Change proposed by an agent | `kind`, `payload`, `rationale`, `author`, `status`, `result` |
@@ -71,21 +71,28 @@ done before the cycle, outside any week.
 - **The athlete** acts directly: load a program, add, move or cancel a session, add a goal or
   a feedback (`lifter program load`, `session-add`, `session-move`, `session-cancel`,
   `goal-add`, `feedback`; the app later).
-- **An agent never writes.** It calls `propose(kind, payload, rationale, author)`. The payload
-  is validated against a strict schema (unknown fields refused) before being stored; a
-  proposal without a rationale is refused.
-- **The athlete decides** (`lifter proposal approve|reject ID`); only an approved proposal is
-  applied, by code, once, in one transaction. A proposal that cannot be applied (an exercise
-  not in the bank, a session that no longer exists) is recorded as `failed` with the reason.
+- **The week planner proposes.** It calls `propose(kind, payload, rationale, author)`; the
+  payload is validated against a strict schema before being stored. Its kinds:
+  `create_session` (a whole session, with its parts and lines), `move_session`,
+  `cancel_session`, `create_goal`. The athlete decides at the terminal
+  (`lifter proposal approve|reject ID`): an approved proposal is applied by code, once, or
+  recorded as `failed` with the reason.
+- **The coach in conversation writes through `lifter.operations`** (see "The coach's write
+  path" below): what the athlete's quoted words ask is applied at once and traced; a
+  destructive or rule-breaking change, and the coach's own ideas, wait as pending proposals for
+  the athlete's next message.
 
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> approved: approve (terminal)
+    approved --> applied: apply
+    approved --> failed: apply fails
+    pending --> rejected: reject (terminal)
+    pending --> applied: accepted in the next message (coach)
+    pending --> expired: the conversation moved on
+    expired --> pending: presented again
 ```
-pending ──approve──► approved ──apply──► applied
-   │                     └──apply fails──► failed
-   └──reject──► rejected
-```
-
-Proposal kinds: `create_session` (a whole session, with its parts and lines),
-`move_session`, `cancel_session`, `create_goal`.
 
 ## Views
 

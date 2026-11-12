@@ -1,20 +1,22 @@
 # Agents
 
-> Next: the coach in conversation, its write path and the agent team are designed in
-> [ADR 0002](adr/0002-coach-write-path-and-agent-team.md) (accepted, being built).
-
-Lifter's coach is a set of agents built with LangGraph on Mistral models. They read the
-analytics views and **propose**; they never write the domain. The athlete approves or rejects
-each proposal, and code applies it ([domain.md](domain.md)).
+Lifter's coach is built with LangGraph on Mistral models, in two agents today. The **week
+planner** reads the analytics views and **proposes** a week; it never writes the domain. The
+**coach in conversation** applies what the athlete's quoted words ask, through typed operations
+checked by code, and records a destructive or rule-breaking change for the athlete's
+confirmation ([domain.md](domain.md), [ADR 0002](adr/0002-coach-write-path-and-agent-team.md)).
+The agent team behind the coach is designed in ADR 0002 and not built yet.
 
 ## Week planner (step 3)
 
 The week planner programs one week of the cycle, the way the athlete does every weekend: from
 the review of the past week and from the phase of the coming one.
 
-```
-START → plan (LLM) → guard (code) ─ accepted ──────────────► END
-                          └─ refused, attempts left ─► plan (with the reasons)
+```mermaid
+flowchart LR
+    S((start)) --> P["plan (LLM)"] --> G{"guard (code)"}
+    G -->|accepted| E((end))
+    G -->|refused, attempts left| P
 ```
 
 - **Context** (`agents/context.py`), built by code: the target week (phase, intent per part,
@@ -137,9 +139,11 @@ week's map back and merge the given kinds into it; a kind set to null is removed
 
 One athlete message in, one reply out (`agents/coach.py`):
 
-```
-START → coach (LLM, tools bound) ─ tool calls, steps and tokens left ─► tools ─► coach
-                                 └ a reply, or a limit reached ───────────────► END
+```mermaid
+flowchart LR
+    S((start)) --> C["coach (LLM, tools bound)"]
+    C -->|tool calls, steps and tokens left| T["tools"] --> C
+    C -->|a reply, or a limit reached| E((end))
 ```
 
 - **Before the model**: the athlete's message is stored in `conversation_message` (by the

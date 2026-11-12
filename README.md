@@ -1,179 +1,180 @@
 # Lifter
 
 [![CI](https://github.com/gabrielkpo/lifter/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielkpo/lifter/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/gabrielkpo/lifter)](https://github.com/gabrielkpo/lifter/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A **CrossFit** coaching app for athletes who wear a Garmin watch, where the coach is a team
-of agents (**LangGraph + Mistral**, Garmin through the **Model Context Protocol**). It follows
-one method: a three-month cycle in three blocks, sessions in a fixed frame (weightlifting or
-gymnastics, strength, metcon), every movement prescribed with a target RIR, and every week
-programmed from the review of the last one and from the watch's recovery data. The athlete
-talks to the coach; nothing changes unless **the athlete's own words**, checked by code, ask for it.
+A **CrossFit** coaching app for athletes who wear a Garmin watch, where the coach is an agent
+(**LangGraph + Mistral**, Garmin through the **Model Context Protocol**) that the athlete talks
+to: every change it makes quotes the athlete's own message, is checked by code, traced and
+reversible, and a destructive change waits for the athlete's confirmation.
 
-> **Status: built in public.** Data layer, CrossFit domain and the app are done and hosted; the
-> week planner runs in dry run; the coach in conversation is next. See
-> [Status / Roadmap](#status--roadmap). Expect breaking changes until `v0.1.0`.
+> **Status: in use, built in public.** Data layer, domain, app and the coach in conversation run
+> in production for one athlete; the week planner runs from the command line. The agent team and
+> the long term are next.
+> See [Status / Roadmap](#status--roadmap). Expect breaking changes before `v1.0.0`.
 
 ## Why
 Programming CrossFit well is a weekly chore: review what was done (loads, RIR, skipped
 sessions, pain), check recovery, then write next week within the cycle's phase and the
 athlete's constraints. A Garmin watch measures recovery but knows nothing of the program; a
-training log knows the program but not the body. Lifter puts both in one place and gives the
-weekly programming to an agent coach, which explains every proposal with numbers traced to a
-documented metric or to the log.
-
-It covers the calendar (planned and done sessions with their Garmin line), the coach in
-conversation, the long term (blocks, deloads, test week), goals and best loads, and health
-(recovery, sleep, HRV, alerts, pain after each session).
+training log knows the program but not the body. Lifter puts both in one place and lets the
+athlete program and adjust it by talking to a coach that cites the log and the metrics.
 
 ## How it works
-Built parts are solid, planned ones dashed:
+The data path, from the watch to the coach:
 
 ```mermaid
 flowchart LR
     G["Garmin Connect"] <--> M["garmin-mcp-remote<br/>MCP server"]
     M -->|read tools only| S["lifter sync"]
     S --> R[("raw_garmin_payload")]
-    R --> V["analytics views<br/>metrics, recovery,<br/>week review, calendar"]
-    F["program file<br/>(YAML)"] --> D
-    D[("domain tables<br/>cycle, sessions, exercises,<br/>goals, rules, proposals")] --> V
-    V -.-> A["Agent coach<br/>LangGraph + Mistral"]
-    U["athlete's message<br/>(PWA chat)"] -.-> A
-    A -.->|typed operation<br/>+ athlete's quote| X["write path (code)<br/>quote, rules, trace"]
-    X -.-> D
-    classDef planned stroke-dasharray: 5 5
-    class A,U,X planned
+    R --> V["analytics views (dbt)<br/>metrics, recovery,<br/>week review, calendar"]
+    D[("domain tables<br/>cycle, sessions, exercises,<br/>goals, rules, coaching notes")] --> V
+    V --> P["week planner<br/>LangGraph + Mistral"]
+    V --> C["coach<br/>LangGraph + Mistral"]
+    U["athlete<br/>(PWA chat)"] <--> C
+    P -->|proposals, approved<br/>at the terminal| D
+    C -->|typed operation<br/>+ athlete's quote| X["lifter.operations<br/>quote, rules, trace, undo"]
+    X --> D
 ```
 
-The agent team behind the coach (supervisor, week and long-term planners, health and performance
-analysts) is designed in [ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md).
+The coach's write path, for one athlete message:
+
+```mermaid
+sequenceDiagram
+    participant A as Athlete
+    participant C as Coach (Mistral)
+    participant O as lifter.operations
+    A->>C: "Delete Thursday's session"
+    C->>O: apply_change(delete_session, payload, quote)
+    O-->>C: needs_confirmation, request 12 (deletes its parts and lines)
+    C->>A: "It deletes the session with its parts. Confirm with 12?"
+    A->>C: "ok 12"
+    C->>O: accept_suggestion(12, quote)
+    O-->>C: applied, change_id, rules now in breach
+    C->>A: what changed, and how to undo it
+```
 
 Choices and their trade-offs:
-- **The athlete's words are the approval, checked by code.** The coach writes only through typed
-  operations; each must quote the athlete's message, verified word for word, passes the rules
-  and is traced and reversible ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)).
-- **A supervisor with specialists rather than one agent with every tool.** One agent choosing
-  among many tools tends to choose poorly; the bench will check this against a single agent.
-- **dbt for the analytics layer, as views.** Not for the volume (a few MB) but for guarantees on
-  the numbers the agents cite: contracts, data tests on the real data, lineage
-  ([ADR 0001](docs/adr/0001-dbt-for-the-analytics-layer.md)).
-- **Agents read numbers, they never compute them.** Metrics are defined once in
-  [docs/metrics.md](docs/metrics.md), the domain in [docs/domain.md](docs/domain.md); the
-  athlete's rules (no running, no free barbell on the legs, load up only when the RIR is met)
-  run as code in the guardrail, not as prompt text.
-- **One sport, one method.** CrossFit gives sessions a fixed frame and the coach a clear job; a
-  multi-sport planner would be vaguer and harder to evaluate.
+- **The athlete's words are the authority, checked by code, not the model's reading.** Every
+  write is a typed operation that quotes the athlete's latest message, word for word. A quote
+  only proves the words exist, so destructive operations and changes that break the athlete's
+  rules take a second, numbered confirmation; the rest applies at once and can be undone
+  ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)). The price: one more message
+  for risky changes.
+- **Agents read numbers, they never compute them.** Metrics are defined once
+  ([docs/metrics.md](docs/metrics.md)) and computed in dbt views with contracts and data tests
+  ([ADR 0001](docs/adr/0001-dbt-for-the-analytics-layer.md)); the athlete's coded rules run in a
+  guardrail, not as prompt text.
+- **The method is data.** The cycle, blocks and weeks carry their intent, and the athlete's
+  method lives in coaching notes the coach reads and edits with them, not in the prompt.
+- **One agent first, a team later, measured.** The agent team (planners, analysts) is designed
+  in ADR 0002 and must beat the single agent on the bench before it ships.
 
 ## Example
-`lifter metrics --days 14` on **synthetic** data with a hard last week
-([scripts/readme_example.py](scripts/readme_example.py)), last 6 rows:
+A bench scenario on a synthetic athlete whose rule forbids a free barbell on the legs
+(`bench/conversations/forbidden_exercise.yaml`, run in French, translated and shortened here):
 
 ```
-day         load   acute_load_7d  chronic_load_28d  acwr  hrv_delta_pct  rhr_delta_bpm  sleep_hours  recovery_score  recovery_status  trend
-2026-09-22  150.0  495.0          450.0             1.10  1.6            -1.0           7.14         62              normal           stable
-2026-09-23  110.0  530.0          458.8             1.16  1.8            -1.0           6.57         56              normal           stable
-2026-09-24  130.0  540.0          472.5             1.14  -20.1          1.0            8.08         47              normal           improving
-2026-09-25  130.0  670.0          505.0             1.33  -6.5           3.0            7.09         41              normal           improving
-2026-09-26  110.0  705.0          502.5             1.40  -22.4          2.9            7.36         33              low              fatigue
-2026-09-27  130.0  760.0          505.0             1.50  -3.6           2.8            7.42         48              normal           fatigue
+athlete> Add back squat 5x5 at 80 kg to this week's Legs + Metcon session.
+coach>   That breaks your rule "No free barbell on the legs", so it waits for you:
+         confirm with 1, or I can suggest a leg press instead.
+athlete> Yes, I confirm.
+coach>   Added back squat 5x5 at 80 kg to Friday's Legs + Metcon. It breaks
+         "No free barbell on the legs"; undo it from this message if needed.
 ```
 
-On 26 September, HRV is 22 % under the athlete's baseline (`hrv_drop` alert), recovery is `low`
-and the trend turns to `fatigue`: the coach must propose a lighter week.
+## Results
+Measured with Mistral on synthetic scenarios ([docs/bench.md](docs/bench.md)); each figure is
+the summary of a committed run file in `bench/results/`.
 
-## Status / Roadmap
-Each step lands as a reviewed pull request with green CI.
+| Bench | Configuration | Runs | Result |
+|---|---|---|---|
+| Week planner, 21 scenarios | Floor: copy last week, no model | 21 | 71 % plans accepted, 66 % expectations met |
+| | Single agent, `mistral-small-latest` | 105 | 88 % accepted, 80 % expectations met |
+| Coach in conversation, 15 scenarios | `mistral-small-latest` | 45 | 39 fully met (87.5 % expectations) |
+| | `mistral-medium-latest` | 45 | 42 fully met (95.8 %) |
+| Coach, current code, 22 scenarios | Floor: a coach that never calls a tool | 22 | 6 fully met (43 %) |
+| | `mistral-medium-latest` (default) | 66 | 65 fully met (98.1 %) |
 
-| # | Step | Status |
-|---|---|---|
-| 1 | Garmin sync, metrics, recovery and form | ✅ Done |
-| 2 | CrossFit domain: cycle, blocks, weeks, sessions in parts, exercise bank, goals, rules | ✅ Done |
-| 3 | Week planner agent from the command line, guardrail, audit log; release `v0.1.0` | ✅ Done ([docs/agents.md](docs/agents.md)), tuned on the Mistral bench; `v0.1.0` and `v0.1.1` released |
-| 4 | App (API + PWA, hosted) and the coach in conversation ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)) | 🔨 App, hosting and the coach's write path done ([docs/app.md](docs/app.md), [docs/domain.md](docs/domain.md)); the Coach tab next |
-| 5 | Optional: push approved sessions to the Garmin calendar | Planned |
-| 6 | Long term (block transitions, test week), scheduled coach runs, notifications | Planned |
-| 7 | Evaluation bench: single agent vs agent team | 🔨 Bench and 21 scenarios built ([docs/bench.md](docs/bench.md)); comparison after the coach |
-| 8 | Public demo on synthetic athletes, next to the private instance | Planned |
-| 9 | Results write-up | Planned |
-
-**Evaluation plan**, written before any run: 21 scenarios with their expected outcome, a floor
-to beat without a model, and a decision rule for the agent team ([docs/bench.md](docs/bench.md)).
+Read with care: the coach's prompt was tuned on these same scenarios (no held-out set yet), each
+rate rests on 3 to 5 runs per scenario without an interval, and `-latest` model aliases move.
 
 ## Run it
-Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 if missing), a local Postgres 18
-(the hosted version) and a running [garmin-mcp-remote](https://github.com/gabrielkpo/garmin-mcp-remote), reached on the
-loopback or a private network; its bearer token goes in `.env`.
+Needs [uv](https://docs.astral.sh/uv/), a local Postgres 18, a running
+[garmin-mcp-remote](https://github.com/gabrielkpo/garmin-mcp-remote) (its token in `.env`) and,
+for the agents, a `MISTRAL_API_KEY`.
 
 ```bash
-cp .env.example .env               # then set GARMIN_MCP_TOKEN
+cp .env.example .env                                # then set GARMIN_MCP_TOKEN and MISTRAL_API_KEY
 createdb lifter
-uv sync
-uv run lifter sync --days 90       # creates or updates the schema, then syncs (read-only on Garmin)
-uv run lifter program load examples/program.yaml   # or your own program, kept in data/
-uv run lifter weeks                # also: program, week N, session ID, calendar, goals, bests
-uv run lifter plan-week            # the week planner agent, dry run (needs MISTRAL_API_KEY)
+uv run lifter sync --days 90                        # creates the schema, then syncs (read-only on Garmin)
+uv run lifter program load examples/program.yaml    # a synthetic CrossFit program
+uv run lifter chat "Move Thursday's session to Friday"
 ```
 
-`lifter sync --no-migrate` only checks the schema (scheduled syncs may not change it). Every
-command: `uv run lifter --help`.
-
-## App
-A mobile-first web app, installable as a PWA (Next.js, `web/`), over a private, read-only HTTP
-API (FastAPI, `src/lifter/api/`) that reads the same analytics views as the CLI. Five tabs:
-**WOD**, **PRs**, **Coach**, **Planning** and **Health**; the profile opens from the avatar.
-Hosted on Vercel behind Deployment Protection, data on Neon Postgres (Frankfurt). Screens,
-endpoints and deployment: [docs/app.md](docs/app.md).
-
-```bash
-uv run lifter-api                  # http://127.0.0.1:8000, interactive docs at /docs
-cd web && npm ci && npm run dev    # http://localhost:3000
-```
+Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs/app.md).
 
 ## Project structure
 | Path | Content |
 |---|---|
-| `src/lifter/` | CLI, Garmin sync (read-only MCP allowlist), domain and program loader, migrations and roles (`sql/`) |
+| `src/lifter/` | CLI, Garmin sync (read-only MCP allowlist), domain, operations catalogue, migrations and roles (`sql/`) |
 | `src/lifter/transform/` | Analytics layer: dbt models, data tests, contracts |
-| `src/lifter/agents/`, `bench/` | Week planner (LangGraph + Mistral, guardrail) and its evaluation bench |
-| `src/lifter/api/`, `api/`, `web/` | Read-only API (FastAPI, on Vercel) and the Next.js PWA |
+| `src/lifter/agents/`, `bench/` | Week planner and coach (LangGraph + Mistral, guardrail), their scenarios and results |
+| `src/lifter/api/`, `api/` | HTTP API (FastAPI, on Vercel): reads, and the conversation with the coach |
+| `web/` | The Next.js PWA: five tabs, the coach's chat, its own sign-in |
 | `ops/` | Scheduled jobs on the athlete's Mac: sync, backups, restore test |
 | `docs/` | Metrics, domain, agents, bench, app, operations, decisions (`adr/`) |
-| `tests/`, `examples/` | pytest on synthetic data; a synthetic CrossFit program |
 
 ## Data and privacy
 - **In the repository**: code, definitions and synthetic data only; `data/` and `.env` are
   ignored; gitleaks scans every pull request.
 - **Never in the repository**: the athlete's Garmin data, program, rules, log, profile and
-  health; they live in the database (Neon, Frankfurt, read through least-privilege roles) and
-  in `data/`.
-- **Sent to a third party**: calls to the athlete's own MCP server, never exposed without
-  authentication, and the agents' context to Mistral: the structured log, indicators and the
-  programme's text (titles, intents, rules, goals, pain locations); no notes, deviations or
-  reviews by default, never raw series nor activity names. See
-  [docs/agents.md](docs/agents.md#what-is-sent-to-mistral).
-- **Two instances**: the personal one; a public demo on synthetic athletes only.
-- **No medical advice**: unusual signals raise `critical` alerts that block intense plans and
-  point to a health professional.
+  health; they live in the database (Neon, Frankfurt, least-privilege roles) and in `data/`.
+- **Sent to Mistral by the week planner**: the structured log, indicators and the programme's
+  text (titles, intents, rules, goals, pain locations); notes and reviews only with
+  `LIFTER_LLM_CONTEXT=full`.
+- **Sent to Mistral by the coach, always**: the conversation, this week's and next week's
+  sessions, the programme with its week reviews, the coaching notes, open health issues with
+  their descriptions, and the rows it reads with its tools.
+  [docs/agents.md](docs/agents.md#what-is-sent-to-mistral) has the detail.
+- **One private instance** today; a public demo on synthetic athletes is planned (step 8).
+- **No medical advice**: unusual signals raise alerts that point to a health professional.
 
 ## Limitations / next
-- Thresholds are version 1 training heuristics for one athlete, to be tuned with the bench.
-- Baselines need 14 measured nights and the load ratio 28 days: a new athlete waits two weeks.
-- Sessions are matched to the day's training activities by order; other activities (a bike
-  commute) never complete one.
-- Until the coach can write (ADR 0002), the log is written in the program file and reloaded
-  with `--replace`.
-- The sync, the backup and the restore test run on the athlete's Mac (launchd,
-  [docs/operations.md](docs/operations.md)): no sync while the Mac is off.
+- The coach's figures are in-sample (see Results); a held-out scenario set comes before the next
+  prompt change.
+- A coach turn sends about 10,000 tokens per model call and may stop at its 60,000-token budget
+  after six calls; prompt caching and a lighter snapshot are next.
+- Thresholds are version 1 heuristics for one athlete; baselines need 14 measured nights.
+- One athlete per instance: sign-in by email and per-athlete data isolation are a later step.
+- The sync, the backup and the restore test run on the athlete's Mac
+  ([docs/operations.md](docs/operations.md)): no sync while the Mac is off.
+
+## Status / Roadmap
+| # | Step | Status |
+|---|---|---|
+| 1 | Garmin sync, metrics, recovery and form | ✅ Done |
+| 2 | CrossFit domain: cycle, blocks, weeks, sessions in parts, exercise bank, goals, rules | ✅ Done |
+| 3 | Week planner agent, guardrail, audit log | ✅ Done ([docs/agents.md](docs/agents.md)) |
+| 4 | App (API + PWA, hosted) and the coach in conversation | ✅ Done ([docs/app.md](docs/app.md)) |
+| 5 | Optional: push sessions to the Garmin calendar | Planned |
+| 6 | Agent team: cycle and week planners, analysts; long term, test week | 🔨 Designed (ADR 0002), first pieces in the coach |
+| 7 | Evaluation bench: single agent vs agent team | 🔨 Bench running ([docs/bench.md](docs/bench.md)); comparison when the team exists |
+| 8 | Public demo on synthetic athletes | Planned |
+| 9 | Results write-up | Planned |
 
 ## Development
 ```bash
 uv sync --group dev
 uv run pre-commit install         # ruff (locked version) and gitleaks before each commit
-uv run pytest                     # needs a local Postgres 18, the hosted version (TEST_DATABASE_URL)
+uv run pytest                     # needs a local Postgres 18 (TEST_DATABASE_URL)
 ```
-Pull requests use Conventional Commits titles, go through a security review and a code review
-before opening, and need green tests, gitleaks and PR title checks. Releases come from
-release-please's pull request, published only when it is merged.
+The code is written with an AI coding agent under the owner's direction. Each pull request has a
+Conventional Commits title and goes through an automated security review and code review, whose
+findings and fixes are in its description; CI must be green and the owner merges. Releases come
+from release-please's pull request.
 
 ## License
 [MIT](LICENSE)

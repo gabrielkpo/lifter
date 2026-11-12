@@ -983,6 +983,9 @@ version = "0.8.1"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
+    { name = "httpx2" },
+    { name = "langchain-core" },
     { name = "langchain-mistralai" },
     { name = "langgraph" },
     { name = "mcp" },
@@ -1001,7 +1004,6 @@ transform = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "lifter", extra = ["transform"] },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -1013,9 +1015,12 @@ requires-dist = [
     { name = "dbt-core", marker = "extra == 'transform'", specifier = ">=1.12.6" },
     { name = "dbt-postgres", marker = "extra == 'transform'", specifier = ">=1.11.0" },
     { name = "fastapi", specifier = ">=0.162.2" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "httpx2", specifier = ">=2.13.1" },
+    { name = "langchain-core", specifier = ">=1.6.11" },
     { name = "langchain-mistralai", specifier = ">=1.1.6" },
     { name = "langgraph", specifier = ">=1.2.20" },
-    { name = "mcp", specifier = ">=1.9" },
+    { name = "mcp", specifier = ">=2.3.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.8" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "python-dotenv", specifier = ">=1.0" },
@@ -1026,7 +1031,6 @@ provides-extras = ["transform"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
     { name = "lifter", extras = ["transform"] },
     { name = "pre-commit", specifier = ">=4.7.0" },
     { name = "pytest", specifier = ">=9.2.0" },

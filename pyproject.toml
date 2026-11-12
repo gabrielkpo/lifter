@@ -2,18 +2,32 @@
 name = "lifter"
 version = "0.8.1"
 description = "CrossFit coach agent on Garmin data: each change the coach makes quotes the athlete, is traced and can be undone."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Gabriel Kpodoh" }]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.2",
+    # Imported by the API and the coach directly, not only through langchain-mistralai.
+    "httpx>=0.28.1",
+    "langchain-core>=1.6.11",
     "langchain-mistralai>=1.1.6",
     "langgraph>=1.2.20",
-    "mcp>=1.9",
+    # The 2.x client (streamable_http_client, MCPError) and its httpx2 transport.
+    "httpx2>=2.13.1",
+    "mcp>=2.3.0",
     "psycopg[binary]>=3.3.8",
     "pydantic>=2.14.3",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
     "uvicorn>=0.54.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/gabrielkpo/lifter"
+Repository = "https://github.com/gabrielkpo/lifter"
+Changelog = "https://github.com/gabrielkpo/lifter/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 # For whoever migrates or runs the data tests (the owner, the tests). The API and the scheduled
@@ -30,7 +44,6 @@ lifter-api = "lifter.api.server:main"
 [dependency-groups]
 dev = [
     "lifter[transform]",
-    "httpx>=0.28.1",
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
     "ruff>=0.17.4",

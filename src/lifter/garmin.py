@@ -7,8 +7,10 @@ from contextlib import AsyncExitStack, suppress
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
+import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
+from mcp.shared.exceptions import MCPError
 
 from lifter.config import ConfigError
 
@@ -36,7 +38,13 @@ SHARED_RANGE = ipaddress.ip_network("100.64.0.0/10")
 
 
 class McpUnavailable(ConnectionError):
-    """The Garmin MCP server cannot be reached: nothing was sent to it."""
+    """The Garmin MCP server cannot be reached, or did not answer the session's opening in time."""
+
+
+# A call of the scheduled sync waits this long at most: the SDK's default read timeout (300 s)
+# would let one hung call hold the sync for five minutes.
+HTTP_TIMEOUT = httpx2.Timeout(30.0, read=60.0)
+CALL_TIMEOUT_SECONDS = 60.0
 
 
 def _on_private_network(host: str) -> bool:
@@ -115,19 +123,26 @@ class McpToolCaller:
         self._stack = AsyncExitStack()
         try:
             http = await self._stack.enter_async_context(
-                create_mcp_http_client(headers={"Authorization": f"Bearer {self._token}"})
+                create_mcp_http_client(
+                    headers={"Authorization": f"Bearer {self._token}"}, timeout=HTTP_TIMEOUT
+                )
             )
             read, write = await self._stack.enter_async_context(
                 streamable_http_client(self.url, http_client=http)
             )
-            self._session = await self._stack.enter_async_context(ClientSession(read, write))
+            self._session = await self._stack.enter_async_context(
+                ClientSession(read, write, read_timeout_seconds=CALL_TIMEOUT_SECONDS)
+            )
             await self._session.initialize()
-        except BaseException:
+        except BaseException as exc:
             # Close what was opened in this task, or anyio closes it later from another one
             # and buries the real error under "exit cancel scope in a different task"; a
             # failure while closing must not replace the real error either.
             with suppress(Exception):
                 await self._stack.aclose()
+            if isinstance(exc, Exception) and not isinstance(exc, (MCPError, McpUnavailable)):
+                # The transport's own errors (httpx2, a timeout, a reset): one kind for the caller.
+                raise McpUnavailable(f"{type(exc).__name__}: {exc}") from exc
             raise
         return self
 
@@ -141,7 +156,7 @@ class McpToolCaller:
         if self._session is None:
             raise RuntimeError("use McpToolCaller as an async context manager")
         try:
-            result = await self._session.call_tool(tool, arguments)
+            result = await self._session.call_tool(tool, arguments)  # the session's timeout
         except Exception as exc:  # transport or protocol failure: one failed call, not a crash
             raise ToolError(f"{type(exc).__name__}: {exc}") from exc
         text = "".join(c.text for c in result.content if getattr(c, "type", None) == "text")

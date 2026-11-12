@@ -54,7 +54,6 @@ def cmd_migrate(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
-    import httpx
     import psycopg
     from mcp.shared.exceptions import MCPError
 
@@ -95,7 +94,7 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     except ConfigError as exc:  # the MCP URL, refused before the token is sent
         print(printable(f"invalid setting: {exc}"))
         return 2
-    except (McpUnavailable, MCPError, httpx.HTTPError) as exc:  # down, or the token refused
+    except (McpUnavailable, MCPError) as exc:  # down, or the token refused
         print(printable(f"Garmin MCP server: {type(exc).__name__}: {exc}"))
         return 3
     except psycopg.Error as exc:  # unreachable, or a refused write: the sync wrote nothing more

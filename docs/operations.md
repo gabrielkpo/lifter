@@ -104,7 +104,9 @@ A failed step stops the next ones. Deploy also runs by hand (Actions, Deploy, Ru
 public): Neon keeps 6 hours of history and the Mac backs it up daily (see Backups).
 
 Then, on the Mac, `ops/upgrade.sh` installs the new version's `lifter` command and jobs; until
-then the sync stops with "schema out of date" when the version changed the schema.
+then the sync stops with "schema out of date" when the version changed the schema. It refuses a
+tag that is not on `main`, and installs the dependency versions of the tag's `uv.lock` (as
+constraints), the ones CI tested.
 
 The workflow reads the GitHub environment `deploy` (Settings, Environments; not `Production`,
 where Vercel records its own deployments), open to `main` only:

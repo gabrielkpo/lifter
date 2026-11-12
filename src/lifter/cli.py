@@ -432,7 +432,7 @@ def cmd_feedback(settings: Settings, args: argparse.Namespace) -> int:
     from lifter import domain
 
     feedback = domain.FeedbackIn(
-        day=args.day,
+        day=args.day or athlete_today(),
         kind=args.kind,
         planned_session_id=args.session,
         rpe=args.rpe,
@@ -1001,7 +1001,7 @@ def build_parser() -> argparse.ArgumentParser:
     cancel.set_defaults(func=cmd_session_cancel)
 
     fb = sub.add_parser("feedback", help="report how a session or a morning went")
-    fb.add_argument("--day", type=date.fromisoformat, default=athlete_today())
+    fb.add_argument("--day", type=date.fromisoformat, help="default: today")
     fb.add_argument("--kind", choices=["session", "morning"], default="session")
     fb.add_argument("--session", type=int, help="planned session id")
     fb.add_argument("--rpe", type=int, help="1 to 10")

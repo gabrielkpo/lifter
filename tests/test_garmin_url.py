@@ -117,3 +117,45 @@ def test_sync_stops_before_sending_the_token_in_clear(monkeypatch, capsys):
     monkeypatch.setenv("GARMIN_MCP_TOKEN", "token")
     assert main(["sync"]) == 2
     assert "GARMIN_MCP_URL must be https" in capsys.readouterr().out
+
+
+def test_sync_gives_up_on_a_server_that_never_answers(monkeypatch, capsys):
+    """A server that accepts the connection and never answers: exit 3 within the timeout."""
+    import socket
+    import threading
+
+    import httpx2
+
+    from lifter import garmin
+    from lifter.cli import main
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    held: list[socket.socket] = []
+    stop = threading.Event()
+
+    def accept():
+        listener.settimeout(0.2)
+        while not stop.is_set():
+            try:
+                held.append(listener.accept()[0])  # read nothing, answer nothing
+            except OSError:
+                continue
+
+    threading.Thread(target=accept, daemon=True).start()
+    try:
+        monkeypatch.setattr(garmin, "HTTP_TIMEOUT", httpx2.Timeout(1.0))
+        monkeypatch.setattr(garmin, "CALL_TIMEOUT_SECONDS", 1.0)
+        monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+        monkeypatch.setenv("GARMIN_MCP_URL", f"http://127.0.0.1:{listener.getsockname()[1]}/mcp")
+        monkeypatch.setenv("GARMIN_MCP_TOKEN", "a-token")
+        assert main(["sync", "--days", "1"]) == 3
+        captured = capsys.readouterr()
+        assert captured.out.startswith("Garmin MCP server: ")
+        assert "a-token" not in captured.out + captured.err
+    finally:
+        stop.set()
+        for conn in held:
+            conn.close()
+        listener.close()

@@ -131,7 +131,8 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 - **In the repository**: code, definitions and synthetic data only; `data/` and `.env` are
   ignored; gitleaks scans every pull request.
 - **Never in the repository**: the athlete's Garmin data, program, rules, log, profile and
-  health; they live in the database (Neon, Frankfurt, least-privilege roles) and in `data/`.
+  health; they live in the database (Neon, Frankfurt, least-privilege roles) and in `data/`;
+  the API's functions run in Frankfurt too (`vercel.json`).
 - **Sent to Mistral by the week planner**: the structured log, indicators and the programme's
   text (titles, intents, rules, goals, pain locations); notes and reviews only with
   `LIFTER_LLM_CONTEXT=full`.

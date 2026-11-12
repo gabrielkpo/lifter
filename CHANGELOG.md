@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.1](https://github.com/gabrielkpo/lifter/compare/v0.8.0...v0.8.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* a confirmed or accepted partial update changes only its fields; rule params checked; data errors refused; turns logged ([#132](https://github.com/gabrielkpo/lifter/issues/132)) ([034920c](https://github.com/gabrielkpo/lifter/commit/034920cf33d26188e77f953ce909c700fe8bd2e0))
+* a week's intent is text, one type for every writer, and a stored non-text value no longer locks the week ([#128](https://github.com/gabrielkpo/lifter/issues/128)) ([55cfccc](https://github.com/gabrielkpo/lifter/commit/55cfccc058591ef8af235ad6eff6a8c05fcd7f58))
+* less personal data to the model and the read role: read_rows hides identity columns, /proposals never returns a result ([#131](https://github.com/gabrielkpo/lifter/issues/131)) ([67e2533](https://github.com/gabrielkpo/lifter/commit/67e2533753f71ed6db35287c240d603783cf5dae))
+* the coach has its own budget per turn and per day, and the API's settings live in Settings ([#130](https://github.com/gabrielkpo/lifter/issues/130)) ([67d0f6b](https://github.com/gabrielkpo/lifter/commit/67d0f6badcea9d2cf60e75e90fb28851b4ca85c7))
+* the planner's cancellation can be accepted through the coach, the terminal never fails a coach suggestion ([#133](https://github.com/gabrielkpo/lifter/issues/133)) ([b5d03e4](https://github.com/gabrielkpo/lifter/commit/b5d03e4e557fe1da33d4296259cd2ce2cdf01bef))
+
 ## [0.8.0](https://github.com/gabrielkpo/lifter/compare/v0.7.0...v0.8.0) (2026-11-12)
 
 

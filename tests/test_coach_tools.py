@@ -150,14 +150,20 @@ def test_a_quote_the_athlete_did_not_write_changes_nothing(conn, program):
     assert session(conn, "Legs + Metcon")[2] == day
 
 
-def test_a_change_that_breaks_a_rule_is_applied_with_the_rule(conn, program):
-    # 20/10, the owner: what the athlete asks is applied; the rule it breaks comes back with it.
+def squats(conn) -> int:
+    return conn.execute(
+        "select count(*) from session_line where exercise = 'Back squat'"
+    ).fetchone()[0]
+
+
+def ask_for_a_back_squat(conn) -> dict:
+    """The athlete asks for an exercise their rule forbids: the coach calls apply_change."""
     part = conn.execute(
         "select sp.id from session_part sp join planned_session p on p.id = sp.session_id"
         " where p.title = 'Legs + Metcon' and sp.kind = 'strength'"
     ).fetchone()[0]
     _, tools = tools_for(conn, "Ajoute du back squat 3x5 à 60 kg RIR 2 sur la séance jambes")
-    result = call(
+    return call(
         tools,
         "apply_change",
         operation="add_line",
@@ -171,11 +177,96 @@ def test_a_change_that_breaks_a_rule_is_applied_with_the_rule(conn, program):
         },
         quote="Ajoute du back squat 3x5 à 60 kg RIR 2",
     )
-    assert result["ok"]
-    assert any("Back squat" in v for v in result["violations"])
+
+
+def test_a_change_that_breaks_a_rule_waits_for_the_athletes_confirmation(conn, program):
+    asked = ask_for_a_back_squat(conn)
+    # Nothing applied: recorded as the athlete's request, with the rule it would break
+    assert asked["needs_confirmation"] and not asked["applied"] and squats(conn) == 0
+    assert any("free barbell" in why for why in asked["why"])
+    request = asked["suggestion_id"]
     assert conn.execute(
-        "select count(*) from session_line where exercise = 'Back squat'"
-    ).fetchone() == (1,)
+        "select author, status from proposal where id = %s", (request,)
+    ).fetchone() == (
+        "athlete",
+        "pending",
+    )
+    coach_replies(conn, f"Ça enfreint ta règle. Tu confirmes ? Réponds {request}.", [request])
+
+    _, tools = tools_for(conn, "oui, confirme")  # no number: the only request shown
+    confirmed = call(tools, "accept_suggestion", suggestion_id=request, quote="oui, confirme")
+    # Confirmed, it is applied all the same and the rule it breaks comes back with it
+    assert confirmed["ok"] and squats(conn) == 1
+    assert any("Back squat" in v for v in confirmed["violations"])
+
+
+def test_a_confirmation_is_never_given_in_the_same_turn(conn, program):
+    asked = ask_for_a_back_squat(conn)
+    _, tools = tools_for(conn, "Ajoute du back squat 3x5 à 60 kg RIR 2, je confirme")
+    refused = call(
+        tools, "accept_suggestion", suggestion_id=asked["suggestion_id"], quote="je confirme"
+    )
+    assert not refused["ok"] and "not presented" in refused["error"] and squats(conn) == 0
+
+
+def test_a_destructive_operation_waits_for_confirmation_even_without_a_rule(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "Supprime la séance jambes")
+    asked = call(
+        tools,
+        "apply_change",
+        operation="delete_session",
+        payload={"id": sid, "expected_version": version},
+        quote="Supprime la séance jambes",
+    )
+    assert asked["needs_confirmation"] and "parts and lines" in asked["why"][0]
+    assert session(conn, "Legs + Metcon")[0] == sid  # still there
+    coach_replies(conn, "Tu confirmes la suppression ?", [asked["suggestion_id"]])
+
+    # The model calling apply_change again on the confirmation is sent to the waiting change
+    _, tools = tools_for(conn, f"oui {asked['suggestion_id']}")
+    again = call(
+        tools,
+        "apply_change",
+        operation="delete_session",
+        payload={"id": sid, "expected_version": version},
+        quote=f"oui {asked['suggestion_id']}",
+    )
+    assert not again["ok"] and f"suggestion_id {asked['suggestion_id']}" in again["error"]
+    done = call(
+        tools,
+        "accept_suggestion",
+        suggestion_id=asked["suggestion_id"],
+        quote=f"oui {asked['suggestion_id']}",
+    )
+    assert done["ok"]
+    assert conn.execute(
+        "select count(*) from planned_session where id = %s", (sid,)
+    ).fetchone() == (0,)
+
+
+def test_an_accepted_suggestion_is_the_one_the_athlete_numbers(conn, program):
+    sid, version, day = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "Que proposes-tu pour la séance jambes ?")
+    ideas = [
+        call(
+            tools,
+            "suggest_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": new_day, "expected_version": version},
+            rationale="Recovery.",
+        )["suggestion_id"]
+        for new_day in ("2026-03-05", "2026-03-06")
+    ]
+    coach_replies(conn, f"Vendredi ({ideas[0]}) ou samedi ({ideas[1]}) ?", ideas)
+
+    _, tools = tools_for(conn, f"ok pour {ideas[0]}.")
+    wrong = call(tools, "accept_suggestion", suggestion_id=ideas[1], quote=f"ok pour {ideas[0]}")
+    assert not wrong["ok"] and f"not suggestion {ideas[1]}" in wrong["error"]
+    _, tools = tools_for(conn, "ok, vas-y")  # two shown, no number: which one?
+    vague = call(tools, "accept_suggestion", suggestion_id=ideas[0], quote="ok, vas-y")
+    assert not vague["ok"] and "names none" in vague["error"]
+    assert session(conn, "Legs + Metcon")[2] == day  # nothing moved
 
 
 def test_an_invalid_payload_is_explained_to_the_model(conn, program):

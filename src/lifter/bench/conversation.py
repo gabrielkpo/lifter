@@ -219,8 +219,14 @@ def week_intent(conn, p) -> tuple[bool, str]:
 
 
 def planned_line(conn, p) -> tuple[bool, str]:
+    """The session has a planned line of the exercise (none, with `absent: true`)."""
     n = _lines(conn, p["week"], p["title"], "planned", p["exercise"])
-    return n > 0, f"{n} planned line(s) of {p['exercise']}"
+    return (n == 0 if p.get("absent") else n > 0), f"{n} planned line(s) of {p['exercise']}"
+
+
+def no_session(conn, p) -> tuple[bool, str]:
+    found = _session(conn, p["week"], p["title"])
+    return found is None, f"{p['title']} of week {p['week']}: {'gone' if found is None else 'kept'}"
 
 
 def reply_mentions(conn, p) -> tuple[bool, str]:
@@ -246,6 +252,7 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "no_forbidden_suggestion": no_forbidden_suggestion,
     "week_intent": week_intent,
     "planned_line": planned_line,
+    "no_session": no_session,
     "reply_mentions": reply_mentions,
     "coaching_note": coaching_note,
 }

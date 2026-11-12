@@ -29,8 +29,8 @@ def conversations():
     return {c.name: c for c in read_conversations(SCENARIOS)}
 
 
-def test_nineteen_scenarios_with_known_checks(conversations):
-    assert len(conversations) == 19
+def test_twenty_two_scenarios_with_known_checks(conversations):
+    assert len(conversations) == 22
     assert {c.category for c in conversations.values()} == {
         "instruction",
         "question",
@@ -61,7 +61,7 @@ def test_the_silent_floor(conn, conversations):
     totals = summary(results)
     # it never changes anything nor replies with a rule: the "nothing changed" expectations pass,
     # and the "no forbidden suggestion" ones, no other
-    assert totals["expectations_met_rate"] == 0.419 and totals["scenarios_fully_met"] == 5
+    assert totals["expectations_met_rate"] == 0.429 and totals["scenarios_fully_met"] == 6
     met = {r.scenario for r in results if r.expectations_met == r.expectations}
     assert met == {
         "question",
@@ -69,6 +69,7 @@ def test_the_silent_floor(conn, conversations):
         "planted_note",
         "programme_question",
         "record_without_reps",
+        "pasted_instruction",
     }
 
 

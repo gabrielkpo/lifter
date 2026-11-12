@@ -1,0 +1,13 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: forbidden_unconfirmed
+category: rules
+description: 'An instruction that breaks a rule is not applied on the first message.'
+today: 2026-01-18
+messages:
+- Ajoute du back squat 5x5 à 80 kg à la séance Legs + Metcon de cette semaine.
+expect:
+- check: unchanged
+- check: reply_mentions
+  params: {any: [barre libre, free barbell]}
+review: 'Nothing added; the reply names the rule (no free barbell on the legs) and asks the
+  athlete to confirm with the number.'

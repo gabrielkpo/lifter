@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from lifter import domain
 from lifter.api.app import create_app, read_only_url
+from lifter.config import today as athlete_today
 from lifter.db import connect
 from lifter.program import load_program, read_program
 from lifter.sync import store_payload
@@ -163,7 +164,7 @@ def test_the_calendar_refuses_a_reversed_or_too_long_range(api):
 def test_the_current_week_is_the_one_containing_today(api, conn, program):
     assert api.get("/weeks/current").status_code == 404  # the synthetic weeks are past
 
-    monday = date.today() - timedelta(days=date.today().weekday())
+    monday = athlete_today() - timedelta(days=athlete_today().weekday())
     conn.execute(
         "insert into training_week (cycle_id, number, start_date, phase)"
         " select id, 3, %s, 'volume' from cycle",
@@ -228,7 +229,7 @@ def test_the_profile_is_empty_until_the_athlete_is_described(api):
 def test_the_profile_shows_the_athlete_their_issues_active_first_and_their_rules(api, conn):
     # A synthetic athlete: real values only ever live in the database.
     # Thirty years and a few days ago, whatever today is (29 February included).
-    today = date.today()
+    today = athlete_today()
     born = (
         date(today.year - 30, 1, 1)
         if today >= date(today.year, 1, 2)
@@ -272,7 +273,7 @@ def test_status_says_when_garmin_data_last_arrived(api, conn):
 
     seen = api.get("/status").json()["garmin_last_seen_at"]
 
-    assert seen is not None and seen.startswith(str(date.today().year))
+    assert seen is not None and seen.startswith(str(athlete_today().year))
 
 
 def test_a_resolved_issue_needs_its_date(conn):

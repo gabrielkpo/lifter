@@ -33,7 +33,9 @@ jobs:
         run: uv sync --locked --group dev
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run pytest
+      - run: uv run mypy src/lifter
+      # Branch coverage was 93 % when the gate was added: it fails 2 points below.
+      - run: uv run pytest --cov=lifter --cov-branch --cov-report=term --cov-fail-under=91
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 15

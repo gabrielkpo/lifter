@@ -11,6 +11,7 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from lifter import operations
+from lifter.config import today as athlete_today
 from lifter.conversation import start
 from lifter.db import connect
 from lifter.operations import CATALOGUE, OperationError, RuleViolation, StaleRow, run, suggest
@@ -422,7 +423,7 @@ def a_running_session(conn) -> tuple[int, int]:
     change = do(
         conn,
         "create_session",
-        {"day": str(date.today()), "title": "Running", "week_id": week},
+        {"day": str(athlete_today()), "title": "Running", "week_id": week},
         "ajoute un footing aujourd'hui",
     )
     return week, change.entity_id
@@ -472,7 +473,7 @@ def test_a_suggestion_that_breaks_a_rule_is_refused_even_accepted(conn, program)
     pid = suggest(
         conn,
         "create_session",
-        {"day": str(date.today()), "title": "Running", "week_id": week},
+        {"day": str(athlete_today()), "title": "Running", "week_id": week},
         rationale="An easy run.",
         author="coach",
     )

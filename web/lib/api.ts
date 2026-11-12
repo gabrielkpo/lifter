@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_URL } from "./config";
+import { LOGIN_PATH } from "./session";
 
 export type ApiState<T> =
   | { status: "loading" }
@@ -33,6 +34,7 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   track(1);
   try {
     const response = await fetch(`${API_URL}${path}`, { signal, cache: "no-store" });
+    if (response.status === 401) signInAgain();
     if (!response.ok) {
       throw new ApiError(response.status, `${response.status} ${response.statusText}`);
     }
@@ -52,6 +54,7 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
       body: JSON.stringify(body),
       cache: "no-store",
     });
+    if (response.status === 401) signInAgain();
     if (!response.ok) {
       throw new ApiError(
         response.status,
@@ -63,6 +66,16 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   } finally {
     track(-1);
   }
+}
+
+/** The session expired or was dropped (proxy.ts answers 401): back to the sign-in page, which
+ * returns here once signed in. */
+function signInAgain() {
+  const here = `${window.location.pathname}${window.location.search}`;
+  // A full load, not a client-side push: the server (proxy.ts) decides what a signed-out
+  // browser may see, and the page's state is left behind.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.assign(`${LOGIN_PATH}?next=${encodeURIComponent(here)}`);
 }
 
 export class ApiError extends Error {
@@ -99,6 +112,8 @@ function errorMessage(status: number | null): string {
   switch (status) {
     case null:
       return "No connection.";
+    case 401:
+      return "Signed out: sign in again.";
     case 404:
       return "Not found.";
     case 422:

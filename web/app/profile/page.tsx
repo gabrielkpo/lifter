@@ -80,6 +80,12 @@ export default function ProfilePage() {
           </section>
         </>
       )}
+
+      <form method="post" action="/auth/logout" className="signout">
+        <button type="submit" className="chip">
+          Sign out of this device
+        </button>
+      </form>
     </>
   );
 }

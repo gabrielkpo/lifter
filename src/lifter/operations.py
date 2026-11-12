@@ -1934,22 +1934,28 @@ def _picked(conn, proposal_id: int, conversation_id: str, message_id: int) -> tu
 
 
 def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> None:
-    """The suggestion picked is the one the athlete's words point to: the number their message
-    gives, or the only one shown when it gives none. "ok pour 12" never accepts suggestion 13."""
+    """The suggestion picked is the one the athlete's words point to: the number of a shown
+    suggestion their message gives, or the only one shown when it gives none (another number,
+    a load or a day, names no suggestion). "ok pour 12" never accepts suggestion 13."""
     (text,) = conn.execute(
         "select text from conversation_message where id = %s", (message_id,)
     ).fetchone()
+    pending = {
+        r[0]
+        for r in conn.execute(
+            "select id from proposal where presented_in = %s and status = 'pending'", (shown,)
+        )
+    }
     numbers = {int(n) for n in re.findall(r"(?<![\w.,])\d+(?!\w|[.,]\d)", text)}
-    if numbers:
-        if proposal_id not in numbers:
+    named = numbers & pending
+    if named:
+        if proposal_id not in named:
             raise OperationError(
-                f"the athlete's message names {', '.join(map(str, sorted(numbers)))}, not"
+                f"the athlete's message names {', '.join(map(str, sorted(named)))}, not"
                 f" suggestion {proposal_id}"
             )
         return
-    (count,) = conn.execute(
-        "select count(*) from proposal where presented_in = %s and status = 'pending'", (shown,)
-    ).fetchone()
+    count = len(pending)
     if count > 1:
         raise OperationError(
             f"{count} suggestions were shown and the athlete's message names none: ask which"

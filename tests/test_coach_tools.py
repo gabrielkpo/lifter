@@ -200,6 +200,60 @@ def test_a_change_that_breaks_a_rule_waits_for_the_athletes_confirmation(conn, p
     assert any("Back squat" in v for v in confirmed["violations"])
 
 
+def test_the_same_request_twice_in_a_turn_is_one_request(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "Supprime la séance jambes")
+
+    def ask() -> dict:
+        return call(
+            tools,
+            "apply_change",
+            operation="delete_session",
+            payload={"id": sid, "expected_version": version},
+            quote="Supprime la séance jambes",
+        )
+
+    first, again = ask(), ask()  # a model retrying in the same turn
+    assert first["suggestion_id"] == again["suggestion_id"]
+    assert conn.execute("select count(*) from proposal where author = 'athlete'").fetchone() == (1,)
+
+
+def test_a_confirmation_that_repeats_a_load_still_confirms(conn, program):
+    asked = ask_for_a_back_squat(conn)
+    coach_replies(conn, "Ça enfreint ta règle. Tu confirmes ?", [asked["suggestion_id"]])
+    _, tools = tools_for(conn, "oui, le back squat à 60 kg")
+    confirmed = call(
+        tools, "accept_suggestion", suggestion_id=asked["suggestion_id"], quote="oui, le back squat"
+    )
+    assert confirmed["ok"] and squats(conn) == 1
+
+
+def test_a_new_instruction_of_the_same_kind_is_not_sent_to_the_waiting_one(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "Supprime la séance jambes")
+    asked = call(
+        tools,
+        "apply_change",
+        operation="delete_session",
+        payload={"id": sid, "expected_version": version},
+        quote="Supprime la séance jambes",
+    )
+    coach_replies(conn, "Tu confirmes ?", [asked["suggestion_id"]])
+    other = conn.execute(
+        "select id, version from planned_session where id <> %s order by id limit 1", (sid,)
+    ).fetchone()
+    _, tools = tools_for(conn, "Non, supprime plutôt la séance Push")
+    again = call(
+        tools,
+        "apply_change",
+        operation="delete_session",
+        payload={"id": other[0], "expected_version": other[1]},
+        quote="supprime plutôt la séance Push",
+    )
+    # A request of its own, not a pointer to the waiting one
+    assert again["needs_confirmation"] and again["suggestion_id"] != asked["suggestion_id"]
+
+
 def test_a_confirmation_is_never_given_in_the_same_turn(conn, program):
     asked = ask_for_a_back_squat(conn)
     _, tools = tools_for(conn, "Ajoute du back squat 3x5 à 60 kg RIR 2, je confirme")

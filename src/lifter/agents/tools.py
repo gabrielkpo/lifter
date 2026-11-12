@@ -425,7 +425,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
     def _normalised(operation: str, payload: dict[str, Any]) -> dict:
         """The payload as `request` stores it (validated and dumped), to compare requests."""
         op = operations.CATALOGUE[operation]
-        return op.payload.model_validate(payload or {}).model_dump(mode="json")
+        return op.payload.model_validate(payload or {}).model_dump(mode="json", exclude_unset=True)
 
     def _waiting_request(operation: str) -> int | None:
         """A change of this operation the athlete asked, shown for confirmation in the coach's

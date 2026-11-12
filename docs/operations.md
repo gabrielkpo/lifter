@@ -83,8 +83,9 @@ audit N11): the conversations (`conversation`, `conversation_message`), the quot
 proposals, the change log with its rows before and after (`change_log`), and the health issues
 with the words that reported them. They are the history the coach and the athlete read back, and
 `undo` needs the change log. Only the agents' audit is purged: the context, plans and messages
-of a run go after 90 days, its metrics stay (see the sync job). None of these is readable by the
-API's role (`roles.sql`).
+of a run go after 90 days, its metrics stay (see the sync job). The API's role cannot read the
+conversations nor the change log (`roles.sql`); it can still read the proposals, quotes
+included, which a later change restricts to the columns the app needs.
 
 ## Releases and deployment
 

@@ -44,7 +44,18 @@ requires a bearer token when `LIFTER_API_TOKEN` is set; only the app origins in
 ## Deployment
 
 Three pieces, each behind Vercel's Deployment Protection (Vercel
-Authentication on every deployment, production included):
+Authentication on every deployment, production included), the app with a sign-in of its own on
+top of it:
+- **Sign-in** (`web/proxy.ts`, `web/lib/session.ts`): every page and every `/api` call needs the
+  app's session cookie; without it a page goes to `/login` and an `/api` call gets 401. The
+  athlete signs in with a passphrase at `/login` (posted to `/auth/login`, which checks the
+  `Origin`, the form's size, compares in constant time and waits one second on a wrong one) and
+  out at `/auth/logout`. The cookie is signed (HMAC-SHA256), valid 30 days, `HttpOnly`,
+  `SameSite=Strict`, and `__Host-` prefixed and `Secure` on https. Two server variables on the
+  Vercel project `lifter`: `LIFTER_APP_PASSPHRASE` (12 characters at least) and
+  `LIFTER_SESSION_KEY` (32 at least, e.g. `openssl rand -base64 32`). Without both, or with
+  shorter ones, the app opens for nobody; changing either signs every device out. The app sends
+  `Referrer-Policy: same-origin`.
 - **App** (Vercel project `lifter`, root `web/`): the browser only talks to the app's own server,
   which reads the API (`web/app/api/[...path]/route.ts`, GET on the API's endpoints). The one
   write it forwards is a message to the coach (`POST /conversations`, `/conversations/{id}`), and only from the app's

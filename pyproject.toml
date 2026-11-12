@@ -1,7 +1,7 @@
 [project]
 name = "lifter"
 version = "0.7.0"
-description = "CrossFit coach agent on Garmin data, with human approval before any change."
+description = "CrossFit coach agent on Garmin data: every change quotes the athlete, is traced and can be undone."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.2",

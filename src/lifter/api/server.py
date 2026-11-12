@@ -14,5 +14,5 @@ HOST = "127.0.0.1"
 
 
 def main() -> None:
-    app = create_app_from_env()  # loads .env, refuses a bad setting with its name
-    uvicorn.run(app, host=HOST, port=Settings.from_env().api_port)
+    settings = Settings.from_env()  # loads .env, refuses a bad setting with its name
+    uvicorn.run(create_app_from_env(), host=HOST, port=settings.api_port)

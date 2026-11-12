@@ -5,9 +5,11 @@ not strings. No value is computed here: the views hold every definition (docs/me
 """
 
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
+
+from lifter.domain import stored_intent
 
 SessionStatus = Literal["done", "missed", "planned", "cancelled", "rest"]
 ProposalStatus = Literal["pending", "approved", "rejected", "applied", "failed", "expired"]
@@ -49,7 +51,7 @@ class Week(BaseModel):
     start_date: date
     phase: str
     title: str | None
-    intent: dict[str, Any]
+    intent: Annotated[dict[str, str], BeforeValidator(stored_intent)]
     review: str | None
     sessions: int
     done: int

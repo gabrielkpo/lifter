@@ -12,11 +12,13 @@ them.
 """
 
 from datetime import date, timedelta
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import psycopg
 from psycopg.rows import dict_row
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
+
+from lifter.domain import stored_intent
 
 ContextMode = Literal["indicators", "full"]
 RECOVERY_DAYS = 7
@@ -36,7 +38,7 @@ class WeekInfo(BaseModel):
     end_date: date
     phase: str
     title: str | None
-    intent: dict[str, str]
+    intent: Annotated[dict[str, str], BeforeValidator(stored_intent)]
     block: str | None
     block_intent: str | None
     block_strength_sessions_done: int | None

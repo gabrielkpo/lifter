@@ -7,6 +7,8 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from psycopg.types.json import Jsonb
+from pydantic import ValidationError
 
 from lifter import operations
 from lifter.conversation import start
@@ -526,6 +528,53 @@ def test_a_destructive_operation_is_never_applied_on_the_first_message(conn, pro
         "select count(*) from planned_session where id = %s", (sid,)
     ).fetchone() == (1,)
     assert set(operations.CONFIRM) <= set(operations.CATALOGUE)  # no typo in the tier
+
+
+def test_a_week_intent_is_text_only(conn, program):
+    week = conn.execute(
+        "select id, cycle_id, start_date, version from training_week order by number limit 1"
+    ).fetchone()
+    bad = {"strength": {"sets": 5}, "legs": 3}
+    with pytest.raises(ValidationError):
+        operations.CATALOGUE["create_week"].payload.model_validate(
+            {
+                "cycle_id": week[1],
+                "number": 40,
+                "start_date": "2026-12-07",
+                "phase": "volume",
+                "intent": bad,
+            }
+        )
+    # A kind set to null is left out, not stored as null
+    changed = do(
+        conn,
+        "update_week",
+        {"id": week[0], "expected_version": week[3], "intent": {"legs": "Guided", "push": None}},
+        "intention jambes guidée",
+    )
+    stored = conn.execute("select intent from training_week where id = %s", (week[0],)).fetchone()
+    assert changed.operation == "update_week" and stored[0] == {"legs": "Guided"}
+
+
+def test_a_week_stored_with_a_non_text_intent_can_still_be_changed(conn, program):
+    # Written before the intent was typed: the readers show it as JSON, never lock the week
+    from lifter.agents.tools import register_rule_check
+
+    register_rule_check()  # the real guardrail: it builds the week's planning context
+    week = conn.execute("select id from training_week order by number limit 1").fetchone()[0]
+    conn.execute(
+        "update training_week set intent = %s where id = %s",
+        (Jsonb({"strength": {"sets": 5}, "legs": 3}), week),
+    )
+    version = conn.execute("select version from training_week where id = %s", (week,)).fetchone()
+    fixed = do(
+        conn,
+        "update_week",
+        {"id": week, "expected_version": version[0], "intent": {"strength": "Heavy triples"}},
+        "intention force en triples lourds",
+    )
+    stored = conn.execute("select intent from training_week where id = %s", (week,)).fetchone()
+    assert fixed.operation == "update_week" and stored[0] == {"strength": "Heavy triples"}
 
 
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):

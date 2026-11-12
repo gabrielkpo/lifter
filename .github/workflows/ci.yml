@@ -72,8 +72,3 @@ jobs:
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
           fail-on-severity: high
-          # GHSA-x8mw-p69m-v3mx: @fastify/busboy 2.x (multipart parsing DoS), pulled by undici 5
-          # inside the Vercel CLI 62 of ops/deploy, with no patched 2.x. That CLI only parses the
-          # Vercel API's answers in the deploy job, so the DoS does not apply; it goes away with
-          # the CLI's next major, followed by Dependabot.
-          allow-ghsas: GHSA-x8mw-p69m-v3mx

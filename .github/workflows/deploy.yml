@@ -11,7 +11,8 @@ permissions:
   contents: read
 # The jobs below hold the production secrets: their actions are pinned by commit, like every
 # workflow's, they restore no cache another workflow could have written, install only what they
-# run (from the locks: uv.lock, ops/deploy/package-lock.json), and keep no token after checkout.
+# run, and keep no token after checkout. The Vercel CLI is pinned by version (npx); locking its
+# dependencies waits for its next major, whose tree carries no known high advisory.
 # One deployment at a time; a second one waits instead of racing on the database.
 concurrency:
   group: deploy-production
@@ -61,10 +62,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install the Vercel CLI from its lockfile
-        run: npm ci --prefix ops/deploy --ignore-scripts --no-audit --no-fund
       - name: Deploy the API (Vercel project lifter-api)
-        run: ops/deploy/node_modules/.bin/vercel deploy --prod --yes --token "$VERCEL_TOKEN"
+        run: npx --yes vercel@62.1.0 deploy --prod --yes --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
@@ -81,14 +80,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install the Vercel CLI from its lockfile
-        run: npm ci --prefix ops/deploy --ignore-scripts --no-audit --no-fund
       # From the repository root: the project's own root directory (web/) is set on Vercel.
       # The CLI prints the deployment's URL on stdout: the check below calls it.
       - name: Deploy the app (Vercel project lifter)
         id: deploy
         run: |
-          url=$(ops/deploy/node_modules/.bin/vercel deploy --prod --yes --token "$VERCEL_TOKEN")
+          url=$(npx --yes vercel@62.1.0 deploy --prod --yes --token "$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

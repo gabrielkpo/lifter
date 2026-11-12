@@ -32,13 +32,6 @@ updates:
       web:
         applies-to: version-updates
         patterns: ["*"]
-  # The Vercel CLI the Deploy workflow installs from its lockfile
-  - package-ecosystem: npm
-    directory: /ops/deploy
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: "chore(ci)"
   - package-ecosystem: github-actions
     directory: /
     schedule:

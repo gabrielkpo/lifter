@@ -18,6 +18,3 @@ __pycache__/
 # dbt run by hand in the project folder (lifter migrate uses a temporary directory)
 src/lifter/transform/target/
 src/lifter/transform/logs/
-
-# The Deploy workflow installs the Vercel CLI here (npm ci)
-ops/deploy/node_modules/

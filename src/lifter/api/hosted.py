@@ -29,30 +29,36 @@ def create_app_from_env(env: Mapping[str, str] | None = None) -> FastAPI:
         env = os.environ
     else:
         settings = Settings.from_env(env)
+    # The platform's own variables (VERCEL, its host names) are read here; Lifter's settings
+    # come from Settings.
     hosted = bool(env.get("VERCEL"))
-    token = env.get("LIFTER_API_TOKEN") or None
+    token = settings.api_token
     if hosted and not token:
         raise RuntimeError("LIFTER_API_TOKEN is required when the API is hosted")
     if hosted and not env.get("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL is required when the API is hosted")
     hosts = [env[name] for name in VERCEL_HOST_VARIABLES if env.get(name)]
-    hosts += split(env.get("LIFTER_API_HOSTS"))
-    origins = split(env.get("LIFTER_APP_ORIGINS", "" if hosted else LOCAL_ORIGINS))
+    hosts += split(settings.api_hosts)
+    origins = split(
+        settings.app_origins
+        if settings.app_origins is not None
+        else ("" if hosted else LOCAL_ORIGINS)
+    )
     return create_app(
         settings.database_url,
         origins,
         hosts=hosts,
         token=token,
-        coach=coach_setup(env, settings, hosted=hosted),
+        coach=coach_setup(settings, hosted=hosted),
     )
 
 
-def coach_setup(env: Mapping[str, str], settings: Settings, *, hosted: bool) -> CoachSetup | None:
+def coach_setup(settings: Settings, *, hosted: bool) -> CoachSetup | None:
     """The coach's roles and model. Hosted, each role has its own URL (LIFTER_CHAT_DATABASE_URL
     as lifter_chat, LIFTER_COACH_DATABASE_URL as lifter_coach); locally, the API's database
     serves both. Without them or without MISTRAL_API_KEY, the conversation is off (503)."""
-    chat = env.get("LIFTER_CHAT_DATABASE_URL") or (None if hosted else settings.database_url)
-    coach = env.get("LIFTER_COACH_DATABASE_URL") or (None if hosted else settings.database_url)
+    chat = settings.chat_database_url or (None if hosted else settings.database_url)
+    coach = settings.coach_database_url or (None if hosted else settings.database_url)
     key = settings.mistral_api_key
     if not (chat and coach and key):
         return None
@@ -68,5 +74,6 @@ def coach_setup(env: Mapping[str, str], settings: Settings, *, hosted: bool) -> 
         model=model,
         model_name=settings.coach_model,
         language=settings.coach_language,
-        token_budget=settings.run_token_budget,
+        token_budget=settings.coach_token_budget,
+        daily_token_budget=settings.coach_daily_token_budget,
     )

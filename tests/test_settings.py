@@ -52,3 +52,37 @@ def test_the_coach_has_its_own_model_setting():
     assert Settings.from_env({}).model == "mistral-small-latest"
     both = Settings.from_env({"LIFTER_MODEL": "a", "LIFTER_COACH_MODEL": "b"})
     assert (both.model, both.coach_model) == ("a", "b")
+
+
+def test_the_coach_has_its_own_budgets_and_the_api_its_settings():
+    default = Settings.from_env({})
+    assert (default.coach_token_budget, default.coach_daily_token_budget) == (100_000, 600_000)
+    assert default.run_token_budget == 60_000  # the week planner's, unchanged
+    env = {
+        "LIFTER_COACH_TOKEN_BUDGET": "80000",
+        "LIFTER_COACH_DAILY_TOKEN_BUDGET": "300000",
+        "LIFTER_API_TOKEN": "t",
+        "LIFTER_API_PORT": "8100",
+        "LIFTER_CHAT_DATABASE_URL": "postgresql:///chat",
+    }
+    custom = Settings.from_env(env)
+    assert (custom.coach_token_budget, custom.coach_daily_token_budget) == (80_000, 300_000)
+    assert (custom.api_token, custom.api_port, custom.chat_database_url) == (
+        "t",
+        8100,
+        "postgresql:///chat",
+    )
+    assert "postgresql:///chat" not in repr(custom) and "'t'" not in repr(custom)
+
+
+@pytest.mark.parametrize(
+    "env, message",
+    [
+        ({"LIFTER_LLM_CONTEXT": "everything"}, "LIFTER_LLM_CONTEXT must be one of"),
+        ({"LIFTER_API_PORT": "99999"}, "LIFTER_API_PORT must be a port"),
+        ({"LIFTER_API_PORT": "http"}, "LIFTER_API_PORT must be a whole number"),
+    ],
+)
+def test_a_bad_api_or_context_setting_is_refused_with_its_name(env, message):
+    with pytest.raises(ConfigError, match=message):
+        Settings.from_env(env)

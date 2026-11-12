@@ -145,8 +145,8 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 ## Limitations / next
 - The coach's figures are in-sample (see Results); a held-out scenario set comes before the next
   prompt change.
-- A coach turn sends about 10,000 tokens per model call and may stop at its 60,000-token budget
-  after six calls; prompt caching and a lighter snapshot are next.
+- A coach turn sends about 10,000 tokens per model call, within 100,000 tokens a turn and
+  600,000 a day (both settings); prompt caching and a lighter snapshot are next.
 - Thresholds are version 1 heuristics for one athlete; baselines need 14 measured nights.
 - One athlete per instance: sign-in by email and per-athlete data isolation are a later step.
 - The sync, the backup and the restore test run on the athlete's Mac

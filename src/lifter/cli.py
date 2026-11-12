@@ -526,7 +526,7 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
                 language=settings.coach_language,
                 today=args.today,
                 trigger="cli",
-                token_budget=settings.run_token_budget,
+                token_budget=settings.coach_token_budget,
             )
     except httpx.HTTPError as exc:  # the message names the URL, never the key
         print(printable(f"Mistral API error: {exc}"))
@@ -562,9 +562,6 @@ def cmd_plan_week(settings: Settings, args: argparse.Namespace) -> int:
 
     if not settings.mistral_api_key:
         print("MISTRAL_API_KEY is not set (see .env.example)")
-        return 2
-    if settings.llm_context not in ("indicators", "full"):
-        print("LIFTER_LLM_CONTEXT must be 'indicators' or 'full'")
         return 2
     planner = MistralPlanner(
         api_key=settings.mistral_api_key,
@@ -749,7 +746,7 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
                 args.runs,
                 model_name=model_name,
                 language=settings.coach_language,
-                run_token_budget=settings.run_token_budget,
+                run_token_budget=settings.coach_token_budget,
             ):
                 results.append(r)
                 failed = [o.check for o in r.outcomes if not o.passed]

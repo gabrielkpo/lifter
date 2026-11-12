@@ -70,7 +70,9 @@ top of it:
   conversation and write the athlete's words, nothing else; the coach answers as `lifter_coach`
   (`LIFTER_COACH_DATABASE_URL`), whose writes go through `lifter.operations` and are refused at
   commit without a trace. The model is Mistral (`MISTRAL_API_KEY`, `LIFTER_COACH_MODEL`), in
-  `LIFTER_COACH_LANGUAGE`, within `LIFTER_RUN_TOKEN_BUDGET`; without these, the conversation
+  `LIFTER_COACH_LANGUAGE`, within `LIFTER_COACH_TOKEN_BUDGET` a turn and
+  `LIFTER_COACH_DAILY_TOKEN_BUDGET` a day (429 past it, or past 10 messages a minute, before
+  anything is stored); without these, the conversation
   answers 503. A turn may take tens of seconds: the API's function and the app's route may run
   60 s (`vercel.json`, `maxDuration`). The owner role, used for migrations, lives in the
   athlete's local `.env` and in the secrets of the GitHub `deploy` environment, never on

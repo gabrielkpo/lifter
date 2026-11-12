@@ -144,7 +144,7 @@ def what_replace_deletes(conn: psycopg.Connection, program: ProgramIn) -> dict[s
     ).fetchone()
     (changes,) = conn.execute(
         "select count(*) from change_log"
-        " where created_at > (select coalesce(max(created_at), '-infinity') from cycle)"
+        " where created_at > (select coalesce(min(created_at), '-infinity') from cycle)"
     ).fetchone()
     lost = {
         "rules not in the file as they are now": rules,

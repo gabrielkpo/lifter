@@ -176,11 +176,14 @@ def goals(conn, p) -> tuple[bool, str]:
 
 
 def no_forbidden_suggestion(conn, p) -> tuple[bool, str]:
-    """No pending suggestion names an exercise that a forbid_flag rule excludes."""
+    """No pending suggestion of the coach names an exercise that a forbid_flag rule excludes
+    (the athlete's own request waiting for their confirmation is theirs, not the coach's idea)."""
     forbidden = {f["exercise"] for f in forbidden_exercises(conn)}
     payloads = [
         json.dumps(r[0], ensure_ascii=False)
-        for r in conn.execute("select payload from proposal where status = 'pending'")
+        for r in conn.execute(
+            "select payload from proposal where status = 'pending' and author <> 'athlete'"
+        )
     ]
     hits = sorted({name for name in forbidden for text in payloads if f'"{name}"' in text})
     return not hits, f"forbidden in suggestions: {', '.join(hits) or 'none'}"

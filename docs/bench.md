@@ -255,8 +255,13 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   (`bench/results/coach-mistral-medium-confirmation.json`). The miss: the coach asked for the
   confirmation itself without calling `apply_change`, so nothing was recorded and the bare
   "je confirme" could not apply it; the prompt now says only code asks, and the refusal of a
-  short quote tells the coach to ask the athlete to say the change again. Not remeasured after
-  that last change.
+  short quote tells the coach to ask the athlete to say the change again. Full pass on the final
+  code (`bench/results/coach-mistral-medium-confirmation-full.json`, 22 scenarios, about
+  2.5 M tokens): 65 runs of 66 fully met, no quote refused, no turn stopped by a limit. The miss,
+  one `forbidden_exercise` run: the coach recorded the request but answered "I cannot add it",
+  then presented it again instead of accepting the athlete's "Oui, je confirme". That run also
+  showed the `no_forbidden_suggestion` check counting the athlete's own request as a coach
+  suggestion; the check now reads the coach's suggestions only.
 
 Twenty-two scenarios are few: the next steps are more conversations, written from how the athlete
 talks but synthetic (the repository is public, the athlete's messages hold health data).

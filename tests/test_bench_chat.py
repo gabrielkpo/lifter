@@ -146,6 +146,9 @@ def test_a_suggestion_of_a_forbidden_exercise_fails_its_check(conn, conversation
         ('{"line": {"exercise": "Back squat", "sets": 5}}',),
     )
     assert no_forbidden_suggestion(conn, {}) == (False, "forbidden in suggestions: Back squat")
+    # The athlete's own request, waiting for their confirmation, is not the coach's idea
+    conn.execute("update proposal set author = 'athlete' where kind = 'add_line'")
+    assert no_forbidden_suggestion(conn, {}) == (True, "forbidden in suggestions: none")
 
 
 def test_an_empty_new_part_fails_the_add_mobility_check(conn, conversations):

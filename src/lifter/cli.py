@@ -728,7 +728,6 @@ def _bench_database_refused(settings: Settings) -> str | None:
 
 def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
     """The coach on the conversation scenarios: messages in, the database checked after."""
-    import json
 
     import psycopg
 
@@ -801,14 +800,26 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
     totals = summary(results)
     print(printable(", ".join(f"{k}={v}" for k, v in totals.items())))
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "coach": args.coach,
-            "model": model_name,
-            "summary": totals,
-            "runs": [as_dict(r) for r in results],
-        }
-        args.out.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
+        from lifter.agents.coach import SYSTEM_PROMPT
+        from lifter.bench.runner import provenance, write_payload
+
+        names = [c.name for c in conversations]
+        measured = provenance(
+            prompt=SYSTEM_PROMPT if args.coach == "mistral" else None,
+            scenario_files=[args.scenarios / f"{n}.yaml" for n in names],
+            names=names,
+            runs=args.runs,
+        )
+        write_payload(
+            args.out,
+            {
+                "coach": args.coach,
+                "model": model_name,
+                **measured,
+                "summary": totals,
+                "runs": [as_dict(r) for r in results],
+            },
+        )
         print(f"results written to {args.out}")
     return 0
 
@@ -886,7 +897,17 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
         print(f"bench stopped early: {stopped}")
     print(", ".join(f"{k}={v}" for k, v in summary(results).items()))
     if args.out:
-        write_results(args.out, args.planner, model, results)
+        from lifter.agents.planner import SYSTEM_PROMPT
+        from lifter.bench.runner import provenance
+
+        names = [s.name for s in scenarios]
+        measured = provenance(
+            prompt=SYSTEM_PROMPT if args.planner == "mistral" else None,
+            scenario_files=[args.scenarios / f"{n}.yaml" for n in names],
+            names=names,
+            runs=args.runs,
+        )
+        write_results(args.out, args.planner, model, results, measured)
         print(f"results written to {args.out}")
     return 0
 

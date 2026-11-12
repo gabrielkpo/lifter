@@ -14,7 +14,7 @@ from importlib import resources
 import psycopg
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
-from lifter.config import ConfigError
+from lifter.config import ConfigError, timezone_name
 
 # Key of the analytics layer (the dbt project's hash) in public.schema_views.
 TRANSFORM_KEY = "dbt"
@@ -51,11 +51,14 @@ def _tls(params: dict[str, str]) -> dict[str, str]:
 def connect(url: str) -> psycopg.Connection:
     """Autocommit connection: callers group writes with `conn.transaction()`.
 
-    The search_path is appended to any `options` already set in the URL, not substituted. A
-    remote server is reached with TLS (see `_tls`).
+    The search_path and the athlete's time zone (`current_date`, a timestamp's day) are appended
+    to any `options` already set in the URL, not substituted. A remote server is reached with TLS
+    (see `_tls`).
     """
     params = conninfo_to_dict(url)
-    options = f"{params.get('options', '')} -c search_path={SEARCH_PATH}".strip()
+    options = (
+        f"{params.get('options', '')} -c search_path={SEARCH_PATH} -c TimeZone={timezone_name()}"
+    ).strip()
     return psycopg.connect(url, autocommit=True, options=options, **_tls(params))
 
 

@@ -18,6 +18,7 @@ import psycopg
 from psycopg.rows import dict_row
 from pydantic import BaseModel, BeforeValidator
 
+from lifter.config import today as athlete_today
 from lifter.domain import stored_intent
 
 ContextMode = Literal["indicators", "full"]
@@ -328,7 +329,7 @@ def build_context(
 ) -> PlanningContext:
     """The context to program `week_number` of the active cycle (default: next week), or the
     week `week_id` of any cycle."""
-    today = today or date.today()
+    today = today or athlete_today()
     if week_id is not None:
         week = _week(conn, "w.id = %s", (week_id,))
         if week is None:

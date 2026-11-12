@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field, ValidationError, create_model, model_vali
 from pydantic.fields import FieldInfo
 
 from lifter import domain
+from lifter.config import today as athlete_today
 from lifter.domain import (
     DomainError,
     ExerciseIn,
@@ -1620,7 +1621,7 @@ def resolve_health_issue(conn, p: ResolveHealthIssue, ctx: Context) -> Change:
             "health_issue",
             p.id,
             p.expected_version,
-            {"status": "resolved", "resolved_on": p.resolved_on or date.today()},
+            {"status": "resolved", "resolved_on": p.resolved_on or athlete_today()},
         ),
         "resolve_health_issue",
     )

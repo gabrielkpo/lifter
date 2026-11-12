@@ -7,6 +7,7 @@ from pathlib import Path
 
 from lifter import __version__
 from lifter.config import Settings
+from lifter.config import today as athlete_today
 from lifter.conversation import start
 from lifter.db import connect, migrate
 
@@ -65,7 +66,7 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     if not settings.garmin_mcp_token:
         print("GARMIN_MCP_TOKEN is not set (see .env.example)")
         return 2
-    end = args.end or date.today()
+    end = args.end or athlete_today()
     start = args.start or end - timedelta(days=args.days - 1)
 
     async def run():
@@ -183,7 +184,7 @@ def print_query(settings: Settings, sql: str, params: tuple = ()) -> int:
 
 
 def cmd_calendar(settings: Settings, args: argparse.Namespace) -> int:
-    start = args.start or date.today() - timedelta(days=args.past)
+    start = args.start or athlete_today() - timedelta(days=args.past)
     end = start + timedelta(days=args.past + args.ahead)
     return print_query(
         settings,
@@ -1000,7 +1001,7 @@ def build_parser() -> argparse.ArgumentParser:
     cancel.set_defaults(func=cmd_session_cancel)
 
     fb = sub.add_parser("feedback", help="report how a session or a morning went")
-    fb.add_argument("--day", type=date.fromisoformat, default=date.today())
+    fb.add_argument("--day", type=date.fromisoformat, default=athlete_today())
     fb.add_argument("--kind", choices=["session", "morning"], default="session")
     fb.add_argument("--session", type=int, help="planned session id")
     fb.add_argument("--rpe", type=int, help="1 to 10")

@@ -22,6 +22,7 @@ from typing import Any
 import psycopg
 from psycopg.types.json import Jsonb
 
+from lifter.config import today as athlete_today
 from lifter.garmin import ToolCaller, ToolError
 
 # One call per day and tool. get_stats carries Body Battery, stress, resting HR, SpO2,
@@ -180,7 +181,7 @@ class Syncer:
     ):
         self.caller = caller
         self.conn = conn
-        self.today = today or date.today()
+        self.today = today or athlete_today()
         self.delay_seconds = delay_seconds
         self.refresh = refresh
         self.report = SyncReport()

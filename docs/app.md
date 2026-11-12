@@ -39,7 +39,9 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 
 Run locally, the API listens on `127.0.0.1` only, opens its database connection read-only and
 requires a bearer token when `LIFTER_API_TOKEN` is set; only the app origins in
-`LIFTER_APP_ORIGINS` may call it from a browser.
+`LIFTER_APP_ORIGINS` may call it from a browser. "Today" (this week, a session missed, the
+coach's date) is the athlete's date in `LIFTER_TIMEZONE` (default `Europe/Paris`), in Python and
+in each database session, whatever the server's own time zone (UTC when hosted).
 
 ## Deployment
 

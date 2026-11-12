@@ -136,6 +136,32 @@ def test_a_partial_intent_keeps_the_weeks_other_part_kinds(conn, program):
     assert payload["intent"]["metcon"] == "Short." and payload["intent"]["legs"] == after["legs"]
 
 
+def test_the_coach_can_fix_a_week_stored_with_a_non_text_intent(conn, program):
+    from psycopg.types.json import Jsonb
+
+    week_id = conn.execute("select id from training_week where number = 1").fetchone()[0]
+    conn.execute(
+        "update training_week set intent = %s where id = %s",
+        (Jsonb({"legs": 3, "push": "Long sets"}), week_id),
+    )
+    version = conn.execute("select version from training_week where id = %s", (week_id,))
+    _, tools = tools_for(conn, "Semaine 1 : jambes en charge guidée, RIR 3.")
+    result = call(
+        tools,
+        "apply_change",
+        operation="update_week",
+        payload={
+            "id": week_id,
+            "expected_version": version.fetchone()[0],
+            "intent": {"legs": "Charge guidée, RIR 3."},
+        },
+        quote="jambes en charge guidée, RIR 3",
+    )
+    assert result["ok"]
+    (after,) = conn.execute("select intent from training_week where id = %s", (week_id,)).fetchone()
+    assert after == {"legs": "Charge guidée, RIR 3.", "push": "Long sets"}
+
+
 def test_a_quote_the_athlete_did_not_write_changes_nothing(conn, program):
     sid, version, day = session(conn, "Legs + Metcon")
     _, tools = tools_for(conn, "Pourquoi un RIR 3 jeudi ?")  # a question

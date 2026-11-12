@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from lifter import operations
 from lifter.agents.week_check import introduced, violations_for_week
-from lifter.domain import DomainError
+from lifter.domain import DomainError, stored_intent
 from lifter.quote import QuoteError, verify_quote
 
 AUTHOR = "coach"
@@ -356,7 +356,7 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         if not isinstance(given, dict) or not isinstance(week_id, int):
             return payload  # the payload check refuses what is wrong here
         row = conn.execute("select intent from training_week where id = %s", (week_id,)).fetchone()
-        current = dict(row[0] or {}) if row else {}
+        current = stored_intent(row[0]) if row else {}  # a stored non-text value as JSON text
         current.update(given)
         return {**payload, "intent": {k: v for k, v in current.items() if v is not None}}
 

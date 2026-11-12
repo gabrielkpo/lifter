@@ -50,7 +50,10 @@ def _drop_nulls(value: Any) -> Any:
 # One definition for every writer (program file, operations) so a non-text value is refused
 # where it is written, never stored to lock the week for the readers.
 IntentKey = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
-IntentText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+# Generous: a week's notes may hold a whole programming note, and the coach re-sends every kind
+IntentText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)
+]
 WeekIntent = Annotated[dict[IntentKey, IntentText], BeforeValidator(_drop_nulls)]
 
 

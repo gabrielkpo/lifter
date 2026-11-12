@@ -1,5 +1,6 @@
-# secrets
-.env
+# secrets: every env file but the example (web/ included)
+.env*
+!.env.example
 # Garmin exports and any real health data stay out of Git
 data/
 *.dump
@@ -12,9 +13,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .DS_Store
-# Vercel project link and pulled variables (local)
+# Vercel project link (local)
 .vercel/
-.env.local
 # dbt run by hand in the project folder (lifter migrate uses a temporary directory)
 src/lifter/transform/target/
 src/lifter/transform/logs/

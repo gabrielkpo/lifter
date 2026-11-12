@@ -1,5 +1,6 @@
 """The conversation bench (lifter.bench.conversation): scenarios, checks, and the silent floor."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from lifter.bench.conversation import (
 )
 
 SCENARIOS = Path(__file__).parent.parent / "bench" / "conversations"
+RESULTS = Path(__file__).parent.parent / "bench" / "results" / "conversations-silent.json"
 
 
 @pytest.fixture(autouse=True)
@@ -62,6 +64,10 @@ def test_the_silent_floor(conn, conversations):
     # it never changes anything nor replies with a rule: the "nothing changed" expectations pass,
     # and the "no forbidden suggestion" ones, no other
     assert totals["expectations_met_rate"] == 0.429 and totals["scenarios_fully_met"] == 6
+    # The committed floor (README, docs/bench.md) is what this code measures today.
+    committed = json.loads(RESULTS.read_text(encoding="utf-8"))
+    assert committed["summary"] == totals
+    assert committed["scenarios"] == sorted(conversations) and committed["runs_per_scenario"] == 1
     met = {r.scenario for r in results if r.expectations_met == r.expectations}
     assert met == {
         "question",

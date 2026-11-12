@@ -9,10 +9,14 @@ first plan (before any correction) and of the final one, answers that did not pa
 cited without a source, expectations met, tokens and seconds.
 """
 
+import hashlib
 import json
-from collections.abc import Callable
+import subprocess
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import psycopg
 from psycopg import sql
@@ -178,12 +182,88 @@ def summary(results: list[RunResult]) -> dict:
     }
 
 
-def write_results(path: Path, planner: str, model: str | None, results: list[RunResult]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "planner": planner,
-        "model": model,
-        "summary": summary(results),
-        "runs": [asdict(r) for r in results],
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _git_sha() -> str | None:
+    """The commit the bench ran on, with "-dirty" when tracked files other than the results had
+    changes; None outside a clone."""
+    # The clone this code runs from, whatever the working directory (an installed copy is in
+    # no clone: None).
+    root = Path(__file__).resolve().parents[3]
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            # The results files themselves do not change what was measured.
+            [
+                "git",
+                "status",
+                "--porcelain",
+                "--untracked-files=no",
+                "--",
+                ":/",
+                ":!/bench/results",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return f"{sha}-dirty" if dirty else sha
+
+
+def provenance(
+    *, prompt: str | None, scenario_files: Iterable[Path], names: Iterable[str], runs: int
+) -> dict[str, Any]:
+    """What a results file was measured on: when, the commit, the system prompt's template (none
+    for a floor that calls no model) and the scenario files (hashes), which scenarios and how
+    many runs of each."""
+    from lifter import __version__
+
+    files = sorted(scenario_files)
+    return {
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "git_sha": _git_sha(),
+        "lifter_version": __version__,
+        "system_prompt_sha256": _sha256(prompt) if prompt is not None else None,
+        "scenario_files_sha256": _sha256(
+            "".join(f"{f.name}\n{_sha256(f.read_text(encoding='utf-8'))}\n" for f in files)
+        ),
+        "scenarios": sorted(names),
+        "runs_per_scenario": runs,
     }
+
+
+def write_payload(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
+
+
+def write_results(
+    path: Path,
+    planner: str,
+    model: str | None,
+    results: list[RunResult],
+    measured: dict[str, Any] | None = None,
+) -> None:
+    write_payload(
+        path,
+        {
+            "planner": planner,
+            "model": model,
+            **(measured or {}),
+            "summary": summary(results),
+            "runs": [asdict(r) for r in results],
+        },
+    )

@@ -1,5 +1,6 @@
 """The evaluation bench: scenarios, setup, expectations and runner, with the copy baseline."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from lifter.bench.runner import reset, run_scenario, summary
 from lifter.bench.scenario import Scenario, apply_setup, read_scenarios
 
 SCENARIOS = Path(__file__).parent.parent / "bench" / "scenarios"
+RESULTS = Path(__file__).parent.parent / "bench" / "results" / "copy-baseline.json"
 
 
 @pytest.fixture(scope="module")
@@ -103,6 +105,13 @@ def test_the_copy_baseline_on_every_scenario(conn, scenarios):
     assert "load_at_least Bench press 65" in failed["after_deload"]
     assert "volume_vs_previous" in failed["deload_week"]
     assert "load_at_most Leg press 105" in failed["knee_pain"]
+    # The committed floor (README, docs/bench.md) is what this code measures today.
+    committed = json.loads(RESULTS.read_text(encoding="utf-8"))
+    fresh = summary(list(results.values()))
+    assert {k: v for k, v in fresh.items() if k != "seconds"} == {
+        k: v for k, v in committed["summary"].items() if k != "seconds"
+    }
+    assert committed["scenarios"] == sorted(scenarios) and committed["runs_per_scenario"] == 1
     assert "sessions" in failed["drafts_already_planned"]
     assert "light_first_days 2" in failed["low_recovery"]
     assert "includes_metcon amrap" not in failed["intensification_week"]
@@ -292,3 +301,18 @@ def test_a_week_logged_without_rir_still_needs_one_in_the_plan(conn, scenarios):
     assert done and all(rir is None for rir in done)
     (run,) = run_scenario(conn, scenarios["rir_not_logged"], CopyLastWeek, runs=1)
     assert run.expectations_met == 2  # the copy takes the planned lines, which carry a RIR
+
+
+def test_a_results_file_says_what_it_was_measured_on(tmp_path):
+    from lifter.bench.runner import provenance
+
+    (tmp_path / "a.yaml").write_text("name: a\n", encoding="utf-8")
+    measured = provenance(
+        prompt="You are the coach.", scenario_files=[tmp_path / "a.yaml"], names=["a"], runs=3
+    )
+    assert measured["runs_per_scenario"] == 3 and measured["scenarios"] == ["a"]
+    assert len(measured["system_prompt_sha256"]) == 64
+    assert measured["generated_at"].endswith("+00:00")
+    again = provenance(prompt=None, scenario_files=[tmp_path / "a.yaml"], names=["a"], runs=3)
+    assert again["system_prompt_sha256"] is None
+    assert again["scenario_files_sha256"] == measured["scenario_files_sha256"]

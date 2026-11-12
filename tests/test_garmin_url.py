@@ -164,11 +164,11 @@ def test_sync_gives_up_on_a_server_that_never_answers(monkeypatch, capsys):
 @pytest.mark.parametrize(
     ("url", "added"),
     [
-        ("postgresql:///lifter", {}),
-        ("postgresql://localhost:5433/lifter", {}),
-        ("host=/tmp dbname=lifter", {}),
-        ("postgresql://user@db.example.com/lifter", {"sslmode": "require"}),
-        ("postgresql://user@db.example.com/lifter?sslmode=verify-full", {}),
+        ("postgresql:///lifter", None),
+        ("postgresql://localhost:5433/lifter", None),
+        ("host=/tmp dbname=lifter", None),
+        ("postgresql://user@db.example.com/lifter", "require"),
+        ("postgresql://user@db.example.com/lifter?sslmode=verify-full", None),
     ],
 )
 def test_a_remote_database_is_reached_with_tls(url, added):

@@ -44,9 +44,12 @@ lifter-api = "lifter.api.server:main"
 [dependency-groups]
 dev = [
     "lifter[transform]",
+    "mypy>=2.4.1",
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.17.4",
+    "types-pyyaml>=6.0.12.20261111",
 ]
 
 [build-system]
@@ -61,7 +64,40 @@ line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+# DTZ: a date or time without a time zone (the athlete's day is config.today()).
+select = ["E", "F", "I", "B", "UP", "DTZ"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+
+# Baseline: the modules that had type errors when the check was added (most of them
+# `fetchone()[0]` on an optional row). New modules are checked; this list only shrinks.
+[[tool.mypy.overrides]]
+module = [
+    "lifter.agents.audit",
+    "lifter.agents.coach",
+    "lifter.agents.guardrail",
+    "lifter.agents.planner",
+    "lifter.agents.tools",
+    "lifter.agents.week",
+    "lifter.api.app",
+    "lifter.api.conversation",
+    "lifter.bench.conversation",
+    "lifter.bench.runner",
+    "lifter.bench.scenario",
+    "lifter.cli",
+    "lifter.config",
+    "lifter.conversation",
+    "lifter.db",
+    "lifter.domain",
+    "lifter.garmin",
+    "lifter.operations",
+    "lifter.program",
+    "lifter.sync",
+    "lifter.synthetic",]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

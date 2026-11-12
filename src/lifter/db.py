@@ -9,7 +9,9 @@ their grants).
 """
 
 import hashlib
+from collections.abc import Mapping
 from importlib import resources
+from typing import Any
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
@@ -31,21 +33,21 @@ LOCAL_HOSTS = frozenset({"", "localhost", "127.0.0.1", "::1"})
 CLEAR_SSLMODES = frozenset({"disable", "allow", "prefer"})
 
 
-def _tls(params: dict[str, str]) -> dict[str, str]:
+def _tls(params: Mapping[str, Any]) -> str | None:
     """The sslmode to add: `require` for a remote server whose URL names none; a URL that asks
     for clear text to a remote server is refused."""
-    hosts = (params.get("hostaddr") or params.get("host") or "").split(",")
+    hosts = str(params.get("hostaddr") or params.get("host") or "").split(",")
     if all(h.strip() in LOCAL_HOSTS or h.strip().startswith("/") for h in hosts):
-        return {}
+        return None
     sslmode = params.get("sslmode")
     if sslmode is None:
-        return {"sslmode": "require"}
+        return "require"
     if sslmode in CLEAR_SSLMODES:
         raise ConfigError(
             f"a database off this machine needs TLS: sslmode={sslmode} is refused"
             " (use verify-full, or require)"
         )
-    return {}
+    return None
 
 
 def connect(url: str) -> psycopg.Connection:
@@ -59,7 +61,9 @@ def connect(url: str) -> psycopg.Connection:
     options = (
         f"{params.get('options', '')} -c search_path={SEARCH_PATH} -c TimeZone={timezone_name()}"
     ).strip()
-    return psycopg.connect(url, autocommit=True, options=options, **_tls(params))
+    if sslmode := _tls(params):
+        url = make_conninfo(url, sslmode=sslmode)
+    return psycopg.connect(url, autocommit=True, options=options)
 
 
 def as_role(url: str, role: str) -> str:

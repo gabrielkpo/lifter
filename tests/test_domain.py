@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from lifter import domain
+from lifter.config import today as athlete_today
 from lifter.sync import store_payload
 from synthetic import activity, hr_zones
 
@@ -182,7 +183,7 @@ def test_a_logged_session_is_done_without_the_watch(conn, bank):
 
 
 def test_a_future_session_is_planned_and_a_rest_day_is_rest(conn, bank):
-    future = date.today() + timedelta(days=3)
+    future = athlete_today() + timedelta(days=3)
     sid = domain.create_session(conn, push_session(day=future))
     rest = domain.create_session(conn, domain.SessionIn(day=PAST, title="Rest", kind="rest"))
     assert (status(conn, sid), status(conn, rest)) == ("planned", "rest")

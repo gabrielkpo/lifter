@@ -61,7 +61,7 @@ Hand grading (1 to 5 per scenario, against its `review`) completes it for plan q
 - **Round 3** (2026-10-19). Two rules added, the only ones that held across the trial passes:
   a missed set (fewer reps, or a RIR under its target) keeps the load or one step lighter; fewer
   reps never allow a heavier load than one step above the heaviest set at as many reps or more.
-  Against main's prompt (3 runs per scenario): accepted 82.5 % to 87.6 %, expectations flat
+  Against main's prompt (3 runs per scenario, no committed file): accepted 82.5 % to 87.6 %, expectations flat
   (79.4 % to 79.7 %), `bench_rir_missed` 0/3 to 4/5, the power week 0/3 to 3/5 accepted,
   unsourced numbers 11 to 6 (on more runs). Main's prompt was measured on 3 runs, this one on
   5: the rates carry different sampling noise, and only the gains on the targeted scenarios
@@ -136,14 +136,14 @@ scenarios fully met (those whose every expectation is that nothing changes or no
 is suggested; earlier rates: 60 % before `add_mobility`, 56 % before `mobility_three_joints`,
 53 % before the two `undo_elsewhere` ones, 50 % from the three record ones to the two programme
 ones, 43 % once `forbidden_exercise` expected the athlete's instruction applied;
-`bench/results/conversations-silent.json`). **The coach on the fifteen scenarios, three
-models, same tools and prompt** (`--runs 3`, measured on 2026-10-20):
+`bench/results/conversations-silent.json`, which the tests compare with a fresh run). **The coach
+on the fifteen scenarios of the time, three models, same tools and prompt** (`--runs 3`, measured on 2026-10-20):
 
 | Model | Expectations met | Scenarios fully met | Calls | Tokens | Failures |
 |---|---|---|---|---|---|
 | `mistral-small-latest` (`bench/results/coach-mistral-small.json`) | 87.5 % | 39/45 | 155 | 1.34 M | a new mobility part left empty (0/3), a named undo in another conversation done by hand (0/3) |
 | `mistral-medium-latest` (`bench/results/coach-mistral-medium.json`) | **95.8 %** | **42/45** | 139 | 1.19 M | asks to confirm a record whose reps were already given (0/3) |
-| `mistral-large-latest` | 91.5 % on 31 runs | 27/31 | 86 | 0.75 M | 14 runs crashed on the API's rate limit (429) at this subscription tier; the same failure as medium otherwise |
+| `mistral-large-latest` (no committed file) | 91.5 % on 31 runs | 27/31 | 86 | 0.75 M | 14 runs crashed on the API's rate limit (429) at this subscription tier; the same failure as medium otherwise |
 
 Small fails on composed instructions and prudence rules written in prose; medium follows them. The
 snapshot carries each part's lines (compact JSON, empty fields left out), which raised the input of
@@ -274,3 +274,9 @@ through (the known limit of ADR 0002); only the model's reading of data as data 
 uv run lifter bench-chat                                   # the silent floor
 uv run lifter bench-chat --coach mistral --runs 3 --out bench/results/coach-single.json
 ```
+
+A results file written with `--out` records what it was measured on: `generated_at`, `git_sha`
+(with `-dirty` when tracked files other than the results had changes), `lifter_version`, the
+SHA-256 of the system prompt's template (`null` for a floor that calls no model) and of the
+scenario files run, the `scenarios` and `runs_per_scenario`. Files committed before this carry
+none of it.

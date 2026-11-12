@@ -38,7 +38,7 @@ from typing import Any, Literal
 
 import psycopg
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, Field, create_model, model_validator
+from pydantic import BaseModel, Field, ValidationError, create_model, model_validator
 from pydantic.fields import FieldInfo
 
 from lifter import domain
@@ -55,6 +55,7 @@ from lifter.domain import (
     SessionIn,
     StrictModel,
     WeekIntent,
+    rule_params,
 )
 from lifter.quote import verify_quote
 
@@ -1634,7 +1635,7 @@ def add_rule(conn, p: AddRule, ctx: Context) -> Change:
 
 class RuleFields(StrictModel):
     code: str | None
-    text: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=2000)
     params: dict[str, Any]
     active: bool
 
@@ -1650,9 +1651,22 @@ UpdateRule = _partial("UpdateRule", RuleFields, "Change a rule's text, parameter
     weeks=lambda c, p: _live_weeks(c),
 )
 def update_rule(conn, p, ctx: Context) -> Change:
-    return _named(
-        _update(conn, "athlete_rule", p.id, p.expected_version, p.changes()), "update_rule"
-    )
+    changes = p.changes()
+    if "params" in changes or "code" in changes:
+        # The parameters checked against the code the rule will have
+        current = _existing(conn, "athlete_rule", p.id)
+        code = changes.get("code", current.get("code"))
+        try:
+            changes["params"] = rule_params(
+                code, changes.get("params", current.get("params") or {})
+            )
+        except ValidationError as exc:
+            problem = exc.errors()[0]
+            where = ".".join(str(part) for part in problem["loc"]) or "params"
+            raise OperationError(
+                f"invalid params for the rule {code!r}: {where}: {problem['msg']}"
+            ) from None
+    return _named(_update(conn, "athlete_rule", p.id, p.expected_version, changes), "update_rule")
 
 
 class DeactivateRule(StrictModel):
@@ -1993,7 +2007,9 @@ def _apply_checked(
         before = {w: _programme_check[0](conn, w) for w in weeks}
     try:
         change = op.apply(conn, model, ctx).model_copy(update={"operation": op.name})
-    except psycopg.errors.IntegrityError as exc:
+    except (psycopg.errors.IntegrityError, psycopg.errors.DataError) as exc:
+        # A constraint, or a value out of the column's range (a count past int4): a refusal the
+        # model can correct, not a failed turn
         raise OperationError(f"refused by the database: {exc.diag.message_primary}") from None
     if not weeks:
         return change
@@ -2175,7 +2191,8 @@ def request(
         return conn.execute(
             "insert into proposal (kind, payload, rationale, author) values (%s, %s, %s,"
             " 'athlete') returning id",
-            (name, Jsonb(model.model_dump(mode="json")), rationale),
+            # Only the fields given: a partial update applied later must not null the others
+            (name, Jsonb(model.model_dump(mode="json", exclude_unset=True)), rationale),
         ).fetchone()[0]
 
 
@@ -2193,5 +2210,6 @@ def suggest(
     return conn.execute(
         "insert into proposal (kind, payload, rationale, author) values (%s, %s, %s, %s)"
         " returning id",
-        (name, Jsonb(model.model_dump(mode="json")), rationale, author),
+        # Only the fields given: a partial update applied later must not null the others
+        (name, Jsonb(model.model_dump(mode="json", exclude_unset=True)), rationale, author),
     ).fetchone()[0]

@@ -715,3 +715,10 @@ def test_the_cap_starts_from_the_heaviest_load_of_the_painful_day(conn, program)
     assert "stop_rule" not in checks(plan, ctx)
     plan.sessions[0].parts[1].lines[0].load_kg = 62.5
     assert "stop_rule" in checks(plan, ctx)
+
+
+def test_a_rule_stored_with_invalid_params_is_unchecked_never_a_crash(ctx):
+    # Written before the parameters were checked on write: a string where a load is expected
+    bad = guardrail.Rule(code="metcon_light_barbell", text="Light barbell.", params={"max_kg": "x"})
+    verdict = guardrail.check(good_plan(), ctx.model_copy(update={"rules": [bad]}))
+    assert verdict.unchecked_rules == ["Light barbell. (its parameters are invalid)"]

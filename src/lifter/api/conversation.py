@@ -14,6 +14,7 @@ are a later milestone. The routes on `/conversation` (the first conversation, "m
 release for an app left open across the deployment, then go.
 """
 
+import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from lifter.db import connect
 CONVERSATION = "main"  # the first conversation, from before there were several
 ID_PATTERN = ID.pattern
 MAX_TEXT = 2000
+log = logging.getLogger("lifter.api")
 MAX_MESSAGES = 100
 MAX_CONVERSATIONS = 100
 
@@ -337,12 +339,19 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
                 athlete, answer = _thread(
                     conn, conversation_id, "id = any(%s)", ([message_id, reply.message_id],), 2
                 )
+        except HTTPException:
+            raise
         except StaleMessage:
             raise failed(409, "a newer message is waiting: reload the conversation") from None
         except httpx.HTTPError:  # its text names the URL; nothing of the key reaches the client
             raise failed(502, "the coach's model is unreachable, try again") from None
         except psycopg.Error:
             raise failed(503, "database unavailable") from None
+        except Exception:
+            # The traceback goes to the platform's log (no message text, no secret in it); the
+            # app keeps the conversation it opened
+            log.exception("coach turn failed (conversation %s)", conversation_id)
+            raise failed(500, "the coach failed on this message, try again") from None
         return Reply(
             conversation_id=conversation_id,
             athlete=athlete,
@@ -465,6 +474,9 @@ def _undo(
         return "later", _later(conn, change_id)
     except operations.OperationError as exc:
         return "refused", str(exc)
+    except Exception:  # a bug, not a refusal: logged, said plainly, never a bare 500
+        log.exception("undo of change %s failed", change_id)
+        return "refused", "the undo failed on our side: try again later"
     return "done", [str(v.get("message", v)) for v in change.violations]
 
 

@@ -6,6 +6,7 @@ answers the deployment's own host names and allows no browser origin: only the a
 calls it.
 """
 
+import logging
 import os
 from collections.abc import Mapping
 
@@ -24,6 +25,8 @@ def split(value: str | None) -> list[str]:
 
 
 def create_app_from_env(env: Mapping[str, str] | None = None) -> FastAPI:
+    # Errors with their traceback on stderr, which the platform keeps (no request body logged)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     if env is None:
         settings = Settings.from_env()  # also loads .env into the environment
         env = os.environ

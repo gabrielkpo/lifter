@@ -54,6 +54,7 @@ from lifter.domain import (
     RuleIn,
     SessionIn,
     StrictModel,
+    WeekIntent,
 )
 from lifter.quote import verify_quote
 
@@ -692,7 +693,7 @@ class WeekFields(StrictModel):
     start_date: date
     phase: Phase
     title: str | None = None
-    intent: dict[str, Any] = {}
+    intent: WeekIntent = {}
     review: str | None = None
 
 

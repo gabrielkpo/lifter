@@ -14,12 +14,21 @@ Two ways to change the domain:
   and the trace that `undo` reverts.
 """
 
+import json
 from datetime import date
 from typing import Annotated, Any, Literal
 
 import psycopg
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+    model_validator,
+)
 
 PartKind = Literal[
     "warmup", "weightlifting", "gymnastics", "strength", "metcon", "cardio", "mobility"
@@ -28,6 +37,36 @@ MetconFormat = Literal["for_time", "amrap", "emom", "every_n", "rounds", "interv
 Unit = Literal["reps", "cal", "m", "s", "min"]
 PositiveInt = Annotated[int, Field(gt=0)]
 PositiveNumber = Annotated[float, Field(gt=0)]
+
+
+def _drop_nulls(value: Any) -> Any:
+    """A kind set to null in an intent means no intent for it: the key is left out."""
+    if isinstance(value, dict):
+        return {k: v for k, v in value.items() if v is not None}
+    return value
+
+
+# A week's intent: one text per part kind or movement pattern ("strength", "legs", "notes"...).
+# One definition for every writer (program file, operations) so a non-text value is refused
+# where it is written, never stored to lock the week for the readers.
+IntentKey = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+# Generous: a week's notes may hold a whole programming note, and the coach re-sends every kind
+IntentText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)
+]
+WeekIntent = Annotated[dict[IntentKey, IntentText], BeforeValidator(_drop_nulls)]
+
+
+def stored_intent(value: Any) -> dict[str, str]:
+    """A stored intent as readers take it: a value that is not text (written before WeekIntent
+    existed) is shown as JSON rather than refusing the whole week."""
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(k): v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+        for k, v in value.items()
+        if v is not None
+    }
 
 
 class StrictModel(BaseModel):

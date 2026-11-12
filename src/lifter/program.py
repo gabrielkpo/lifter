@@ -27,6 +27,7 @@ from lifter.domain import (
     RuleIn,
     SessionIn,
     StrictModel,
+    WeekIntent,
     add_rule,
     create_goal,
     create_session,
@@ -71,7 +72,7 @@ class WeekIn(StrictModel):
     start_date: date
     phase: Phase
     title: str | None = None
-    intent: dict[str, str] = {}
+    intent: WeekIntent = {}
     review: str | None = None
     sessions: list[WeekSessionIn] = []
 

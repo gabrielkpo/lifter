@@ -21,6 +21,7 @@ from psycopg.rows import dict_row
 from lifter import __version__
 from lifter.api import models
 from lifter.api.conversation import CoachSetup, register
+from lifter.config import today as athlete_today
 from lifter.db import connect
 
 # Host headers the API answers: without this check, a page whose name a DNS server rebinds to
@@ -203,7 +204,7 @@ def create_app(
         conn: Conn, start: date | None = None, end: date | None = None
     ) -> list[models.CalendarItem]:
         """Sessions and activities between two days (default: a week ago to two weeks ahead)."""
-        start = start or date.today() - timedelta(days=7)
+        start = start or athlete_today() - timedelta(days=7)
         end = end or start + timedelta(days=21)
         if end < start:
             raise HTTPException(422, "end is before start")

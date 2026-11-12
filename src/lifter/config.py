@@ -4,13 +4,36 @@ import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
 
 class ConfigError(ValueError):
     """A setting in the environment or .env has a value Lifter cannot use."""
+
+
+# The athlete's time zone: "today", a session's day, "this week". Hosted, the server runs in UTC.
+DEFAULT_TIMEZONE = "Europe/Paris"
+
+
+def timezone_name() -> str:
+    """LIFTER_TIMEZONE (an IANA name), or Europe/Paris."""
+    name = os.environ.get("LIFTER_TIMEZONE") or DEFAULT_TIMEZONE
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ConfigError(
+            f"LIFTER_TIMEZONE must be a time zone such as Europe/Paris, got {name!r}"
+        ) from None
+    return name
+
+
+def today() -> date:
+    """The athlete's date now, in LIFTER_TIMEZONE (not the server's)."""
+    return datetime.now(ZoneInfo(timezone_name())).date()
 
 
 def _int(env: Mapping[str, str], key: str, default: int) -> int:

@@ -86,3 +86,22 @@ def test_the_coach_has_its_own_budgets_and_the_api_its_settings():
 def test_a_bad_api_or_context_setting_is_refused_with_its_name(env, message):
     with pytest.raises(ConfigError, match=message):
         Settings.from_env(env)
+
+
+def test_today_is_the_athletes_date_in_lifter_timezone(monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from lifter.config import today
+
+    for name in ("Pacific/Kiritimati", "Pacific/Pago_Pago"):  # UTC+14 and UTC-11
+        monkeypatch.setenv("LIFTER_TIMEZONE", name)
+        assert today() == datetime.now(ZoneInfo(name)).date()
+
+
+def test_an_unknown_time_zone_is_refused(monkeypatch):
+    from lifter.config import ConfigError, today
+
+    monkeypatch.setenv("LIFTER_TIMEZONE", "Mars/Olympus")
+    with pytest.raises(ConfigError, match="LIFTER_TIMEZONE"):
+        today()

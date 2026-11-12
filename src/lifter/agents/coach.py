@@ -41,6 +41,7 @@ from lifter import operations
 from lifter.agents.guardrail import forbidden_flags
 from lifter.agents.planner import Usage
 from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
+from lifter.config import today as athlete_today
 
 AGENT = "coach"
 MAX_STEPS = 8
@@ -425,7 +426,7 @@ def respond(
             f"message {message_id} is not the athlete's latest in conversation"
             f" {conversation_id!r} (latest: {latest})"
         )
-    today = today or date.today()
+    today = today or athlete_today()
     register_rule_check()
     started_at = datetime.now(UTC)
     started = _now()

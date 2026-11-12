@@ -392,3 +392,12 @@ def test_lifter_chat_says_which_urls_to_set_when_the_user_cannot_act_as_the_coac
     finally:
         conn.execute(f'revoke connect on database "{name}" from lifter_probe')
         conn.execute("drop role lifter_probe")
+
+
+def test_a_session_counts_days_in_the_athletes_time_zone(database_url, monkeypatch):
+    monkeypatch.delenv("LIFTER_TIMEZONE", raising=False)
+    with connect(database_url) as conn:
+        assert conn.execute("show timezone").fetchone() == ("Europe/Paris",)
+    monkeypatch.setenv("LIFTER_TIMEZONE", "Pacific/Kiritimati")
+    with connect(database_url) as conn:
+        assert conn.execute("show timezone").fetchone() == ("Pacific/Kiritimati",)

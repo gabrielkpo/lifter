@@ -59,7 +59,7 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
       throw new ApiError(
         response.status,
         `${response.status} ${response.statusText}`,
-        await openedIn(response),
+        ...(await explained(response)),
       );
     }
     return (await response.json()) as T;
@@ -84,19 +84,26 @@ export class ApiError extends Error {
     message: string,
     /** A conversation the failed call opened all the same (POST /conversations). */
     readonly conversationId: string | null = null,
+    /** The API's own words for a refusal, when it gives some (the coach's budget or pace). */
+    readonly detail: string | null = null,
   ) {
     super(message);
   }
 }
 
-/** The conversation a failed message opened, when the API says so in its error. */
-async function openedIn(response: Response): Promise<string | null> {
+/** What a failed message's error says: the conversation it opened all the same, or the API's
+ * sentence for a refusal. */
+async function explained(response: Response): Promise<[string | null, string | null]> {
   try {
-    const body = (await response.json()) as { detail?: { conversation_id?: unknown } };
-    const opened = body.detail?.conversation_id;
-    return typeof opened === "string" ? opened : null;
+    const body = (await response.json()) as {
+      detail?: string | { conversation_id?: unknown };
+    };
+    const detail = body.detail;
+    if (typeof detail === "string") return [null, detail.slice(0, 300)];
+    const opened = detail?.conversation_id;
+    return [typeof opened === "string" ? opened : null, null];
   } catch {
-    return null;
+    return [null, null];
   }
 }
 

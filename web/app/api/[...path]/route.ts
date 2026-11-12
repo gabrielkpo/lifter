@@ -22,19 +22,13 @@ const ENDPOINTS = new Set([
   "status",
   "bests",
   "history",
-  "proposals",
-  "conversation",
   "conversations",
 ]);
 const SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Where a message may go: a new conversation, one by its id, the Undo of a change in one, or
- * the first one (the route of the release before, for an app left open across the deployment). */
+/** Where a message may go: a new conversation, one by its id, or the Undo of a change in one. */
 function messagePath(path: string[]): string | null {
-  if (
-    path.length === 1 &&
-    (path[0] === "conversations" || path[0] === "conversation")
-  ) {
+  if (path.length === 1 && path[0] === "conversations") {
     return path[0];
   }
   if (
@@ -84,9 +78,9 @@ async function forward(url: string, init: RequestInit): Promise<NextResponse> {
       { status: 504 },
     );
   }
-  // Errors other than "not found", "invalid input" and the coach's own (a newer message,
-  // its model or the database unavailable) are not passed through in detail, but a refusal
-  // (wrong token or protection bypass) stays distinct from a failure.
+  // Errors other than "not found", "invalid input" and the coach's own (a newer message, its
+  // budget or pace reached, its model or the database unavailable) are not passed through in
+  // detail, but a refusal (wrong token or protection bypass) stays distinct from a failure.
   if (
     upstream.status === 401 ||
     upstream.status === 403 ||
@@ -97,7 +91,7 @@ async function forward(url: string, init: RequestInit): Promise<NextResponse> {
       { status: 503 },
     );
   }
-  if (!upstream.ok && ![404, 409, 422, 502, 503].includes(upstream.status)) {
+  if (!upstream.ok && ![404, 409, 422, 429, 502, 503].includes(upstream.status)) {
     return NextResponse.json({ detail: "Lifter API error" }, { status: 502 });
   }
   return new NextResponse(await upstream.text(), {

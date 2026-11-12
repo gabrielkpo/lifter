@@ -4,11 +4,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Conventional Commits titles, so the PR title check passes; one grouped PR per week
+    # Conventional Commits titles, so the PR title check passes; one grouped PR per week for
+    # version updates, while a security update comes as its own PR, to merge first
     commit-message:
       prefix: "chore(deps)"
     groups:
       python:
+        applies-to: version-updates
         patterns: ["*"]
   - package-ecosystem: npm
     directory: /web
@@ -28,6 +30,7 @@ updates:
       prefix: "chore(deps)"
     groups:
       web:
+        applies-to: version-updates
         patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /

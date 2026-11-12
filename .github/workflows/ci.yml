@@ -5,9 +5,12 @@ on:
     branches: [main]
 permissions:
   contents: read
+# Third-party actions are pinned by commit with their version in a comment; Dependabot bumps
+# the pins (github-actions ecosystem).
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:18  # the hosted database's major version (Neon)
@@ -20,8 +23,12 @@ jobs:
       # Throwaway CI database server; the tests create and drop their own database
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.13.7"
       - name: Install
         run: uv sync --locked --group dev
       - run: uv run ruff check .
@@ -29,12 +36,15 @@ jobs:
       - run: uv run pytest
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -44,3 +54,21 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # shellcheck is preinstalled on the GitHub runner image
+      - run: shellcheck --severity=warning ops/*.sh
+  dependency-review:
+    # A pull request that adds a dependency with a known high or critical vulnerability fails.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high

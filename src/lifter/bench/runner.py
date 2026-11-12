@@ -187,14 +187,15 @@ def _sha256(text: str) -> str:
 
 
 def _git_sha() -> str | None:
-    """The commit the bench ran on, with "-dirty" when the tree had changes; None outside a
-    clone."""
+    """The commit the bench ran on, with "-dirty" when tracked files other than the results had
+    changes; None outside a clone."""
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=10
         ).stdout.strip()
         dirty = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
+            # The results files themselves do not change what was measured.
+            ["git", "status", "--porcelain", "--untracked-files=no", "--", ".", ":!bench/results"],
             capture_output=True,
             text=True,
             check=True,

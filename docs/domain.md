@@ -63,7 +63,10 @@ the bank, every week in a declared block. Loading is all or nothing, and refuses
 that already holds a program unless `--replace` is given, which first deletes what the previous
 program file created (its cycle, sessions and goals, and the rules); sessions and goals added by
 the athlete or by approved proposals are kept, without their week, and the exercise bank is
-updated in place. `history` holds sessions
+updated in place. `--replace` refuses, unless `--force` is added (take a backup first), when it
+would lose what was written since: rules the file does not hold as they are now, the athlete's
+feedback on the program's sessions, or changes the coach made since the program was loaded
+(their undo would be refused). `history` holds sessions
 done before the cycle, outside any week.
 
 ## Who can change what
@@ -182,7 +185,8 @@ one. Then the trace: a `proposal` row (applied, with `quote`, `message_id`,
 with the athlete's message that answers the coach message presenting it (`proposal.presented_in`,
 set by `operations.present` when the coach's reply is stored): it has no lifetime, but one the
 conversation moved past expires, and comes back only if the coach presents it again. `undo` rebuilds the
-previous state from it, ids included, and is refused when those rows changed since (the
+previous state from it, ids included, on the columns it recorded (a column a later migration
+added takes its default), and is refused when those rows changed since (the
 app's Undo, `POST /conversations/{id}/undo`, then names the later changes to undo first). Every
 domain table has a `version` bumped on each update, and the database refuses a commit by the
 coach's role (`lifter_coach`) that wrote without such a trace, and any later change to an

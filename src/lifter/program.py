@@ -127,14 +127,52 @@ def read_program(path: Path) -> ProgramIn:
     return ProgramIn.model_validate(data)
 
 
+def what_replace_deletes(conn: psycopg.Connection, program: ProgramIn) -> dict[str, int]:
+    """What `replace` would delete or detach that the new program file does not write back:
+    the rules it does not hold as they are now (added, changed or switched off since), the
+    athlete's feedback on the program's sessions, and the coach's traced changes since the
+    current program was loaded, whose undo would then be refused."""
+    kept = [(r.code, r.text, r.params, True) for r in program.rules]
+    rules = sum(
+        1
+        for row in conn.execute("select code, text, params, active from athlete_rule").fetchall()
+        if tuple(row) not in kept
+    )
+    (feedback,) = conn.execute(
+        "select count(*) from feedback f join planned_session s on s.id = f.planned_session_id"
+        " where s.source = 'program'"
+    ).fetchone()
+    (changes,) = conn.execute(
+        "select count(*) from change_log"
+        " where created_at > (select coalesce(min(created_at), '-infinity') from cycle)"
+    ).fetchone()
+    lost = {
+        "rules not in the file as they are now": rules,
+        "feedback on the program's sessions": feedback,
+        "changes made through the coach since the program was loaded": changes,
+    }
+    return {name: n for name, n in lost.items() if n}
+
+
 def load_program(
-    conn: psycopg.Connection, program: ProgramIn, *, replace: bool = False
+    conn: psycopg.Connection, program: ProgramIn, *, replace: bool = False, force: bool = False
 ) -> dict[str, int]:
-    """Write the program to the database in one transaction; returns what was created."""
+    """Write the program to the database in one transaction; returns what was created.
+    `replace` refuses, unless `force`, when it would delete what was written since the file
+    (feedback, rules, the coach's traced changes, logs included, whose undo would then be
+    refused)."""
     with conn.transaction():
         existing = conn.execute("select count(*) from cycle").fetchone()[0]
         if existing and not replace:
             raise DomainError("a program is already loaded; load with replace to overwrite it")
+        if replace and existing and not force:
+            lost = what_replace_deletes(conn, program)
+            if lost:
+                listed = ", ".join(f"{n} {name}" for name, n in lost.items())
+                raise DomainError(
+                    f"replace would delete what was written since the program file: {listed}."
+                    " Take a backup first, then load with --force to go ahead"
+                )
         if replace:
             # Parts, lines, weeks and milestones follow by cascade; sessions of other sources
             # stay in the calendar and lose their week.

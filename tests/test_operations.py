@@ -665,6 +665,85 @@ def test_a_text_past_its_bound_is_refused(conn, program):
         do(conn, "add_coaching_note", {"title": "Long", "text": "x" * 20_001}, "note longue")
 
 
+def test_a_resolved_health_issue_can_be_reopened(conn, program):
+    issue = do(
+        conn,
+        "add_health_issue",
+        {"body_part": "knee", "kind": "pain", "description": "Pain going down stairs"},
+        "j'ai mal au genou",
+    ).entity_id
+    v = version(conn, "health_issue", issue)
+    do(conn, "resolve_health_issue", {"id": issue, "expected_version": v}, "mon genou va bien")
+    v = version(conn, "health_issue", issue)
+    do(
+        conn,
+        "update_health_issue",
+        {"id": issue, "expected_version": v, "status": "active"},
+        "le genou a recommencé à faire mal",
+    )
+    row = conn.execute(
+        "select status, resolved_on from health_issue where id = %s", (issue,)
+    ).fetchone()
+    assert row == ("active", None)
+
+
+def test_undo_survives_a_column_added_since_the_change(conn, program):
+    sid = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    moved = do(
+        conn,
+        "move_session",
+        {
+            "session_id": sid,
+            "new_day": "2026-03-20",
+            "expected_version": version(conn, "planned_session", sid),
+        },
+        "décale la séance au 20",
+    )
+    line = conn.execute("select id, version from session_exercise order by id limit 1").fetchone()
+    deleted = do(
+        conn,
+        "delete_line",
+        {"id": line[0], "expected_version": line[1]},
+        "enlève cette ligne",
+    )
+    conn.execute("alter table planned_session add column extra int not null default 7")
+    conn.execute("alter table session_exercise add column extra int not null default 7")
+    for change in (deleted, moved):  # the last first
+        cid = conn.execute(
+            "select c.id from change_log c join proposal p on p.id = c.proposal_id"
+            " where p.kind = %s order by c.id desc limit 1",
+            (change.operation,),
+        ).fetchone()[0]
+        do(conn, "undo", {"change_id": cid}, "annule")
+    assert conn.execute(
+        "select extra from session_exercise where id = %s", (line[0],)
+    ).fetchone() == (7,)  # recreated, the new column at its default
+    assert (
+        conn.execute("select day::text from planned_session where id = %s", (sid,)).fetchone()[0]
+        != "2026-03-20"
+    )
+
+
+def test_replace_refuses_to_delete_what_was_written_since_unless_forced(conn, program):
+    from lifter.domain import DomainError
+    from lifter.program import load_program, read_program
+
+    do(conn, "add_rule", {"text": "Rule added in conversation."}, "ajoute cette règle")
+    with pytest.raises(DomainError, match="rules not in the file"):
+        load_program(conn, read_program(EXAMPLE), replace=True)
+    assert load_program(conn, read_program(EXAMPLE), replace=True, force=True)
+    # Nothing written since that load: a second replace needs no force.
+    assert load_program(conn, read_program(EXAMPLE), replace=True)
+    sid = conn.execute(
+        "select id from planned_session where source = 'program' order by id limit 1"
+    ).fetchone()[0]
+    conn.execute(
+        "insert into feedback (day, planned_session_id, rpe) values ('2026-03-02', %s, 7)", (sid,)
+    )
+    with pytest.raises(DomainError, match="feedback on the program's sessions"):
+        load_program(conn, read_program(EXAMPLE), replace=True)
+
+
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):
     operations._programme_check = None
     with pytest.raises(OperationError, match="no rule check"):

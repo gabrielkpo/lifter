@@ -80,10 +80,16 @@ alter default privileges grant usage on schemas to lifter_read;
 -- write or need it.
 revoke select on agent_run, agent_step, conversation, conversation_message, change_log
     from lifter_read;
+-- A proposal, but for its result (the rows before and after the change it made) and the
+-- athlete's words that authorised it (quote, message, key): the same health details. The
+-- coach reads them as lifter_write, the backup as lifter_private.
+revoke select on proposal from lifter_read;
+grant select (id, kind, payload, rationale, author, status, created_at, decided_at, applied_at,
+    presented_in, undone_by) on proposal to lifter_read;
 
 -- lifter_private: the backup dumps every table, these included.
 grant usage on schema public to lifter_private;
-grant select on agent_run, agent_step, conversation, conversation_message, change_log
+grant select on agent_run, agent_step, conversation, conversation_message, change_log, proposal
     to lifter_private;
 
 -- lifter_ingest: what lifter.sync reads and writes, nothing else. The staging views run with

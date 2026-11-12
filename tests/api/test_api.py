@@ -322,6 +322,25 @@ def test_proposals_are_filtered_by_status(api, conn):
     assert pending["payload"]["title"] == "Strict press 50 kg"
     assert api.get("/proposals", params={"status": "applied"}).json() == []
     assert api.get("/proposals", params={"status": "whatever"}).status_code == 422
+    assert "result" not in pending  # the rows before and after a change stay out
+
+
+def test_proposals_come_a_page_at_a_time(api, conn):
+    ids = [
+        domain.propose(
+            conn,
+            "create_goal",
+            domain.GoalIn(title=f"Goal {n}", target_value=n, unit="kg").model_dump(mode="json"),
+            rationale="Synthetic rationale.",
+            author="week_planner",
+        )
+        for n in range(1, 4)
+    ]
+    first = api.get("/proposals", params={"limit": 2}).json()
+    assert [p["id"] for p in first] == ids[:2]
+    rest = api.get("/proposals", params={"limit": 2, "after": ids[1]}).json()
+    assert [p["id"] for p in rest] == ids[2:]
+    assert api.get("/proposals", params={"limit": 101}).status_code == 422
 
 
 def test_the_api_connection_cannot_write(database_url):

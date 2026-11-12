@@ -29,7 +29,7 @@ cd web && npm ci && npm run dev    # http://localhost:3000
 | `GET /history?exercise=` | The heaviest set per day of a movement, a declared record without a session (PR curves) |
 | `GET /profile` | The athlete (age, never the birth date), declared health issues, active rules |
 | `GET /status` | When the Mac's sync last stored or confirmed a Garmin payload (the app's freshness banner) |
-| `GET /proposals?status=pending` | The agents' proposals |
+| `GET /proposals?status=pending&limit=50&after=` | The agents' proposals, oldest first, a page at a time; never their result nor the athlete's words |
 | `GET /conversations?limit=50&before=` | The conversations with the coach, the most recently active first (id, title: the start of the first message, dates); `before`, the last id of a page, gives the next one |
 | `GET /conversations/{id}?limit=50` | A conversation and its latest messages, oldest first: each athlete message with the changes it authorised, each reply with the suggestions it presented; 404 for an unknown id |
 | `POST /conversations` `{text}` | A new conversation, opened by the athlete's first message, then the coach's answer to it (one turn, 1 to 8 model calls). Its id is drawn by the server. 502 if the model is unreachable, 503 if the database is or the coach is not configured; when the conversation was opened all the same, the error's `detail` names it (`conversation_id`) |

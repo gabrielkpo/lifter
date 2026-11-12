@@ -338,7 +338,6 @@ class Proposal(BaseModel):
     rationale: str
     author: str
     status: ProposalStatus
-    result: dict[str, Any] | None
     created_at: datetime
     decided_at: datetime | None
     applied_at: datetime | None

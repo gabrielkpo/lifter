@@ -368,3 +368,25 @@ def test_the_local_coach_acts_as_its_roles_and_needs_a_trace(conn, database_url)
         assert coach.execute("select current_user").fetchone() == ("lifter_coach",)
         with pytest.raises(psycopg.Error, match="trace"), coach.transaction():
             coach.execute("insert into coaching_note (title, text) values ('Note', 'Sans trace')")
+
+
+def test_lifter_chat_says_which_urls_to_set_when_the_user_cannot_act_as_the_coach(
+    conn, database_url, monkeypatch, capsys
+):
+    from psycopg.conninfo import make_conninfo
+
+    from lifter.cli import main
+
+    conn.execute("drop role if exists lifter_probe")
+    conn.execute("create role lifter_probe login")
+    (name,) = conn.execute("select current_database()").fetchone()
+    conn.execute(f'grant connect on database "{name}" to lifter_probe')
+    try:
+        monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+        monkeypatch.setenv("DATABASE_URL", make_conninfo(database_url, user="lifter_probe"))
+        monkeypatch.setenv("MISTRAL_API_KEY", "unused")
+        assert main(["chat", "Salut"]) == 3
+        assert "LIFTER_COACH_DATABASE_URL" in capsys.readouterr().out
+    finally:
+        conn.execute(f'revoke connect on database "{name}" from lifter_probe')
+        conn.execute("drop role lifter_probe")

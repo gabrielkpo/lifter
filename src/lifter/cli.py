@@ -536,7 +536,9 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
     # As the hosted conversation does: the athlete's message as lifter_chat, the coach as
     # lifter_coach (DATABASE_URL acting as those roles, unless they have their own URLs).
     chat_url, coach_url = coach_urls(settings, hosted=False)
-    assert chat_url and coach_url
+    if not (chat_url and coach_url):
+        print("DATABASE_URL is not set (see .env.example)")
+        return 2
     try:
         with connect(chat_url) as chat, chat.transaction():
             start(chat, id=args.conversation, title=args.message, source="cli")
@@ -560,14 +562,14 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
     except httpx.HTTPError as exc:  # the message names the URL, never the key
         print(printable(f"Mistral API error: {exc}"))
         return 1
-    except psycopg.errors.InsufficientPrivilege as exc:
-        print(
-            printable(f"database: {exc}".strip())
-            + "\nthe coach runs as lifter_chat and lifter_coach: connect DATABASE_URL as a member"
-            " of them, or set LIFTER_CHAT_DATABASE_URL and LIFTER_COACH_DATABASE_URL"
-        )
-        return 3
     except psycopg.Error as exc:
+        if "permission denied to set role" in str(exc):  # refused at connection (FATAL)
+            print(
+                "database: permission denied to set role. The coach runs as lifter_chat and"
+                " lifter_coach: connect DATABASE_URL as a member of them, or set"
+                " LIFTER_CHAT_DATABASE_URL and LIFTER_COACH_DATABASE_URL"
+            )
+            return 3
         print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
         return 3
     out = [reply.text, ""]

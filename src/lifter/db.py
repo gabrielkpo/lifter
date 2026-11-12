@@ -12,7 +12,9 @@ import hashlib
 from importlib import resources
 
 import psycopg
-from psycopg.conninfo import conninfo_to_dict
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
+
+from lifter.config import ConfigError
 
 # Key of the analytics layer (the dbt project's hash) in public.schema_views.
 TRANSFORM_KEY = "dbt"
@@ -23,14 +25,45 @@ ROLES_FILE = "roles.sql"
 SEARCH_PATH = "analytics,public"
 
 
+LOCAL_HOSTS = frozenset({"", "localhost", "127.0.0.1", "::1"})
+# A server off this machine is reached with TLS at least: libpq's default (prefer) falls back
+# to clear text silently.
+CLEAR_SSLMODES = frozenset({"disable", "allow", "prefer"})
+
+
+def _tls(params: dict[str, str]) -> dict[str, str]:
+    """The sslmode to add: `require` for a remote server whose URL names none; a URL that asks
+    for clear text to a remote server is refused."""
+    hosts = (params.get("hostaddr") or params.get("host") or "").split(",")
+    if all(h.strip() in LOCAL_HOSTS or h.strip().startswith("/") for h in hosts):
+        return {}
+    sslmode = params.get("sslmode")
+    if sslmode is None:
+        return {"sslmode": "require"}
+    if sslmode in CLEAR_SSLMODES:
+        raise ConfigError(
+            f"a database off this machine needs TLS: sslmode={sslmode} is refused"
+            " (use verify-full, or require)"
+        )
+    return {}
+
+
 def connect(url: str) -> psycopg.Connection:
     """Autocommit connection: callers group writes with `conn.transaction()`.
 
-    The search_path is appended to any `options` already set in the URL, not substituted.
+    The search_path is appended to any `options` already set in the URL, not substituted. A
+    remote server is reached with TLS (see `_tls`).
     """
+    params = conninfo_to_dict(url)
+    options = f"{params.get('options', '')} -c search_path={SEARCH_PATH}".strip()
+    return psycopg.connect(url, autocommit=True, options=options, **_tls(params))
+
+
+def as_role(url: str, role: str) -> str:
+    """`url`, whose sessions act as `role` from the start (`set role`): the connected user
+    must be a member of it. Its rights apply, the database's trace checks included."""
     options = conninfo_to_dict(url).get("options", "")
-    options = f"{options} -c search_path={SEARCH_PATH}".strip()
-    return psycopg.connect(url, autocommit=True, options=options)
+    return make_conninfo(url, options=f"{options} -c role={role}".strip())
 
 
 def migration_files() -> list[tuple[str, str]]:

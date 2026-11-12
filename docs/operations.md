@@ -44,6 +44,10 @@ old, and `lifter data-test --freshness` fails past 72 hours.
    - `~/.config/lifter/sync.env`: `DATABASE_URL` (lifter_sync, direct endpoint, `sslmode=require`),
      `GARMIN_MCP_URL`, `GARMIN_MCP_TOKEN`, `SYNC_DELAY_SECONDS`;
    - `~/.config/lifter/backup.env`: `DATABASE_URL` (lifter_backup, direct endpoint).
+
+   Lifter reaches a database off the machine with TLS at least: a URL that names no `sslmode`
+   gets `require`, and `disable`, `allow` or `prefer` are refused. `sslmode=verify-full` with
+   `sslrootcert=system` also checks the server's certificate.
 5. **Jobs**: `ops/install.sh` (copies the scripts to `~/.local/share/lifter/ops` and loads the
    launchd agents); `ops/install.sh --uninstall` removes them.
 

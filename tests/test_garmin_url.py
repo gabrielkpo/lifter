@@ -159,3 +159,30 @@ def test_sync_gives_up_on_a_server_that_never_answers(monkeypatch, capsys):
         for conn in held:
             conn.close()
         listener.close()
+
+
+@pytest.mark.parametrize(
+    ("url", "added"),
+    [
+        ("postgresql:///lifter", {}),
+        ("postgresql://localhost:5433/lifter", {}),
+        ("host=/tmp dbname=lifter", {}),
+        ("postgresql://user@db.example.com/lifter", {"sslmode": "require"}),
+        ("postgresql://user@db.example.com/lifter?sslmode=verify-full", {}),
+    ],
+)
+def test_a_remote_database_is_reached_with_tls(url, added):
+    from psycopg.conninfo import conninfo_to_dict
+
+    from lifter.db import _tls
+
+    assert _tls(conninfo_to_dict(url)) == added
+
+
+def test_a_remote_database_in_clear_text_is_refused():
+    from psycopg.conninfo import conninfo_to_dict
+
+    from lifter.db import _tls
+
+    with pytest.raises(ConfigError, match="sslmode=prefer is refused"):
+        _tls(conninfo_to_dict("postgresql://user@db.example.com/lifter?sslmode=prefer"))

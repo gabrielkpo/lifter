@@ -353,3 +353,18 @@ def test_the_read_role_sees_a_proposal_but_never_its_result_nor_the_athletes_wor
     for role in ("lifter_coach", "lifter_backup"):
         full = "select has_table_privilege(%s, 'public.proposal', 'SELECT')"
         assert conn.execute(full, (role,)).fetchone() == (True,), role
+
+
+def test_the_local_coach_acts_as_its_roles_and_needs_a_trace(conn, database_url):
+    from lifter.api.hosted import coach_urls
+    from lifter.config import Settings
+
+    chat_url, coach_url = coach_urls(
+        Settings.from_env({"DATABASE_URL": database_url}), hosted=False
+    )
+    with connect(chat_url) as chat:
+        assert chat.execute("select current_user").fetchone() == ("lifter_chat",)
+    with connect(coach_url) as coach:
+        assert coach.execute("select current_user").fetchone() == ("lifter_coach",)
+        with pytest.raises(psycopg.Error, match="trace"), coach.transaction():
+            coach.execute("insert into coaching_note (title, text) values ('Note', 'Sans trace')")

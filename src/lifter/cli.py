@@ -531,14 +531,21 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
     model = mistral_model(
         settings.mistral_api_key, settings.coach_model, settings.max_output_tokens
     )
+    from lifter.api.hosted import coach_urls
+
+    # As the hosted conversation does: the athlete's message as lifter_chat, the coach as
+    # lifter_coach (DATABASE_URL acting as those roles, unless they have their own URLs).
+    chat_url, coach_url = coach_urls(settings, hosted=False)
+    assert chat_url and coach_url
     try:
-        with connect(settings.database_url) as conn:
-            start(conn, id=args.conversation, title=args.message, source="cli")
-            message_id = conn.execute(
+        with connect(chat_url) as chat, chat.transaction():
+            start(chat, id=args.conversation, title=args.message, source="cli")
+            message_id = chat.execute(
                 "insert into conversation_message (conversation_id, role, text)"
                 " values (%s, 'athlete', %s) returning id",
                 (args.conversation, args.message),
             ).fetchone()[0]
+        with connect(coach_url) as conn:
             reply = respond(
                 conn,
                 model,
@@ -553,6 +560,13 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
     except httpx.HTTPError as exc:  # the message names the URL, never the key
         print(printable(f"Mistral API error: {exc}"))
         return 1
+    except psycopg.errors.InsufficientPrivilege as exc:
+        print(
+            printable(f"database: {exc}".strip())
+            + "\nthe coach runs as lifter_chat and lifter_coach: connect DATABASE_URL as a member"
+            " of them, or set LIFTER_CHAT_DATABASE_URL and LIFTER_COACH_DATABASE_URL"
+        )
+        return 3
     except psycopg.Error as exc:
         print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
         return 3

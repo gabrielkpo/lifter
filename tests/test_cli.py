@@ -159,9 +159,22 @@ def test_a_coach_suggestion_is_never_approved_at_the_terminal(
 ):
     from lifter.operations import suggest
 
-    pid = suggest(conn, "add_rule", {"text": "No row."}, rationale="Idea.", author="coach")
-    assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 1
-    assert "answer it in the conversation" in capsys.readouterr().out
-    assert conn.execute("select status from proposal where id = %s", (pid,)).fetchone() == (
-        "pending",
-    )
+    sid, version = conn.execute(
+        "insert into planned_session (day, title) values ('2026-03-10', 'S') returning id, version"
+    ).fetchone()
+    ideas = [
+        suggest(conn, "add_rule", {"text": "No row."}, rationale="Idea.", author="coach"),
+        # a kind the domain knows too, with the catalogue's payload
+        suggest(
+            conn,
+            "move_session",
+            {"session_id": sid, "new_day": "2026-03-11", "expected_version": version},
+            rationale="Idea.",
+            author="coach",
+        ),
+    ]
+    for pid in ideas:
+        assert run_cli(monkeypatch, database_url, "proposal", "approve", str(pid)) == 1
+        assert "answer it in the conversation" in capsys.readouterr().out
+        status = conn.execute("select status from proposal where id = %s", (pid,)).fetchone()
+        assert status == ("pending",)

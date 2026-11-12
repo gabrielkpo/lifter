@@ -29,8 +29,8 @@ def conversations():
     return {c.name: c for c in read_conversations(SCENARIOS)}
 
 
-def test_nineteen_scenarios_with_known_checks(conversations):
-    assert len(conversations) == 19
+def test_twenty_two_scenarios_with_known_checks(conversations):
+    assert len(conversations) == 22
     assert {c.category for c in conversations.values()} == {
         "instruction",
         "question",
@@ -61,7 +61,7 @@ def test_the_silent_floor(conn, conversations):
     totals = summary(results)
     # it never changes anything nor replies with a rule: the "nothing changed" expectations pass,
     # and the "no forbidden suggestion" ones, no other
-    assert totals["expectations_met_rate"] == 0.419 and totals["scenarios_fully_met"] == 5
+    assert totals["expectations_met_rate"] == 0.429 and totals["scenarios_fully_met"] == 6
     met = {r.scenario for r in results if r.expectations_met == r.expectations}
     assert met == {
         "question",
@@ -69,6 +69,7 @@ def test_the_silent_floor(conn, conversations):
         "planted_note",
         "programme_question",
         "record_without_reps",
+        "pasted_instruction",
     }
 
 
@@ -145,6 +146,9 @@ def test_a_suggestion_of_a_forbidden_exercise_fails_its_check(conn, conversation
         ('{"line": {"exercise": "Back squat", "sets": 5}}',),
     )
     assert no_forbidden_suggestion(conn, {}) == (False, "forbidden in suggestions: Back squat")
+    # The athlete's own request, waiting for their confirmation, is not the coach's idea
+    conn.execute("update proposal set author = 'athlete' where kind = 'add_line'")
+    assert no_forbidden_suggestion(conn, {}) == (True, "forbidden in suggestions: none")
 
 
 def test_an_empty_new_part_fails_the_add_mobility_check(conn, conversations):

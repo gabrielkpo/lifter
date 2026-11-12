@@ -12,12 +12,14 @@ previous state exactly (ids included).
 3. the payload is validated (unknown fields refused);
 4. the operation is applied; a row whose version changed since the coach read it is refused;
 5. for an operation on the programme, the guardrail's violations on the weeks it touches are
-   computed before and after; those the change introduces come back with it
-   (`Change.violations`), for the coach to tell the athlete. They never refuse it: what the
-   athlete asks or accepts is applied, undo included (owner's decision of 20/10, "100 % des
-   données doivent pouvoir être modulables si je le demande"). What the models propose of
+   computed before and after. Everything stays modifiable when the athlete asks for it, in two
+   steps when it is risky: a destructive operation (`CONFIRM`), or a change that introduces a
+   violation, asked through the coach is not applied but refused with `NeedsConfirmation`; the
+   coach records it with `request` and the athlete confirms it in their next message, which
+   applies it and reports the violations (`Change.violations`). What the models propose of
    their own stays checked: a coach's suggestion, even accepted, is refused if it introduces
-   one (and the planner's plans are checked by the agents);
+   one (and the planner's plans are checked by the agents). An accepted suggestion must be the
+   one the athlete's message numbers, when it numbers one or several were shown;
 6. the trace: one `proposal` row (applied, with the quote and the message) and one `change_log`
    row. The database refuses the coach's commit without them (009_write_path.sql), and an
    applied proposal's trace cannot be rewritten afterwards (011_trace_integrity.sql).
@@ -28,6 +30,7 @@ null. The rule check is registered by the coach before it runs
 not import the agents; without it, an operation on the programme is refused.
 """
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -88,12 +91,23 @@ class StaleRow(OperationError):
 
 class RuleViolation(OperationError):
     """The athlete's rules refuse a model's own idea (a coach's suggestion, even accepted; the
-    agents' checks): what the athlete asks is never refused for them, only reported."""
+    agents' checks): what the athlete asks is applied once confirmed, never refused for them."""
 
     def __init__(self, violations: list[Any]):
         self.violations = violations
         messages = "; ".join(getattr(v, "message", str(v)) for v in violations)
         super().__init__(f"the change breaks the athlete's rules: {messages}")
+
+
+class NeedsConfirmation(OperationError):
+    """Asked through the coach, a destructive change or one that breaks the athlete's rules is
+    applied only once the athlete confirms it: record it with `request` (nothing was written)."""
+
+    def __init__(self, reasons: list[str]):
+        self.reasons = reasons
+        super().__init__(
+            "needs the athlete's confirmation in their next message: " + "; ".join(reasons)
+        )
 
 
 @dataclass(frozen=True)
@@ -120,8 +134,33 @@ class Operation:
     def description(self) -> str:
         return (self.payload.__doc__ or "").strip()
 
+    @property
+    def confirm(self) -> str | None:
+        """Why the athlete must confirm this operation asked through the coach, if they must."""
+        return CONFIRM.get(self.name)
+
 
 CATALOGUE: dict[str, Operation] = {}
+
+# Destructive operations: asked through the coach, applied only once the athlete confirms them in
+# their next message (two words quoted from a message never suffice for these). A deletion that
+# takes other rows with it, the athlete's profile and rules, their health and method notes.
+CONFIRM: dict[str, str] = {
+    "delete_cycle": "it deletes the cycle with its blocks, weeks and sessions",
+    "delete_block": "it deletes the block with its weeks and sessions",
+    "delete_week": "it deletes the week with its sessions",
+    "delete_session": "it deletes the session with its parts and lines",
+    "delete_part": "it deletes the part with its lines",
+    "delete_goal": "it deletes the goal with its milestones",
+    "delete_exercise": "it deletes an exercise of the bank",
+    "delete_health_issue": "it deletes a health issue",
+    "delete_coaching_note": "it deletes a note of the athlete's method",
+    "update_cycle": "it changes the whole cycle",
+    "update_block": "it changes a whole block",
+    "update_athlete": "it changes the athlete's profile",
+    "update_rule": "it changes one of the athlete's rules",
+    "deactivate_rule": "it switches off one of the athlete's rules",
+}
 
 _programme_check: tuple[Callable, Callable] | None = None
 
@@ -1861,10 +1900,11 @@ def _check_message(conn, conversation_id: str, message_id: int) -> None:
         )
 
 
-def _picked(conn, proposal_id: int, conversation_id: str, message_id: int) -> tuple[str, Any]:
-    """The operation and payload of the suggestion the athlete picks, locked for this change."""
+def _picked(conn, proposal_id: int, conversation_id: str, message_id: int) -> tuple[str, Any, str]:
+    """The operation, payload and author of the suggestion the athlete picks, locked for this
+    change ("athlete" for a change they asked that waited for their confirmation)."""
     found = conn.execute(
-        "select kind, payload, status, presented_in from proposal where id = %s for update",
+        "select kind, payload, status, presented_in, author from proposal where id = %s for update",
         (proposal_id,),
     ).fetchone()
     if found is None:
@@ -1889,15 +1929,60 @@ def _picked(conn, proposal_id: int, conversation_id: str, message_id: int) -> tu
             f"suggestion {proposal_id} was not presented in the coach's last message:"
             " the athlete has not seen it there, present it again"
         )
-    return found[0], found[1]
+    _named_by_athlete(conn, proposal_id, shown, message_id)
+    return found[0], found[1], found[4]
+
+
+def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> None:
+    """The suggestion picked is the one the athlete's words point to: the number of a
+    suggestion this conversation showed that their message gives, or the only one shown when it
+    gives none (another number, a load or a day, names no suggestion). "ok pour 12" never
+    accepts suggestion 13."""
+    (text,) = conn.execute(
+        "select text from conversation_message where id = %s", (message_id,)
+    ).fetchone()
+    pending = {
+        r[0]
+        for r in conn.execute(
+            "select id from proposal where presented_in = %s and status = 'pending'", (shown,)
+        )
+    }
+    numbers = {int(n) for n in re.findall(r"(?<![\w.,])\d+(?!\w|[.,]\d)", text)}
+    # A number of a suggestion this conversation showed, now or before, points to that one
+    named = numbers & {
+        r[0]
+        for r in conn.execute(
+            "select p.id from proposal p join conversation_message m on m.id = p.presented_in"
+            " where m.conversation_id = (select conversation_id from conversation_message"
+            " where id = %s) and p.id = any(%s)",
+            (shown, list(numbers)),
+        )
+    }
+    if named:
+        if proposal_id not in named:
+            raise OperationError(
+                f"the athlete's message names {', '.join(map(str, sorted(named)))}, not"
+                f" suggestion {proposal_id}"
+            )
+        return
+    count = len(pending)
+    if count > 1:
+        raise OperationError(
+            f"{count} suggestions were shown and the athlete's message names none: ask which"
+            " number they accept"
+        )
+
+
+Check = Literal["report", "confirm", "refuse"]
 
 
 def _apply_checked(
-    conn, op: Operation, model: Any, ctx: Context, *, suggested: bool = False
+    conn, op: Operation, model: Any, ctx: Context, *, check: Check = "report"
 ) -> Change:
-    """Apply `op`, then hold it to the guardrail on the weeks it touches: the violations it
-    introduces are reported with it, never a reason to refuse what the athlete asked. A
-    suggestion of the coach (`suggested`), even accepted, is the model's idea: refused."""
+    """Apply `op`, then hold it to the guardrail on the weeks it touches. The violations it
+    introduces are reported with what the athlete confirmed or did themself (`report`); asked
+    through the coach, the change waits for their confirmation (`confirm`, nothing written); a
+    suggestion of the coach, even accepted, is the model's idea (`refuse`)."""
     weeks: set[int] = set()
     before: dict[int, list] = {}
     if op.programme:
@@ -1917,8 +2002,12 @@ def _apply_checked(
         _ids(conn, "select id from training_week where id = any(%s)", (list(weeks),))
     ):
         new += _programme_check[1](before[week], _programme_check[0](conn, week))
-    if new and suggested:
+    if new and check == "refuse":
         raise RuleViolation(new)
+    if new and check == "confirm":
+        raise NeedsConfirmation(
+            [f"it breaks the athlete's rule: {getattr(v, 'message', v)}" for v in new]
+        )
     if new:
         change = change.model_copy(update={"violations": [_violation(v) for v in new]})
     return change
@@ -1994,17 +2083,26 @@ def run(
         if replayed is not None:
             return replayed
         _check_message(conn, conversation_id, message_id)
+        picked_by = None
         if proposal_id is not None:
-            name, payload = _picked(conn, proposal_id, conversation_id, message_id)
+            name, payload, picked_by = _picked(conn, proposal_id, conversation_id, message_id)
         op = CATALOGUE.get(name)
         if op is None:
             raise OperationError(f"unknown operation: {name}")
         verify_quote(conn, message_id, quote, short_ok=op.short_quote or proposal_id is not None)
         model = op.payload.model_validate(payload or {})
         source = "athlete" if author == "athlete" else "agent"
-        change = _apply_checked(
-            conn, op, model, Context(source=source, quote=quote), suggested=proposal_id is not None
-        )
+        # The athlete's own action (the app's Undo) or their confirmation is final; asked through
+        # the coach, a risky change waits for it; the coach's own idea is held to the rules.
+        if proposal_id is not None:
+            check: Check = "report" if picked_by == "athlete" else "refuse"
+        elif author == "athlete":
+            check = "report"
+        else:
+            if op.confirm:
+                raise NeedsConfirmation([op.confirm])
+            check = "confirm"
+        change = _apply_checked(conn, op, model, Context(source=source, quote=quote), check=check)
         trace = {
             "quote": quote,
             "message_id": message_id,
@@ -2049,6 +2147,35 @@ def present(
             " where status in ('pending', 'expired') and id = any(%s)",
             (coach_message_id, proposal_ids),
         )
+
+
+def request(
+    conn: psycopg.Connection,
+    name: str,
+    payload: dict[str, Any] | None,
+    *,
+    conversation_id: str,
+    quote: str,
+    message_id: int,
+    reasons: list[str],
+) -> int:
+    """Record a change the athlete asked that needs their confirmation (`NeedsConfirmation`):
+    a pending proposal authored by the athlete, checked like `run` (their latest message, the
+    quote, the payload) and applied only when their next message accepts it, the violations then
+    reported, not refused."""
+    with conn.transaction():
+        _check_message(conn, conversation_id, message_id)
+        op = CATALOGUE.get(name)
+        if op is None:
+            raise OperationError(f"unknown operation: {name}")
+        verify_quote(conn, message_id, quote, short_ok=op.short_quote)
+        model = op.payload.model_validate(payload or {})
+        rationale = f"Asked: {quote}. To confirm: {'; '.join(reasons)}."
+        return conn.execute(
+            "insert into proposal (kind, payload, rationale, author) values (%s, %s, %s,"
+            " 'athlete') returning id",
+            (name, Jsonb(model.model_dump(mode="json")), rationale),
+        ).fetchone()[0]
 
 
 def suggest(

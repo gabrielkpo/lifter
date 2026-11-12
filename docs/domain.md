@@ -161,10 +161,13 @@ the payload validated, the row version checked
 touches. Every change of the programme goes through
 it: sessions, parts and lines, weeks, blocks and cycles (the week after a deleted one too, whose
 context changes), the exercise bank (the weeks using the exercise), an undo (the weeks of the
-rows it restores) and the athlete's rules (the weeks not over yet). What the athlete asks is never refused for
-the rules (owner's decision of 20/10: everything can change if he asks, undo included): the
-violations a change introduces come back with it (`violations`), for the coach to say them. A
-coach's suggestion stays the model's idea: accepted, it is refused if it introduces one. Then the trace: a `proposal` row (applied, with `quote`, `message_id`,
+rows it restores) and the athlete's rules (the weeks not over yet). Everything can change when the
+athlete asks, in two steps when it is risky: asked through the coach, a change that introduces a
+violation, or a destructive one (`CONFIRM`), is refused with `NeedsConfirmation` and recorded by
+`request` as the athlete's pending proposal; their next message confirms it, and it is applied
+with its violations reported (`violations`). The athlete's own action (the app's Undo) is applied
+at once. A coach's suggestion stays the model's idea: accepted, it is refused if it introduces
+one. Then the trace: a `proposal` row (applied, with `quote`, `message_id`,
 `idempotency_key`) and a `change_log` row (rows before and after). A suggestion is applied only
 with the athlete's message that answers the coach message presenting it (`proposal.presented_in`,
 set by `operations.present` when the coach's reply is stored): it has no lifetime, but one the

@@ -134,8 +134,12 @@ source of truth:
 - **the log is immutable**: no update or delete on `change_log`, even for `lifter_coach`.
 
 Accepted limit: if the agent's process itself were compromised (arbitrary code execution), it
-would hold these grants. The realistic threats, injection and hallucination of the model, are
-covered: the model has no SQL and every write goes through the quote check. Possible hardening
+would hold these grants. The model has no SQL and every write goes through the quote check, but
+a quote proves only that the athlete wrote those words, not what they meant: injection and
+hallucination are not covered by it alone. Since 2026-11-12 a destructive change, or one that
+breaks the athlete's rules, asked through the coach needs the athlete's confirmation in their
+next message, by the suggestion's number; the exact undo and the change log remain the
+mitigation for the rest. Possible hardening
 later: a separate applier deployment, the agent keeping only `lifter_agents`, the applier reading
 the quote from the athlete's messages stored by the conversation endpoint.
 

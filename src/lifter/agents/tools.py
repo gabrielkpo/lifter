@@ -27,6 +27,7 @@ import psycopg
 from langchain_core.tools import BaseTool, StructuredTool
 from psycopg import sql
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field, ValidationError
 
 from lifter import operations
@@ -299,7 +300,15 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                 }
             )
         except QuoteError as exc:
-            return _refused(f"quote refused: {exc}")
+            hint = ""
+            if "at least 2 words" in str(exc):
+                # "oui, je confirme" authorises only a change recorded for confirmation
+                hint = (
+                    ". A confirmation alone only accepts a change recorded for it"
+                    " (accept_suggestion); if none was recorded, ask the athlete to say the change"
+                    " again"
+                )
+            return _refused(f"quote refused: {exc}{hint}")
         except ValidationError as exc:
             problems = "; ".join(
                 f"{'.'.join(str(p) for p in e['loc']) or 'payload'}: {e['msg']}"
@@ -357,11 +366,20 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         if operation == "undo" and (refusal := _undo_from_elsewhere(payload, quote)):
             return refusal
         payload = _whole_intent(operation, payload)
+        waiting = _waiting_request(operation)
+        if waiting and (_same(waiting, operation, payload) or not _instructs(quote)):
+            # The athlete's message answers a change that waits for them: accepting it is the
+            # only way to apply it (a fresh apply would ask again, or fail on a short quote).
+            return _refused(
+                f"change {waiting} ({operation}) waits for the athlete's confirmation and their"
+                f" message answers it: call accept_suggestion with suggestion_id {waiting} and"
+                " their words"
+            )
         key = ctx.next_key()
-        return _attempt(
-            lambda: _applied(
-                key,
-                operations.run(
+
+        def call() -> str:
+            try:
+                change = operations.run(
                     conn,
                     operation,
                     payload,
@@ -371,9 +389,77 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
                     idempotency_key=key,
                     author=AUTHOR,
                     rationale=rationale,
-                ),
-            ),
-            operation,
+                )
+            except operations.NeedsConfirmation as exc:
+                return _to_confirm(operation, payload, quote, exc.reasons)
+            return _applied(key, change)
+
+        return _attempt(call, operation)
+
+    def _instructs(quote: str) -> bool:
+        """The quote is an instruction of its own (the full quote rule), not a bare "oui"."""
+        try:
+            verify_quote(conn, ctx.message_id, quote)
+        except QuoteError:
+            return False
+        return True
+
+    def _same(proposal_id: int, operation: str, payload: dict[str, Any]) -> bool:
+        """The payload is the one the proposal holds (once validated)."""
+        try:
+            wanted = _normalised(operation, payload)
+        except ValidationError:
+            return False
+        row = conn.execute("select payload from proposal where id = %s", (proposal_id,))
+        return row.fetchone()[0] == wanted
+
+    def _normalised(operation: str, payload: dict[str, Any]) -> dict:
+        """The payload as `request` stores it (validated and dumped), to compare requests."""
+        op = operations.CATALOGUE[operation]
+        return op.payload.model_validate(payload or {}).model_dump(mode="json")
+
+    def _waiting_request(operation: str) -> int | None:
+        """A change of this operation the athlete asked, shown for confirmation in the coach's
+        last message and still pending."""
+        row = conn.execute(
+            "select p.id from proposal p where p.status = 'pending' and p.author = 'athlete'"
+            " and p.kind = %s and p.presented_in = (select max(id) from conversation_message"
+            " where conversation_id = %s and role = 'coach' and id < %s)"
+            " order by p.id desc limit 1",
+            (operation, ctx.conversation_id, ctx.message_id),
+        ).fetchone()
+        return row[0] if row else None
+
+    def _to_confirm(operation: str, payload: dict[str, Any], quote: str, reasons: list) -> str:
+        """A risky change the athlete asked, recorded for their confirmation: shown in this
+        reply, applied only by their next message. The same change asked again in this turn
+        (a model retrying) is the same request, so a bare "oui" still names one."""
+        same = conn.execute(
+            "select id from proposal where id = any(%s) and author = 'athlete' and kind = %s"
+            " and payload = %s",
+            (ctx.suggestions, operation, Jsonb(_normalised(operation, payload))),
+        ).fetchone()
+        if same:
+            request = same[0]
+        else:
+            request = operations.request(
+                conn,
+                operation,
+                payload,
+                conversation_id=ctx.conversation_id,
+                quote=quote,
+                message_id=ctx.message_id,
+                reasons=reasons,
+            )
+            ctx.suggestions.append(request)
+        return _json(
+            {
+                "ok": False,
+                "applied": False,
+                "needs_confirmation": True,
+                "suggestion_id": request,
+                "why": reasons,
+            }
         )
 
     def suggest_change(operation: str, payload: dict[str, Any], rationale: str) -> str:
@@ -453,7 +539,10 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
             name="apply_change",
             description="Apply one operation the athlete asked for in their message, quoting "
             "their words. Checked by code (quote, payload, version, rules) and traced; the "
-            "result gives the change_id that undo takes. Operations:\n" + ops,
+            "result gives the change_id that undo takes. A change that breaks the athlete's "
+            "rules or a destructive one is not applied: the result says needs_confirmation, "
+            "with the suggestion_id the athlete confirms in their next message. "
+            "Operations:\n" + ops,
             args_schema=ApplyChangeArgs,
         ),
         StructuredTool.from_function(
@@ -466,7 +555,8 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         StructuredTool.from_function(
             accept_suggestion,
             name="accept_suggestion",
-            description="Apply a pending suggestion the athlete chose in their message.",
+            description="Apply a pending suggestion the athlete chose or confirmed in their "
+            "message, by the number they gave.",
             args_schema=AcceptSuggestionArgs,
         ),
     ]

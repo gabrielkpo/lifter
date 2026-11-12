@@ -1,0 +1,14 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: delete_confirmed
+category: instruction
+description: 'A destructive instruction (a session with its parts and lines) is applied only
+  once confirmed.'
+today: 2026-01-18
+messages:
+- Supprime complètement la séance Legs + Metcon de cette semaine.
+- Oui, supprime-la.
+expect:
+- check: no_session
+  params: {week: 3, title: Legs + Metcon}
+review: 'First reply: says what would be deleted and asks to confirm; after the confirmation
+  the session is gone.'

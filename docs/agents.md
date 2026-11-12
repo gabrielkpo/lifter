@@ -90,10 +90,19 @@ Two checks the operations catalogue runs before applying a change made by the co
   runs the guardrail on the week as it is in the database; the catalogue calls it before and
   after an operation that changes the programme and keeps only what the change introduces
   (`introduced(before, after)`), so a week that already broke a rule is not held against an
-  unrelated change. Since 2026-10-20 the athlete decides: what they ask is applied all the same
-  and the violations come back with the change (`Change.violations`, the `violations` of
-  `apply_change`'s result), for the coach to name; only a suggestion of the coach, even
-  accepted, is refused for them.
+  unrelated change. Everything stays modifiable when the athlete asks for it, in two steps when
+  it is risky. A change asked through the coach that introduces a violation, or a destructive
+  one (`operations.CONFIRM`: a deletion that takes other rows with it, the profile, the rules, a
+  health issue, a method note), is not applied: `operations.run` raises `NeedsConfirmation`,
+  `apply_change` records it with `operations.request` (a pending proposal authored by the
+  athlete, checked like `run`) and answers `needs_confirmation` with its id. The coach says why
+  it waits and the athlete confirms in their next message: then it is applied and the
+  violations come back with it (`Change.violations`). A suggestion of the coach, even accepted,
+  is refused for them. The athlete's own action (the app's Undo button) is applied at once.
+- **The suggestion picked** is the one the athlete's message numbers, among the suggestions
+  this conversation showed ("ok pour 12" never accepts 13); a number that is no such suggestion
+  (a load, a day) names none. With no number it must be the only one the coach's last message
+  showed; with two shown and no number, the coach must ask which.
 
 ## The coach's tools (ADR 0002)
 
@@ -109,7 +118,7 @@ catalogue (`agents/tools.py`, `lifter/operations.py`). It has no SQL.
 | `present_suggestions` | Puts older suggestions (the coach's or the planner's) back in front of the athlete, in this reply |
 | `apply_change` | Any catalogue operation the athlete asked for, with a quote of their message; `undo` is one of them |
 | `suggest_change` | The coach's own idea, stored as a pending suggestion, applied only when chosen |
-| `accept_suggestion` | Applies a suggestion the athlete chose, with their quote: only one the coach's last message presented (recorded or presented in that turn); the others expire |
+| `accept_suggestion` | Applies a suggestion the athlete chose or a change they confirmed, with their quote: only one the coach's last message presented (recorded or presented in that turn), and the one their message numbers; the others expire |
 
 Every write goes through `operations.run`: the quote is checked against the athlete's message
 stored by the conversation endpoint, then the payload, the row version and, for the programme,

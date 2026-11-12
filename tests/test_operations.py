@@ -72,19 +72,47 @@ def coach_says(conn, text: str, shown: list[int]) -> int:
 _keys = iter(range(1, 1_000_000))
 
 
-def do(conn, name: str, payload: dict, said: str, quote: str | None = None, **kw):
-    """Apply an operation the athlete asked for in `said` (quoted whole unless told)."""
+def do(conn, name: str, payload: dict, said: str, quote: str | None = None, confirm=True, **kw):
+    """Apply an operation the athlete asked for in `said` (quoted whole unless told). One that
+    needs the athlete's confirmation is recorded, shown and confirmed in a next message, as the
+    coach does, unless `confirm` is false (then NeedsConfirmation is raised)."""
     message = say(conn, said)
+    try:
+        return run(
+            conn,
+            name,
+            payload,
+            conversation_id="c1",
+            quote=quote or said,
+            message_id=message,
+            idempotency_key=f"k{next(_keys)}",
+            author="coach",
+            **kw,
+        )
+    except operations.NeedsConfirmation as exc:
+        if not confirm:
+            raise
+        asked = operations.request(
+            conn,
+            name,
+            payload,
+            conversation_id="c1",
+            quote=quote or said,
+            message_id=message,
+            reasons=exc.reasons,
+        )
+    coach_says(conn, f"Tu confirmes ? Réponds {asked}.", [asked])
+    yes = say(conn, f"oui {asked}")
     return run(
         conn,
-        name,
-        payload,
+        "",
+        None,
         conversation_id="c1",
-        quote=quote or said,
-        message_id=message,
+        quote=f"oui {asked}",
+        message_id=yes,
         idempotency_key=f"k{next(_keys)}",
         author="coach",
-        **kw,
+        proposal_id=asked,
     )
 
 
@@ -339,8 +367,9 @@ def test_an_update_with_nothing_to_change_is_refused(conn, program):
 # The rules
 
 
-def test_a_change_that_breaks_a_rule_is_applied_and_says_so(conn, program):
-    # 20/10, the owner: "si je le demande je puisse tout faire": the rules report, never refuse.
+def test_a_change_that_breaks_a_rule_waits_for_confirmation_then_says_so(conn, program):
+    # Everything stays modifiable when the athlete asks, in two steps when it breaks a rule: the
+    # coach's apply is refused with the reason, the athlete's confirmation applies and reports.
     # A fake guardrail: a session called "Running" breaks the rule (no running).
     def violations(c, week):
         n = c.execute(
@@ -355,12 +384,11 @@ def test_a_change_that_breaks_a_rule_is_applied_and_says_so(conn, program):
     operations.set_programme_check(violations, introduced)
     week = conn.execute("select id, start_date from training_week order by id limit 1").fetchone()
     count = conn.execute("select count(*) from planned_session").fetchone()[0]
-    change = do(
-        conn,
-        "create_session",
-        {"day": str(week[1]), "title": "Running", "week_id": week[0]},
-        "ajoute un footing lundi",
-    )
+    running = {"day": str(week[1]), "title": "Running", "week_id": week[0]}
+    with pytest.raises(operations.NeedsConfirmation, match="running"):
+        do(conn, "create_session", running, "ajoute un footing lundi", confirm=False)
+    assert conn.execute("select count(*) from planned_session").fetchone()[0] == count
+    change = do(conn, "create_session", running, "ajoute un footing lundi")
     assert change.violations == [{"message": "running"}]
     assert conn.execute("select count(*) from planned_session").fetchone()[0] == count + 1
     bike = do(
@@ -461,6 +489,43 @@ def test_a_suggestion_that_breaks_a_rule_is_refused_even_accepted(conn, program)
             proposal_id=pid,
         )
     assert conn.execute("select count(*) from planned_session").fetchone()[0] == count
+
+
+def test_the_athletes_own_action_is_final(conn, program):
+    # The app's Undo button: author "athlete", applied at once, the rules reported, no request.
+    sid = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    deleted = do(
+        conn,
+        "delete_session",
+        {"id": sid, "expected_version": version(conn, "planned_session", sid)},
+        "supprime la séance",
+    )
+    message = say(conn, "Annuler")
+    undone = run(
+        conn,
+        "undo",
+        {"change_id": change_id(conn)},
+        conversation_id="c1",
+        quote="Annuler",
+        message_id=message,
+        idempotency_key="app-undo:test",
+        author="athlete",
+    )
+    assert undone.undoes is not None and deleted.operation == "delete_session"
+    assert conn.execute(
+        "select count(*) from planned_session where id = %s", (sid,)
+    ).fetchone() == (1,)
+
+
+def test_a_destructive_operation_is_never_applied_on_the_first_message(conn, program):
+    sid = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    payload = {"id": sid, "expected_version": version(conn, "planned_session", sid)}
+    with pytest.raises(operations.NeedsConfirmation, match="parts and lines"):
+        do(conn, "delete_session", payload, "supprime la séance", confirm=False)
+    assert conn.execute(
+        "select count(*) from planned_session where id = %s", (sid,)
+    ).fetchone() == (1,)
+    assert set(operations.CONFIRM) <= set(operations.CATALOGUE)  # no typo in the tier
 
 
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):

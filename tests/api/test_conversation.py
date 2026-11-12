@@ -11,7 +11,7 @@ from psycopg.conninfo import make_conninfo
 
 from lifter import operations
 from lifter.api.app import create_app
-from lifter.api.conversation import CONVERSATION, CoachSetup
+from lifter.api.conversation import CoachSetup
 from lifter.conversation import start
 from lifter.program import load_program, read_program
 from test_coach import ScriptedChat, tool_call
@@ -63,7 +63,7 @@ def test_a_message_is_answered_and_its_change_shown_under_it(conn, database_url,
     )
     api = api_with(database_url, lambda: model)
 
-    reply = api.post("/conversation", json={"text": "Décale la séance jambes au 2026-03-06"})
+    reply = api.post("/conversations", json={"text": "Décale la séance jambes au 2026-03-06"})
 
     assert reply.status_code == 200, reply.text
     body = reply.json()
@@ -74,7 +74,7 @@ def test_a_message_is_answered_and_its_change_shown_under_it(conn, database_url,
     assert change["subject"].startswith("Legs + Metcon")  # what moved, not just "move session"
     assert change["detail"].endswith("→ 2026-03-06")  # and where to
     assert body["run_id"] is not None
-    thread = api.get("/conversation").json()
+    thread = api.get(f"/conversations/{body['conversation_id']}").json()["messages"]
     assert [(m["role"], m["id"]) for m in thread] == [
         ("athlete", body["athlete"]["id"]),
         ("coach", body["coach"]["id"]),
@@ -94,7 +94,7 @@ def test_a_suggestion_presented_by_the_reply_comes_back_with_it(conn, database_u
         AIMessage("Je propose de décaler la séance jambes à vendredi (suggestion 1)."),
     )
     body = api_with(database_url, lambda: model).post(
-        "/conversation", json={"text": "Que proposes-tu pour jeudi ?"}
+        "/conversations", json={"text": "Que proposes-tu pour jeudi ?"}
     )
     (suggestion,) = body.json()["coach"]["suggestions"]
     assert suggestion["operation"] == "move_session" and suggestion["status"] == "pending"
@@ -102,17 +102,17 @@ def test_a_suggestion_presented_by_the_reply_comes_back_with_it(conn, database_u
 
 def test_a_newer_message_makes_the_turn_stale(conn, database_url, program):
     # Another message lands between storing this one and answering it: nothing runs.
-    start(conn, id=CONVERSATION, title="salut coach", source="app")
+    start(conn, id="main", title="salut coach", source="app")
 
     def model():
         conn.execute(
             "insert into conversation_message (conversation_id, role, text)"
             " values (%s, 'athlete', 'plus récent')",
-            (CONVERSATION,),
+            ("main",),
         )
         return ScriptedChat()
 
-    reply = api_with(database_url, model).post("/conversation", json={"text": "salut coach"})
+    reply = api_with(database_url, model).post("/conversations/main", json={"text": "salut coach"})
     assert reply.status_code == 409
 
 
@@ -121,23 +121,24 @@ def test_an_unreachable_model_is_a_502_without_detail(conn, database_url, progra
         def invoke(self, messages):
             raise httpx.ConnectError("https://api.mistral.ai/v1/chat/completions")
 
-    reply = api_with(database_url, Down).post("/conversation", json={"text": "salut coach"})
+    reply = api_with(database_url, Down).post("/conversations", json={"text": "salut coach"})
     assert reply.status_code == 502
     assert "mistral.ai" not in reply.text
 
 
 def test_without_the_coach_configured_the_conversation_is_off(database_url):
     api = TestClient(create_app(database_url), base_url="http://127.0.0.1:8000")
-    assert api.get("/conversation").status_code == 503
-    assert api.post("/conversation", json={"text": "salut"}).status_code == 503
     assert api.get("/conversations").status_code == 503
     assert api.post("/conversations", json={"text": "salut"}).status_code == 503
+    # The first conversation's routes are gone (the app has used /conversations since 0.2.2).
+    assert api.get("/conversation").status_code == 404
+    assert api.post("/conversation", json={"text": "salut"}).status_code == 404
 
 
 def test_an_empty_or_huge_message_is_refused(conn, database_url, program):
     api = api_with(database_url, ScriptedChat)
-    assert api.post("/conversation", json={"text": ""}).status_code == 422
-    assert api.post("/conversation", json={"text": "x" * 2001}).status_code == 422
+    assert api.post("/conversations", json={"text": ""}).status_code == 422
+    assert api.post("/conversations", json={"text": "x" * 2001}).status_code == 422
     assert conn.execute("select count(*) from conversation_message").fetchone() == (0,)
 
 

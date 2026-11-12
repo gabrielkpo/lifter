@@ -10,8 +10,7 @@ suggestions each reply presented. Every other endpoint of the API stays read-onl
 
 A conversation's id is drawn by the server when it opens (lifter.conversation.start), never
 chosen by the client, which only names one that exists. One athlete for now: several athletes
-are a later milestone. The routes on `/conversation` (the first conversation, "main") stay one
-release for an app left open across the deployment, then go.
+are a later milestone.
 """
 
 import logging
@@ -30,7 +29,6 @@ from pydantic import BaseModel, Field, field_validator
 from lifter.conversation import ID, start
 from lifter.db import connect
 
-CONVERSATION = "main"  # the first conversation, from before there were several
 ID_PATTERN = ID.pattern
 MAX_TEXT = 2000
 log = logging.getLogger("lifter.api")
@@ -290,11 +288,10 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
         if recent >= MAX_MESSAGES_PER_MINUTE:
             raise HTTPException(429, "too many messages in the last minute: wait a little")
 
-    def turn(text: str, conversation_id: str | None, *, opened_as: str | None = None) -> Reply:
+    def turn(text: str, conversation_id: str | None) -> Reply:
         """The athlete's message, then the coach's answer to it (one turn, 1 to 8 model calls).
 
-        `conversation_id` None opens a new conversation with this message; `opened_as` opens
-        the one of that id if it does not exist yet (the first conversation, "main")."""
+        `conversation_id` None opens a new conversation with this message."""
         from lifter.agents.coach import StaleMessage, respond
 
         coach = configured()
@@ -311,8 +308,8 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
                 _within_budget(conn, coach)
             # The conversation and the message in one transaction: never one without the other.
             with connect(coach.chat_url) as chat, chat.transaction():
-                if conversation_id is None or opened_as:
-                    conversation_id = start(chat, title=text, source="app", id=opened_as)
+                if conversation_id is None:
+                    conversation_id = start(chat, title=text, source="app")
                 elif not chat.execute(
                     "select 1 from conversation where id = %s", (conversation_id,)
                 ).fetchone():
@@ -435,18 +432,6 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
         except psycopg.Error:
             raise HTTPException(503, "database unavailable") from None
         return Reply(conversation_id=conversation_id, athlete=athlete, coach=said)
-
-    # The first conversation's routes, for one release (an app left open across the deployment).
-    @app.get("/conversation")
-    def thread(limit: int = Query(50, ge=1, le=MAX_MESSAGES)) -> list[Message]:
-        """The latest messages of the first conversation, oldest first."""
-        with reading() as conn:
-            return _thread(conn, CONVERSATION, "true", (), limit)
-
-    @app.post("/conversation")
-    def say(said: Said) -> Reply:
-        """The athlete's message in the first conversation, then the coach's answer."""
-        return turn(said.text, CONVERSATION, opened_as=CONVERSATION)
 
 
 def _undo(

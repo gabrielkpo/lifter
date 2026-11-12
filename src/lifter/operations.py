@@ -347,6 +347,20 @@ def _content(row: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in row.items() if k not in ("version", "updated_at")}
 
 
+def _unchanged(current: dict[str, Any], stored: dict[str, Any]) -> bool:
+    """The row still holds what the change left, on the columns the change recorded: a column
+    a migration added since is not a change of the athlete's."""
+    return all(current.get(k) == v for k, v in _content(stored).items())
+
+
+def _recorded(conn, table: str, image: dict[str, Any], *, without_id: bool = False) -> str:
+    """The table's columns that a stored image holds, in order, quoted: a column added since
+    takes its default instead of a null."""
+    return ", ".join(
+        f'"{c}"' for c in _columns(conn, table) if c in image and not (without_id and c == "id")
+    )
+
+
 def revert(conn: psycopg.Connection, change: Change) -> Change:
     """The inverse of `change`: delete what it created, recreate what it deleted (same ids),
     restore what it updated. Refused when any of those rows changed since."""
@@ -363,7 +377,7 @@ def revert(conn: psycopg.Connection, change: Change) -> Change:
         if row is None:
             if current is not None:
                 raise StaleRow(f"{table} {row_id} exists again since this change")
-        elif current is None or _content(current) != _content(row):
+        elif current is None or not _unchanged(current, row):
             raise StaleRow(f"{table} {row_id} changed since this change: undo is refused")
     for key in before.keys() - after.keys():
         if _row(conn, *key) is not None:
@@ -386,14 +400,14 @@ def revert(conn: psycopg.Connection, change: Change) -> Change:
         if img.row is None:
             continue
         if after.get((img.table, img.id)) is None:
+            names = _recorded(conn, img.table, img.row)
             conn.execute(
-                f"insert into {img.table}"
-                f" select * from jsonb_populate_record(null::{img.table}, %s)",
+                f"insert into {img.table} ({names})"
+                f" select {names} from jsonb_populate_record(null::{img.table}, %s)",
                 (Jsonb(img.row),),
             )
         else:
-            columns = [c for c in _columns(conn, img.table) if c != "id"]
-            names = ", ".join(columns)
+            names = _recorded(conn, img.table, img.row, without_id=True)
             conn.execute(
                 f"update {img.table} set ({names}) = (select {names} from"
                 f" jsonb_populate_record(null::{img.table}, %s)) where id = %s",
@@ -1573,14 +1587,20 @@ class HealthUpdateFields(HealthFields):
 
 
 UpdateHealthIssue = _partial(
-    "UpdateHealthIssue", HealthUpdateFields, "Change a health issue: description, guidance, status."
+    "UpdateHealthIssue",
+    HealthUpdateFields,
+    "Change a health issue: description, guidance, status (active or monitoring, which also"
+    " reopens a resolved one when the pain is back).",
 )
 
 
 @_register("update_health_issue", UpdateHealthIssue, ("health_issue",))
 def update_health_issue(conn, p, ctx: Context) -> Change:
+    changes = p.changes()
+    if changes.get("status") in ("active", "monitoring"):
+        changes["resolved_on"] = None  # reopened: no longer resolved (008_athlete.sql's check)
     return _named(
-        _update(conn, "health_issue", p.id, p.expected_version, p.changes()), "update_health_issue"
+        _update(conn, "health_issue", p.id, p.expected_version, changes), "update_health_issue"
     )
 
 

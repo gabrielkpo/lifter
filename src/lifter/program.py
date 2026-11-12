@@ -127,14 +127,39 @@ def read_program(path: Path) -> ProgramIn:
     return ProgramIn.model_validate(data)
 
 
+def what_replace_deletes(conn: psycopg.Connection, program: ProgramIn) -> dict[str, int]:
+    """What `replace` would delete that the new program file does not write back: the rules
+    added since (by the coach or by hand), and the coach's traced changes, whose undo would
+    then be refused (a logged session included)."""
+    kept = [(r.code, r.text) for r in program.rules]
+    rules = sum(
+        1
+        for code, text in conn.execute("select code, text from athlete_rule").fetchall()
+        if (code, text) not in kept
+    )
+    (changes,) = conn.execute("select count(*) from change_log").fetchone()
+    lost = {"rules not in the file": rules, "changes made through the coach": changes}
+    return {name: n for name, n in lost.items() if n}
+
+
 def load_program(
-    conn: psycopg.Connection, program: ProgramIn, *, replace: bool = False
+    conn: psycopg.Connection, program: ProgramIn, *, replace: bool = False, force: bool = False
 ) -> dict[str, int]:
-    """Write the program to the database in one transaction; returns what was created."""
+    """Write the program to the database in one transaction; returns what was created.
+    `replace` refuses, unless `force`, when it would delete what was written since the file
+    (logged sessions, feedback, rules, traced changes whose undo would then be refused)."""
     with conn.transaction():
         existing = conn.execute("select count(*) from cycle").fetchone()[0]
         if existing and not replace:
             raise DomainError("a program is already loaded; load with replace to overwrite it")
+        if replace and existing and not force:
+            lost = what_replace_deletes(conn, program)
+            if lost:
+                listed = ", ".join(f"{n} {name}" for name, n in lost.items())
+                raise DomainError(
+                    f"replace would delete what was written since the program file: {listed}."
+                    " Take a backup first, then load with --force to go ahead"
+                )
         if replace:
             # Parts, lines, weeks and milestones follow by cascade; sessions of other sources
             # stay in the calendar and lose their week.

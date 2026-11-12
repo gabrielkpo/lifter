@@ -217,7 +217,7 @@ def cmd_program_load(settings: Settings, args: argparse.Namespace) -> int:
 
     def load(conn):
         migrate(conn)
-        counts = load_program(conn, program, replace=args.replace)
+        counts = load_program(conn, program, replace=args.replace, force=args.force)
         return "loaded: " + ", ".join(f"{k}={v}" for k, v in counts.items())
 
     return _with_domain(settings, load)
@@ -934,7 +934,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--replace",
         action="store_true",
         help="delete what the previous program file created first (cycle, its sessions, goals"
-        " and rules), then load",
+        " and rules), then load; refused when it would delete logs, rules or changes made"
+        " since, unless --force",
+    )
+    load.add_argument(
+        "--force",
+        action="store_true",
+        help="with --replace, delete them all the same (take a backup first)",
     )
     load.set_defaults(func=cmd_program_load)
 

@@ -1,0 +1,12 @@
+# Conversation scenario: the expected outcome is written before any run (docs/bench.md).
+name: keep_a_constraint
+category: instruction
+description: 'A constraint for a period is written down as a coaching note with its end date.'
+today: 2026-01-18
+messages:
+- Jusqu'au 1er mars je n'ai que trois créneaux par semaine, note-le pour la suite.
+expect:
+- check: coaching_note
+  params: {category: constraint, any: ['3', trois, three], valid_until: '2026-03-01'}
+review: 'Adds one constraint note, valid until 1 March, saying three sessions a week, and says
+  how the plan follows it (no session changed in this turn).'

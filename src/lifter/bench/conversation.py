@@ -22,7 +22,7 @@ from langchain_core.messages import AIMessage
 from pydantic import Field, field_validator
 
 from lifter.agents.coach import forbidden_exercises, respond
-from lifter.bench.athlete import base_program
+from lifter.bench.athlete import COACHING_NOTES, base_program
 from lifter.bench.runner import reset
 from lifter.conversation import start
 from lifter.domain import StrictModel
@@ -186,6 +186,23 @@ def no_forbidden_suggestion(conn, p) -> tuple[bool, str]:
     return not hits, f"forbidden in suggestions: {', '.join(hits) or 'none'}"
 
 
+def coaching_note(conn, p) -> tuple[bool, str]:
+    """A note of `category` (if given) whose title or text holds one of `any` (any case), with
+    `valid_until` (if given): what the athlete asked to keep, written down."""
+    rows = conn.execute(
+        "select category, title, text, valid_until from coaching_note order by id"
+    ).fetchall()
+    for category, title, text, until in rows:
+        words = f"{title} {text}".lower()
+        if (
+            p.get("category", category) == category
+            and any(w.lower() in words for w in p["any"])
+            and str(p.get("valid_until", until)) == str(until)
+        ):
+            return True, f"{category} note {title!r} until {until}"
+    return False, f"{len(rows)} note(s), none matching"
+
+
 def week_intent(conn, p) -> tuple[bool, str]:
     """The week's intent holds each word of `contains` (any case) under `key`, or under any
     key without one: a programme writes its intent per part kind or as one note, and the
@@ -230,6 +247,7 @@ CHECKS: dict[str, Callable[[psycopg.Connection, dict], tuple[bool, str]]] = {
     "week_intent": week_intent,
     "planned_line": planned_line,
     "reply_mentions": reply_mentions,
+    "coaching_note": coaching_note,
 }
 
 
@@ -272,6 +290,12 @@ class SilentCoach:
 def setup(conn: psycopg.Connection, conversation: Conversation) -> None:
     reset(conn)
     load_program(conn, base_program())
+    for position, (category, title, text, since, until) in enumerate(COACHING_NOTES, 1):
+        conn.execute(
+            "insert into coaching_note (category, title, text, valid_from, valid_until, position)"
+            " values (%s, %s, %s, %s, %s, %s)",
+            (category, title, text, since, until, position),
+        )
     for note in conversation.notes:
         found = _session(conn, note.week, note.title)
         if found is None:

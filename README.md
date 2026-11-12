@@ -9,8 +9,9 @@ A **CrossFit** coaching app for athletes who wear a Garmin watch, where the coac
 to: every change it makes quotes the athlete's own message, is checked by code, traced and
 reversible, and a destructive change waits for the athlete's confirmation.
 
-> **Status: in use, built in public.** Data layer, domain, app, week planner and the coach in
-> conversation run in production for one athlete. The agent team and the long term are next.
+> **Status: in use, built in public.** Data layer, domain, app and the coach in conversation run
+> in production for one athlete; the week planner runs from the command line. The agent team and
+> the long term are next.
 > See [Status / Roadmap](#status--roadmap). Expect breaking changes before `v1.0.0`.
 
 ## Why
@@ -33,7 +34,7 @@ flowchart LR
     V --> P["week planner<br/>LangGraph + Mistral"]
     V --> C["coach<br/>LangGraph + Mistral"]
     U["athlete<br/>(PWA chat)"] <--> C
-    P -->|proposals| X
+    P -->|proposals, approved<br/>at the terminal| D
     C -->|typed operation<br/>+ athlete's quote| X["lifter.operations<br/>quote, rules, trace, undo"]
     X --> D
 ```

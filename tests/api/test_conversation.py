@@ -34,11 +34,12 @@ def as_role(url: str, role: str) -> str:
     return make_conninfo(url, options=f"-c role={role}")
 
 
-def api_with(database_url: str, model) -> TestClient:
+def api_with(database_url: str, model, **budgets) -> TestClient:
     setup = CoachSetup(
         chat_url=as_role(database_url, "lifter_chat"),
         coach_url=as_role(database_url, "lifter_coach"),
         model=model,
+        **budgets,
     )
     return TestClient(create_app(database_url, coach=setup), base_url="http://127.0.0.1:8000")
 
@@ -315,3 +316,45 @@ def test_an_undo_refused_is_said_in_the_coachs_language():
     assert _said(("done", ["Back squat is forbidden"]), "French") == (
         "C'est annulé. Attention, à nouveau en infraction : Back squat is forbidden."
     )
+
+
+def test_past_the_daily_budget_the_coach_answers_429_and_spends_nothing(
+    conn, database_url, program
+):
+    conn.execute(
+        "insert into agent_run (agent, trigger, status, input_tokens, output_tokens, started_at)"
+        " values ('coach', 'app', 'accepted', 590000, 20000, now() - interval '1 hour')"
+    )
+    model = ScriptedChat()
+    api = api_with(database_url, lambda: model, daily_token_budget=600_000)
+    answer = api.post("/conversations", json={"text": "Décale la séance jambes"})
+    assert answer.status_code == 429 and "24 hours" in answer.json()["detail"]
+    assert model.seen == []  # the model never ran
+    assert conn.execute("select count(*) from conversation_message").fetchone() == (0,)
+    # A day later, the same spending no longer counts
+    conn.execute("update agent_run set started_at = now() - interval '25 hours'")
+    assert api.post("/conversations", json={"text": "Bonjour"}).status_code == 200
+
+
+def test_too_many_messages_in_a_minute_are_refused(conn, database_url, program):
+    from lifter.api.conversation import MAX_MESSAGES_PER_MINUTE
+    from lifter.conversation import start
+
+    start(conn, id="busy", title="x", source="cli")
+    for _ in range(MAX_MESSAGES_PER_MINUTE):
+        conn.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values ('busy', 'athlete', 'x')"
+        )
+    api = api_with(database_url, lambda: ScriptedChat())
+    answer = api.post("/conversations", json={"text": "Encore un"})
+    assert answer.status_code == 429 and "minute" in answer.json()["detail"]
+
+
+def test_a_message_with_a_control_character_is_refused_before_anything_is_stored(
+    conn, database_url, program
+):
+    api = api_with(database_url, lambda: ScriptedChat())
+    answer = api.post("/conversations", json={"text": "Bonjour\x00 coach"})
+    assert answer.status_code == 422
+    assert conn.execute("select count(*) from conversation").fetchone() == (0,)

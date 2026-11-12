@@ -24,7 +24,7 @@ import httpx
 import psycopg
 from fastapi import FastAPI, HTTPException, Path, Query
 from psycopg.rows import dict_row
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from lifter.conversation import ID, start
 from lifter.db import connect
@@ -43,13 +43,27 @@ class CoachSetup:
     chat_url: str = field(repr=False)  # lifter_chat
     coach_url: str = field(repr=False)  # lifter_coach
     model: Callable[[], Any] = field(repr=False)  # the chat model, built per request
-    model_name: str = "mistral-small-latest"
+    model_name: str = "mistral-medium-latest"
     language: str = "English"
-    token_budget: int = 60_000
+    token_budget: int = 100_000  # one turn
+    daily_token_budget: int = 600_000  # every turn of the last 24 hours together
+
+
+# Athlete messages accepted per minute, all conversations together: a person types far fewer,
+# a client retrying in a loop is stopped before it spends anything.
+MAX_MESSAGES_PER_MINUTE = 10
 
 
 class Said(BaseModel):
     text: str = Field(min_length=1, max_length=MAX_TEXT)
+
+    @field_validator("text")
+    @classmethod
+    def _printable(cls, text: str) -> str:
+        # A control character (a NUL, say) would only fail later, in the database
+        if any(ord(c) < 32 and c not in "\n\t\r" for c in text):
+            raise ValueError("control characters are not allowed")
+        return text
 
 
 class Undo(BaseModel):
@@ -258,6 +272,22 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
         except psycopg.Error:
             raise HTTPException(503, "database unavailable") from None
 
+    def _within_budget(conn: psycopg.Connection, coach: CoachSetup) -> None:
+        """Refuse a turn (429, before anything is stored or spent) past the coach's tokens of
+        the last 24 hours or the athlete messages of the last minute."""
+        spent, recent = conn.execute(
+            "select (select coalesce(sum(input_tokens + output_tokens), 0) from agent_run"
+            " where agent = 'coach' and started_at > now() - interval '24 hours'),"
+            " (select count(*) from conversation_message where role = 'athlete'"
+            " and created_at > now() - interval '1 minute')"
+        ).fetchone()
+        if spent >= coach.daily_token_budget:
+            raise HTTPException(
+                429, "the coach's budget for the last 24 hours is spent: it comes back later"
+            )
+        if recent >= MAX_MESSAGES_PER_MINUTE:
+            raise HTTPException(429, "too many messages in the last minute: wait a little")
+
     def turn(text: str, conversation_id: str | None, *, opened_as: str | None = None) -> Reply:
         """The athlete's message, then the coach's answer to it (one turn, 1 to 8 model calls).
 
@@ -275,8 +305,10 @@ def register(app: FastAPI, setup: CoachSetup | None) -> None:
             return HTTPException(status, detail)
 
         try:
+            with connect(coach.coach_url) as conn:
+                _within_budget(conn, coach)
             # The conversation and the message in one transaction: never one without the other.
-            with connect(coach.chat_url) as chat:
+            with connect(coach.chat_url) as chat, chat.transaction():
                 if conversation_id is None or opened_as:
                     conversation_id = start(chat, title=text, source="app", id=opened_as)
                 elif not chat.execute(

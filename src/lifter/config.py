@@ -4,6 +4,7 @@ import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Literal
 
 from dotenv import load_dotenv
 
@@ -56,6 +57,20 @@ def _language(env: Mapping[str, str], key: str, default: str) -> str:
     return name
 
 
+def _choice(env: Mapping[str, str], key: str, default: str, allowed: tuple[str, ...]) -> str:
+    value = env.get(key) or default
+    if value not in allowed:
+        raise ConfigError(f"{key} must be one of {', '.join(allowed)}, got {value!r}")
+    return value
+
+
+def _port(env: Mapping[str, str], key: str, default: int) -> int:
+    port = _int(env, key, default)
+    if not 1 <= port <= 65535:
+        raise ConfigError(f"{key} must be a port between 1 and 65535, got {port}")
+    return port
+
+
 @dataclass(frozen=True)
 class Settings:
     # Secrets (and URLs that may carry a password) stay out of the repr, so a traceback with
@@ -68,11 +83,23 @@ class Settings:
     model: str = "mistral-small-latest"  # the week planner's model
     coach_model: str = "mistral-medium-latest"  # the coach in conversation (bench: +8 points)
     coach_language: str = "English"
-    llm_context: str = "indicators"
+    llm_context: Literal["indicators", "full"] = "indicators"
     bench_database_url: str = field(default="postgresql:///lifter_bench", repr=False)
-    run_token_budget: int = 60_000
+    run_token_budget: int = 60_000  # a week planner run
+    # The coach: a turn may take 8 calls of about 12,000 tokens, and a day has a ceiling so a
+    # client retrying in a loop, or anyone past the access control, cannot spend without bound.
+    coach_token_budget: int = 100_000
+    coach_daily_token_budget: int = 600_000
     bench_token_budget: int = 1_000_000
     max_output_tokens: int = 6_000
+    # The API (lifter.api.hosted): its bearer token, host names and browser origins (comma
+    # separated), the conversation's two role URLs when hosted, and the local port.
+    api_token: str | None = field(default=None, repr=False)
+    api_hosts: str = ""
+    app_origins: str | None = None
+    chat_database_url: str | None = field(default=None, repr=False)
+    coach_database_url: str | None = field(default=None, repr=False)
+    api_port: int = 8000
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -88,9 +115,17 @@ class Settings:
             model=env.get("LIFTER_MODEL", "mistral-small-latest"),
             coach_model=env.get("LIFTER_COACH_MODEL", "mistral-medium-latest"),
             coach_language=_language(env, "LIFTER_COACH_LANGUAGE", "English"),
-            llm_context=env.get("LIFTER_LLM_CONTEXT", "indicators"),
+            llm_context=_choice(env, "LIFTER_LLM_CONTEXT", "indicators", ("indicators", "full")),
             bench_database_url=env.get("BENCH_DATABASE_URL", "postgresql:///lifter_bench"),
             run_token_budget=_int(env, "LIFTER_RUN_TOKEN_BUDGET", 60_000),
+            coach_token_budget=_int(env, "LIFTER_COACH_TOKEN_BUDGET", 100_000),
+            coach_daily_token_budget=_int(env, "LIFTER_COACH_DAILY_TOKEN_BUDGET", 600_000),
             bench_token_budget=_int(env, "LIFTER_BENCH_TOKEN_BUDGET", 1_000_000),
             max_output_tokens=_int(env, "LIFTER_MAX_OUTPUT_TOKENS", 6_000),
+            api_token=env.get("LIFTER_API_TOKEN") or None,
+            api_hosts=env.get("LIFTER_API_HOSTS", ""),
+            app_origins=env.get("LIFTER_APP_ORIGINS"),
+            chat_database_url=env.get("LIFTER_CHAT_DATABASE_URL") or None,
+            coach_database_url=env.get("LIFTER_COACH_DATABASE_URL") or None,
+            api_port=_port(env, "LIFTER_API_PORT", 8000),
         )

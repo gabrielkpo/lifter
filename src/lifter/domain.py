@@ -70,9 +70,10 @@ def stored_intent(value: Any) -> dict[str, str]:
 
 
 class StrictModel(BaseModel):
-    """Unknown fields are refused, text is stripped."""
+    """Unknown fields are refused, text is stripped and bounded: a model writes these fields,
+    and every later prompt and audit carries what it wrote."""
 
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, str_max_length=20_000)
 
 
 class ExerciseIn(StrictModel):
@@ -192,10 +193,75 @@ class GoalIn(StrictModel):
         return self
 
 
+class _Params(StrictModel):
+    """A rule's parameters, as the guardrail reads them."""
+
+
+class ForbidFlagParams(_Params):
+    flags: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _one_flag(cls, data: Any) -> Any:  # a single flag may be written alone
+        if isinstance(data, dict) and isinstance(data.get("flags"), str):
+            return {**data, "flags": [data["flags"]]}
+        return data
+
+
+class WeeklyPatternParams(_Params):
+    pattern: str = Field(min_length=1)
+
+
+class MetconNoRowParams(_Params):
+    exercises: list[Annotated[str, Field(min_length=1)]] = []
+
+
+class MetconLightBarbellParams(_Params):
+    max_kg: PositiveNumber
+
+
+class ProgressionParams(_Params):
+    upper_kg: PositiveNumber = 2.5
+    lower_kg: PositiveNumber = 5
+
+
+class StopRuleParams(ProgressionParams):
+    pain_max: Annotated[int, Field(ge=0, le=10)] = 3
+    steps: Annotated[int, Field(ge=1, le=10)] = 2
+
+
+# The parameters of each rule code the guardrail checks in code; a code not listed takes none.
+RULE_PARAMS: dict[str, type[_Params]] = {
+    "forbid_flag": ForbidFlagParams,
+    "no_failure_on_legs": _Params,
+    "weekly_pattern": WeeklyPatternParams,
+    "no_max_before_test": _Params,
+    "fresh_first": _Params,
+    "metcon_no_row": MetconNoRowParams,
+    "metcon_light_barbell": MetconLightBarbellParams,
+    "progression": ProgressionParams,
+    "stop_rule": StopRuleParams,
+}
+
+
+def rule_params(code: str | None, params: dict[str, Any]) -> dict[str, Any]:
+    """The parameters of a rule, checked against its code: a wrong type or an unknown key is
+    refused where the rule is written (a string load would otherwise crash the guardrail)."""
+    model = RULE_PARAMS.get(code or "")
+    if model is None:
+        return params  # a rule the guardrail does not check in code: text for the coach
+    return model.model_validate(params).model_dump()
+
+
 class RuleIn(StrictModel):
     code: str | None = None
-    text: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=2000)
     params: dict[str, Any] = {}
+
+    @model_validator(mode="after")
+    def _params_of_the_code(self) -> "RuleIn":
+        self.params = rule_params(self.code, self.params)
+        return self
 
 
 class FeedbackIn(StrictModel):

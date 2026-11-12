@@ -259,6 +259,29 @@ def test_the_same_request_twice_in_a_turn_is_one_request(conn, program):
     assert conn.execute("select count(*) from proposal where author = 'athlete'").fetchone() == (1,)
 
 
+def test_a_partial_update_asked_twice_in_a_turn_is_one_request(conn, program):
+    rule = conn.execute(
+        "select id, version from athlete_rule where code = 'progression' limit 1"
+    ).fetchone()
+    _, tools = tools_for(conn, "Change la progression : 5 kg en haut, 10 kg en bas")
+
+    def ask() -> dict:
+        return call(
+            tools,
+            "apply_change",
+            operation="update_rule",
+            payload={
+                "id": rule[0],
+                "expected_version": rule[1],
+                "params": {"upper_kg": 5, "lower_kg": 10},
+            },
+            quote="Change la progression",
+        )
+
+    first, again = ask(), ask()
+    assert first["needs_confirmation"] and first["suggestion_id"] == again["suggestion_id"]
+
+
 def test_a_confirmation_that_repeats_a_load_still_confirms(conn, program):
     asked = ask_for_a_back_squat(conn)
     coach_replies(conn, "Ça enfreint ta règle. Tu confirmes ?", [asked["suggestion_id"]])

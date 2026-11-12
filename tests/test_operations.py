@@ -577,6 +577,94 @@ def test_a_week_stored_with_a_non_text_intent_can_still_be_changed(conn, program
     assert fixed.operation == "update_week" and stored[0] == {"strength": "Heavy triples"}
 
 
+@pytest.mark.parametrize(
+    "code, params",
+    [
+        ("progression", {"upper_kg": "lots"}),
+        ("metcon_light_barbell", {}),
+        ("stop_rule", {"pain_max": 11}),
+        ("forbid_flag", {"flags": []}),
+        ("fresh_first", {"anything": 1}),
+    ],
+)
+def test_a_rule_with_params_its_code_cannot_read_is_refused(conn, program, code, params):
+    with pytest.raises(ValidationError):
+        do(conn, "add_rule", {"code": code, "text": "A rule.", "params": params}, "ajoute la règle")
+
+
+def test_a_rule_update_checks_its_params_against_its_code(conn, program):
+    rule = conn.execute(
+        "select id, version from athlete_rule where code = 'progression' limit 1"
+    ).fetchone()
+    with pytest.raises(OperationError, match="invalid params for the rule 'progression'"):
+        do(
+            conn,
+            "update_rule",
+            {"id": rule[0], "expected_version": rule[1], "params": {"upper_kg": "lots"}},
+            "change la progression",
+        )
+    one_flag = do(
+        conn,
+        "add_rule",
+        {"code": "forbid_flag", "text": "No box jumps.", "params": {"flags": "impact"}},
+        "pas de box jumps",
+    )
+    stored = conn.execute(
+        "select params from athlete_rule where id = %s", (one_flag.entity_id,)
+    ).fetchone()
+    assert stored[0] == {"flags": ["impact"]}  # a single flag written alone is a list
+
+
+def test_a_confirmed_or_accepted_partial_update_changes_only_its_fields(conn, program):
+    rule = conn.execute(
+        "select id, version, text from athlete_rule where code = 'progression' limit 1"
+    ).fetchone()
+    # update_rule waits for the athlete's confirmation (a request), then applies
+    do(
+        conn,
+        "update_rule",
+        {"id": rule[0], "expected_version": rule[1], "params": {"upper_kg": 5, "lower_kg": 10}},
+        "change la progression",
+    )
+    after = conn.execute(
+        "select text, code, active, params from athlete_rule where id = %s", (rule[0],)
+    ).fetchone()
+    assert after == (rule[2], "progression", True, {"upper_kg": 5.0, "lower_kg": 10.0})
+    # A coach suggestion of a partial update, accepted, keeps the other fields too
+    goal = conn.execute("select id, version, title from goal order by id limit 1").fetchone()
+    pid = suggest(
+        conn,
+        "update_goal",
+        {"id": goal[0], "expected_version": goal[1], "target_date": "2026-06-30"},
+        rationale="Later.",
+        author="coach",
+    )
+    stored = conn.execute("select payload from proposal where id = %s", (pid,)).fetchone()[0]
+    assert set(stored) == {"id", "expected_version", "target_date"}
+
+
+def test_a_value_out_of_a_columns_range_is_a_refusal_not_a_failed_turn(conn, program):
+    part_id = conn.execute("select id from session_part order by id limit 1").fetchone()[0]
+    with pytest.raises(OperationError, match="refused by the database"):
+        do(
+            conn,
+            "add_line",
+            {
+                "part_id": part_id,
+                "exercise": "Row",
+                "sets": 99_999_999_999,
+                "quantity": 1,
+                "unit": "cal",
+            },
+            "ajoute du rameur",
+        )
+
+
+def test_a_text_past_its_bound_is_refused(conn, program):
+    with pytest.raises(ValidationError):
+        do(conn, "add_coaching_note", {"title": "Long", "text": "x" * 20_001}, "note longue")
+
+
 def test_without_a_rule_check_the_programme_cannot_change(conn, program):
     operations._programme_check = None
     with pytest.raises(OperationError, match="no rule check"):

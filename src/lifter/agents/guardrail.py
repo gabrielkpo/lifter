@@ -13,8 +13,11 @@ import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
+from pydantic import ValidationError
+
 from lifter.agents.context import LineInfo, PlanningContext, Rule
 from lifter.agents.plan import PlanLine, PlanPart, PlanSession, WeekPlan
+from lifter.domain import rule_params
 
 LOWER_BODY = {"legs", "hinge"}
 # "to failure", not "failure" ("stay 2 reps from failure" is the opposite); "PR" in capitals
@@ -499,7 +502,12 @@ def check(plan: WeekPlan, ctx: PlanningContext) -> Verdict:
         if checker is None:
             unchecked.append(rule.text)
             continue
-        violations.extend(checker(rule, plan, ctx))
+        try:  # stored before the parameters were checked on write: unchecked, never a crash
+            params = rule_params(rule.code, rule.params)
+        except ValidationError:
+            unchecked.append(f"{rule.text} (its parameters are invalid)")
+            continue
+        violations.extend(checker(rule.model_copy(update={"params": params}), plan, ctx))
     warnings = []
     for rule in ctx.rules:
         if rule.code == "stop_rule":

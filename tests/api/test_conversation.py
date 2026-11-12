@@ -358,3 +358,20 @@ def test_a_message_with_a_control_character_is_refused_before_anything_is_stored
     answer = api.post("/conversations", json={"text": "Bonjour\x00 coach"})
     assert answer.status_code == 422
     assert conn.execute("select count(*) from conversation").fetchone() == (0,)
+
+
+def test_an_unexpected_failure_is_a_500_that_keeps_the_opened_conversation(
+    conn, database_url, program
+):
+    class Broken:
+        def bind_tools(self, tools):
+            return self
+
+        def invoke(self, messages):
+            raise RuntimeError("a bug")
+
+    api = api_with(database_url, Broken)
+    answer = api.post("/conversations", json={"text": "Bonjour coach"})
+    assert answer.status_code == 500
+    detail = answer.json()["detail"]
+    assert detail["conversation_id"] and "try again" in detail["message"]

@@ -366,7 +366,8 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         if operation == "undo" and (refusal := _undo_from_elsewhere(payload, quote)):
             return refusal
         payload = _whole_intent(operation, payload)
-        if (waiting := _waiting_request(operation)) and not _instructs(quote):
+        waiting = _waiting_request(operation)
+        if waiting and (_same(waiting, operation, payload) or not _instructs(quote)):
             # The athlete's message answers a change that waits for them: accepting it is the
             # only way to apply it (a fresh apply would ask again, or fail on a short quote).
             return _refused(
@@ -402,6 +403,15 @@ def coach_tools(ctx: ToolContext) -> list[BaseTool]:
         except QuoteError:
             return False
         return True
+
+    def _same(proposal_id: int, operation: str, payload: dict[str, Any]) -> bool:
+        """The payload is the one the proposal holds (once validated)."""
+        try:
+            wanted = _normalised(operation, payload)
+        except ValidationError:
+            return False
+        row = conn.execute("select payload from proposal where id = %s", (proposal_id,))
+        return row.fetchone()[0] == wanted
 
     def _normalised(operation: str, payload: dict[str, Any]) -> dict:
         """The payload as `request` stores it (validated and dumped), to compare requests."""

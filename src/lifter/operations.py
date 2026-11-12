@@ -1934,9 +1934,10 @@ def _picked(conn, proposal_id: int, conversation_id: str, message_id: int) -> tu
 
 
 def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> None:
-    """The suggestion picked is the one the athlete's words point to: the number of a shown
-    suggestion their message gives, or the only one shown when it gives none (another number,
-    a load or a day, names no suggestion). "ok pour 12" never accepts suggestion 13."""
+    """The suggestion picked is the one the athlete's words point to: the number of a
+    suggestion this conversation showed that their message gives, or the only one shown when it
+    gives none (another number, a load or a day, names no suggestion). "ok pour 12" never
+    accepts suggestion 13."""
     (text,) = conn.execute(
         "select text from conversation_message where id = %s", (message_id,)
     ).fetchone()
@@ -1947,7 +1948,16 @@ def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> No
         )
     }
     numbers = {int(n) for n in re.findall(r"(?<![\w.,])\d+(?!\w|[.,]\d)", text)}
-    named = numbers & pending
+    # A number of a suggestion this conversation showed, now or before, points to that one
+    named = numbers & {
+        r[0]
+        for r in conn.execute(
+            "select p.id from proposal p join conversation_message m on m.id = p.presented_in"
+            " where m.conversation_id = (select conversation_id from conversation_message"
+            " where id = %s) and p.id = any(%s)",
+            (shown, list(numbers)),
+        )
+    }
     if named:
         if proposal_id not in named:
             raise OperationError(

@@ -228,6 +228,49 @@ def test_a_confirmation_that_repeats_a_load_still_confirms(conn, program):
     assert confirmed["ok"] and squats(conn) == 1
 
 
+def test_a_wordy_confirmation_of_the_same_change_is_sent_to_it(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    payload = {"id": sid, "expected_version": version}
+    _, tools = tools_for(conn, "Supprime la séance jambes")
+    asked = call(
+        tools,
+        "apply_change",
+        operation="delete_session",
+        payload=payload,
+        quote="Supprime la séance jambes",
+    )
+    coach_replies(conn, "Tu confirmes ?", [asked["suggestion_id"]])
+    _, tools = tools_for(conn, "Oui, je confirme la suppression")
+    again = call(
+        tools,
+        "apply_change",
+        operation="delete_session",
+        payload=payload,
+        quote="je confirme la suppression",
+    )
+    assert not again["ok"] and f"suggestion_id {asked['suggestion_id']}" in again["error"]
+
+
+def test_a_number_of_another_suggestion_never_accepts_the_one_shown(conn, program):
+    sid, version, _ = session(conn, "Legs + Metcon")
+    _, tools = tools_for(conn, "Que proposes-tu pour la séance jambes ?")
+    old, new = (
+        call(
+            tools,
+            "suggest_change",
+            operation="move_session",
+            payload={"session_id": sid, "new_day": d, "expected_version": version},
+            rationale="Recovery.",
+        )["suggestion_id"]
+        for d in ("2026-03-05", "2026-03-06")
+    )
+    coach_replies(conn, f"Vendredi ({old}) ?", [old])
+    coach_replies(conn, f"Plutôt samedi ({new}) ?", [new])  # old expires, only new is shown
+    _, tools = tools_for(conn, f"ok pour {old}")
+    refused = call(tools, "accept_suggestion", suggestion_id=new, quote=f"ok pour {old}")
+    assert not refused["ok"] and f"names {old}" in refused["error"]
+
+
 def test_a_new_instruction_of_the_same_kind_is_not_sent_to_the_waiting_one(conn, program):
     sid, version, _ = session(conn, "Legs + Metcon")
     _, tools = tools_for(conn, "Supprime la séance jambes")

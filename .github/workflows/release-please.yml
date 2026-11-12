@@ -6,9 +6,9 @@ on:
 concurrency:
   group: release-please
   cancel-in-progress: false
+# release-please acts with RELEASE_PLEASE_TOKEN (below): the workflow's own token only reads.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 jobs:
   release-please:
     runs-on: ubuntu-latest

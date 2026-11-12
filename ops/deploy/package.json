@@ -1,0 +1,8 @@
+{
+  "name": "lifter-deploy",
+  "private": true,
+  "description": "The Vercel CLI the Deploy workflow runs, installed from this lockfile (npm ci), not resolved at run time",
+  "dependencies": {
+    "vercel": "62.1.0"
+  }
+}

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared by the scheduled jobs: settings, log file, failure notification. Sourced, not run.
 # Files outside the repository (chmod 600), in ~/.config/lifter:
 #   ops.env     optional, settings shared by every job (paths, retention), never a secret

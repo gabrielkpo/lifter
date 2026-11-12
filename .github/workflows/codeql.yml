@@ -13,10 +13,14 @@ jobs:
     # Code scanning is unavailable on free private repos; it runs once the repo is public.
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: github/codeql-action/init@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The API and the agents (Python), and the app with its server-side proxy (TypeScript).
-          languages: python, javascript-typescript
-      - uses: github/codeql-action/analyze@v4
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          # The API and the agents (Python), the app with its server-side proxy (TypeScript),
+          # and the workflows themselves (actions).
+          languages: python, javascript-typescript, actions
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.0](https://github.com/gabrielkpo/lifter/compare/v0.8.1...v0.9.0) (2026-11-13)
+
+
+### Features
+
+* bench results say what they were measured on ([#142](https://github.com/gabrielkpo/lifter/issues/142)) ([1477cf8](https://github.com/gabrielkpo/lifter/commit/1477cf8b88b042a705c2e869777475e011f0022d))
+
+
+### Bug Fixes
+
+* a remote database is reached with TLS, and the local coach acts as its roles ([#138](https://github.com/gabrielkpo/lifter/issues/138)) ([a9e770b](https://github.com/gabrielkpo/lifter/commit/a9e770b0a40b7913062ce85aa26aca5bb0640537))
+* the first conversation's legacy /conversation routes are removed ([#143](https://github.com/gabrielkpo/lifter/issues/143)) ([065c647](https://github.com/gabrielkpo/lifter/commit/065c64747b3a940e9ce173bdf7a998f18d92cb86))
+* the Garmin sync gives up on a hung server, the Mac installs releases with their lock, direct dependencies declared ([#137](https://github.com/gabrielkpo/lifter/issues/137)) ([f93adc6](https://github.com/gabrielkpo/lifter/commit/f93adc67c88cea88be75425fbc43f43fb11d798d))
+* today is the athlete's date in LIFTER_TIMEZONE, in Python and in each database session ([#139](https://github.com/gabrielkpo/lifter/issues/139)) ([8e53584](https://github.com/gabrielkpo/lifter/commit/8e53584f799cdde72512bebc9223cc9da7441dfe))
+* undo survives a later migration, program load --replace protects what was written since, a resolved health issue can reopen ([#134](https://github.com/gabrielkpo/lifter/issues/134)) ([277d4ff](https://github.com/gabrielkpo/lifter/commit/277d4ff198516abe3f6213f6569ac7122ecca7dd))
+* **web:** the coach's budget or pace refusal is shown as the API says it, two unused API paths closed ([#136](https://github.com/gabrielkpo/lifter/issues/136)) ([4963a2d](https://github.com/gabrielkpo/lifter/commit/4963a2d93e490a5f9d959c4f9e5da7428ee5f486))
+* **web:** the sign-in page sits in the middle of the window on a computer ([#144](https://github.com/gabrielkpo/lifter/issues/144)) ([80143d7](https://github.com/gabrielkpo/lifter/commit/80143d71f3525c0f495b6567330d9c36910cf8f6))
+
 ## [0.8.1](https://github.com/gabrielkpo/lifter/compare/v0.8.0...v0.8.1) (2026-11-12)
 
 

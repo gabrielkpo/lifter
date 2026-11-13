@@ -8,14 +8,14 @@ license-files = ["LICENSE"]
 authors = [{ name = "Gabriel Kpodoh" }]
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.162.2",
+    "fastapi>=0.162.4",
     # Imported by the API and the coach directly, not only through langchain-mistralai.
     "httpx>=0.28.1",
-    "langchain-core>=1.6.11",
+    "langchain-core>=1.7.7",
     "langchain-mistralai>=1.1.6",
     "langgraph>=1.2.20",
     # The 2.x client (streamable_http_client, MCPError) and its httpx2 transport.
-    "httpx2>=2.13.1",
+    "httpx2>=2.16.0",
     "mcp>=2.3.0",
     "psycopg[binary]>=3.3.8",
     "pydantic>=2.14.3",

@@ -42,6 +42,8 @@ from lifter import operations
 from lifter.conversation import start
 
 KEY = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
+# A reference names an earlier item's `ref`: "$" then a letter ("$5" stays text).
+REF = re.compile(r"^\$[A-Za-z][A-Za-z0-9_.:-]*$")
 VERSIONED = {"part_id": "session_part", "session_id": "planned_session"}
 
 
@@ -111,7 +113,7 @@ class Resolver:
         self.tables = operations._writable()
 
     def resolve(self, value: Any, table: str | None = None) -> Any:
-        if isinstance(value, str) and value.startswith("$") and value != "$current":
+        if isinstance(value, str) and REF.match(value) and value != "$current":
             name = value[1:]
             if name not in self.refs:
                 raise operations.OperationError(f"{value}: no earlier item has this ref")
@@ -146,14 +148,15 @@ class Resolver:
     def _version(self, value: Any, obj: dict[str, Any], table: str | None) -> Any:
         if value != "$current":
             return value
-        for column, named in VERSIONED.items():
-            if column in obj:
-                row_table, row_id = named, obj[column]
-                break
-        else:
-            if table is None or "id" not in obj:
-                raise operations.OperationError("expected_version $current: which row?")
+        # The row the object names as its own (`id`, in the operation's table) comes first; a
+        # nested part or a session to move is named by part_id or session_id.
+        if "id" in obj and table is not None:
             row_table, row_id = table, obj["id"]
+        else:
+            named = [(t, obj[c]) for c, t in VERSIONED.items() if c in obj]
+            if not named:
+                raise operations.OperationError("expected_version $current: which row?")
+            row_table, row_id = named[0]
         row = self.conn.execute(
             f"select version from {row_table} where id = %s", (row_id,)
         ).fetchone()
@@ -179,12 +182,20 @@ def run_import(
     for item in file.items:
         key = f"import:{cid}:{item.key}"
         done = coach.execute(
-            "select status, result, kind from proposal where idempotency_key = %s", (key,)
+            "select p.status, p.result, p.kind, m.text from proposal p"
+            " left join conversation_message m on m.id = p.message_id"
+            " where p.idempotency_key = %s",
+            (key,),
         ).fetchone()
         if done is not None:
             if done[0] != "applied" or done[2] != item.op:
                 raise operations.OperationError(
                     f"{item.key}: already recorded as {done[2]} {done[0]}"
+                )
+            if done[3] != item.said:
+                # Same title and key, other words: another item, never skipped silently.
+                raise operations.OperationError(
+                    f"{item.key}: this key was applied with other words; give this item a new key"
                 )
             change = operations.Change.model_validate(done[1])
             skipped = True

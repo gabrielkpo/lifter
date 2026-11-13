@@ -220,3 +220,33 @@ def test_the_command_imports_a_file_and_reports_each_item(
     broken = tmp_path / "broken.yaml"
     broken.write_text("title: x\nitems: []\n", encoding="utf-8")
     assert main(["import", str(broken)]) == 2
+
+
+def test_a_key_applied_with_other_words_is_not_skipped(conn, roles):
+    chat, coach = roles
+    run_import(ImportFile.model_validate(LOG), chat, coach)
+    other = {
+        "title": LOG["title"],
+        "items": [dict(LOG["items"][0], said="Jeudi 12/03, push : bench 5x5 à 60 kg")],
+    }
+    with pytest.raises(operations.OperationError, match="applied with other words"):
+        run_import(ImportFile.model_validate(other), chat, coach)
+
+
+def test_a_dollar_amount_in_a_text_is_text(conn, roles):
+    chat, coach = roles
+    log = {
+        "title": "Note",
+        "items": [
+            {
+                "key": "n",
+                "said": "Note de méthode : la ceinture a coûté $5 de plus",
+                "op": "add_coaching_note",
+                "payload": {"title": "Matériel", "text": "$5 de plus pour la ceinture"},
+            }
+        ],
+    }
+    run_import(ImportFile.model_validate(log), chat, coach)
+    assert conn.execute("select text from coaching_note").fetchone() == (
+        "$5 de plus pour la ceinture",
+    )

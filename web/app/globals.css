@@ -1079,15 +1079,20 @@ body.drawer-open {
   font-size: 13px;
 }
 
-/* The sign-in page (app/login): the mark, the name, one passphrase field. */
+/* The sign-in page (app/login): the mark, the name, one passphrase field, in the middle of the
+   whole window (fixed, so the room the app keeps for the sidebar on a computer does not push
+   it right: the sign-in page has no sidebar). */
 .login {
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 24px 0 80px;
+  padding: calc(24px + env(safe-area-inset-top)) 16px
+    calc(80px + env(safe-area-inset-bottom));
 }
 .login h1 {
   margin: 0 0 12px;

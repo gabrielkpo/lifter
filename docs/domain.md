@@ -69,6 +69,22 @@ feedback on the program's sessions, or changes the coach made since the program 
 (their undo would be refused). `history` holds sessions
 done before the cycle, outside any week.
 
+## Importing a log kept elsewhere
+
+A training log kept outside Lifter (a journal written by hand) gets in with `lifter import FILE`,
+through the coach's write path rather than around it: each item of the YAML file is one
+operation of `lifter.operations` with the athlete's own words for it (`said`), which is stored
+as their message in the import's conversation and quoted whole. Every change is then traced,
+checked against the athlete's rules (reported, never refused: the log records what was done or
+decided) and reversible with `undo`, like one asked in the app; the messages are written as
+`lifter_chat` and the changes as `lifter_coach`, so the database's trace check holds. Items
+name earlier ones (`ref`, then `"$name"`), existing rows (`{"$id": [table, {column: value}]}`)
+and their current version (`expected_version: "$current"`). Each item has a `key`: re-running
+the file skips what was applied, so a run stopped by an error goes on from there once the item
+is fixed. A real file stays in `data/`, which Git ignores; test it on a local restore of the
+latest backup before running it on the hosted database. `undo` is not an import item: undoing
+stays the athlete's, in the app or with the coach.
+
 ## Who can change what
 
 - **The athlete** acts directly: load a program, add, move or cancel a session, add a goal or

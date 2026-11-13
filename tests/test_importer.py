@@ -250,3 +250,9 @@ def test_a_dollar_amount_in_a_text_is_text(conn, roles):
     assert conn.execute("select text from coaching_note").fetchone() == (
         "$5 de plus pour la ceinture",
     )
+
+
+def test_a_ref_a_payload_could_not_name_is_refused():
+    log = dict(LOG, items=[dict(LOG["items"][0], ref="12-push")])
+    with pytest.raises(ValidationError, match="ref '12-push'"):
+        ImportFile.model_validate(log)

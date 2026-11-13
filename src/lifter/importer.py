@@ -61,6 +61,13 @@ class Item(BaseModel):
             raise ValueError(f"key {value!r}: letters, digits and . _ : - only, 80 at most")
         return value
 
+    @field_validator("ref")
+    @classmethod
+    def _ref(cls, value: str | None) -> str | None:
+        if value is not None and not REF.match("$" + value):
+            raise ValueError(f"ref {value!r}: a letter, then letters, digits and . _ : -")
+        return value
+
     @field_validator("op")
     @classmethod
     def _op(cls, value: str) -> str:

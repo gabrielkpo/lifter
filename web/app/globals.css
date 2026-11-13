@@ -1089,10 +1089,17 @@ body.drawer-open {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 12px;
   padding: calc(24px + env(safe-area-inset-top)) 16px
     calc(80px + env(safe-area-inset-bottom));
+}
+/* Centred by auto margins rather than justify-content, so a window shorter than the page
+   scrolls to its top instead of cutting it off. */
+.login > :first-child {
+  margin-top: auto;
+}
+.login > :last-child {
+  margin-bottom: auto;
 }
 .login h1 {
   margin: 0 0 12px;

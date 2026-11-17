@@ -92,8 +92,12 @@ run_with_timeout() {
     kill -KILL "$pid" 2>/dev/null
   ) </dev/null >/dev/null 2>&1 &
   local watchdog=$!
+  # The job itself stopped from outside (launchd, a kill) takes its command with it, instead of
+  # leaving it running without its lock.
+  trap 'kill -TERM "$pid" "$watchdog" 2>/dev/null; exit 143' TERM INT HUP
   wait "$pid"
   local code=$?
+  trap - TERM INT HUP
   kill "$watchdog" 2>/dev/null
   wait "$watchdog" 2>/dev/null
   if [[ -e "$LIFTER_LOG_DIR/.timed-out-$pid" ]]; then

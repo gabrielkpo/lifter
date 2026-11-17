@@ -46,3 +46,15 @@ def test_keepalives_are_added_to_a_url(tmp_path):
     first, second = out.stdout.split()
     assert first.startswith("postgresql://u@h/db?connect_timeout=10&keepalives=1")
     assert second.startswith("postgresql://u@h/db?sslmode=require&connect_timeout=10")
+
+
+def test_a_job_stopped_from_outside_stops_its_command(tmp_path):
+    marker = tmp_path / "still-running"
+    script = (
+        f'run_with_timeout 60 bash -c "sleep 3; touch {marker}" & job=$!; '
+        "sleep 1; kill -TERM $job; wait $job; echo $?"
+    )
+    out = bash(tmp_path, script)
+    assert out.stdout.strip() == "143"
+    time.sleep(3)
+    assert not marker.exists()  # the command died with the job

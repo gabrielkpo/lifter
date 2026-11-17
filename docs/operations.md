@@ -69,6 +69,7 @@ Environment variables of the jobs; any of them can go in the optional
 | `LIFTER_SYNC_DAYS` | `3` | Days fetched again by each sync |
 | `LIFTER_SYNC_TIMEOUT` | `1800` | Seconds after which a sync is stopped (logged, notified): a stuck one no longer keeps its lock and the Mac awake |
 | `LIFTER_BACKUP_TIMEOUT` | `1200` | Seconds after which a backup is stopped |
+| `LIFTER_PURGE_TIMEOUT` | `300` | Seconds after which the audit purge that follows a sync is stopped |
 
 Every connection to the database, the jobs' and `pg_dump`'s, carries TCP keepalives and a
 10-second connect timeout: a network path that died (the Mac back from sleep) fails within

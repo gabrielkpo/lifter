@@ -401,3 +401,13 @@ def test_a_session_counts_days_in_the_athletes_time_zone(database_url, monkeypat
     monkeypatch.setenv("LIFTER_TIMEZONE", "Pacific/Kiritimati")
     with connect(database_url) as conn:
         assert conn.execute("show timezone").fetchone() == ("Pacific/Kiritimati",)
+
+
+def test_a_connection_notices_a_dead_peer(database_url):
+    with connect(database_url) as conn:
+        params = conn.info.get_parameters()
+    assert params["keepalives"] == "1" and params["keepalives_idle"] == "30"
+    assert params["connect_timeout"] == "10"
+    # a URL's own value wins
+    with connect(psycopg.conninfo.make_conninfo(database_url, keepalives_idle="5")) as c:
+        assert c.info.get_parameters()["keepalives_idle"] == "5"

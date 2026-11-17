@@ -63,6 +63,55 @@ notify_failure() {
   osascript -e "display notification \"$1\" with title \"Lifter\" sound name \"Basso\"" || true
 }
 
+# A job that hangs keeps its lock and caffeinate (the Mac never sleeps again) until someone
+# notices: on 16/11 the sync waited 13 hours on a dead connection. Each job command runs under a
+# time limit: TERM when it is reached, KILL 30 s later. Returns the command's exit code, 124 when
+# the limit stopped it. (macOS has no timeout command.)
+run_with_timeout() {
+  local limit=$1
+  shift
+  "$@" &
+  local pid=$!
+  # The watchdog's sleeps run in the background behind `wait`, which a signal interrupts at
+  # once: stopped when the command ends, it leaves no sleep behind and the job ends with it.
+  # Its output goes nowhere, so a sleep left behind never holds the job's log or pipe open; the
+  # mark that the limit was reached is written before the command is stopped.
+  (
+    trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+    sleep "$limit" &
+    nap=$!
+    wait "$nap"
+    : >"$LIFTER_LOG_DIR/.timed-out-$pid"
+    if ! kill -TERM "$pid" 2>/dev/null; then
+      rm -f "$LIFTER_LOG_DIR/.timed-out-$pid"
+      exit 0
+    fi
+    sleep 30 &
+    nap=$!
+    wait "$nap"
+    kill -KILL "$pid" 2>/dev/null
+  ) </dev/null >/dev/null 2>&1 &
+  local watchdog=$!
+  wait "$pid"
+  local code=$?
+  kill "$watchdog" 2>/dev/null
+  wait "$watchdog" 2>/dev/null
+  if [[ -e "$LIFTER_LOG_DIR/.timed-out-$pid" ]]; then
+    rm -f "$LIFTER_LOG_DIR/.timed-out-$pid"
+    return 124
+  fi
+  return "$code"
+}
+
+# The libpq client tools (pg_dump) take TCP keepalives and a connect timeout from the URL only:
+# a dead network path then fails within about a minute instead of hanging (see lifter.db).
+with_keepalives() {
+  local url=$1 sep="?"
+  [[ "$url" == *"?"* ]] && sep="&"
+  printf '%s%sconnect_timeout=10&keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=3' \
+    "$url" "$sep"
+}
+
 load_env() {
   local file="$LIFTER_CONFIG_DIR/$1"
   if [[ ! -r "$file" ]]; then

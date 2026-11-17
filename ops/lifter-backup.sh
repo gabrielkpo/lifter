@@ -35,13 +35,20 @@ log "backup: start"
 # --enable-row-security: conversation_message has row-level policies (009); without it pg_dump
 # refuses the table for a role that does not own it. lifter_backup reads every row through
 # lifter_private (roles.sql), which the read policy covers, so the dump is complete.
-if "$PG_BIN/pg_dump" --format=custom --no-owner --no-privileges --enable-row-security \
+# A dump of this database takes seconds: past LIFTER_BACKUP_TIMEOUT (20 min) it is stuck.
+if run_with_timeout "${LIFTER_BACKUP_TIMEOUT:-1200}" \
+  "$PG_BIN/pg_dump" --format=custom --no-owner --no-privileges --enable-row-security \
   --file="$file.partial" \
-  "$DATABASE_URL" 2>>"$LIFTER_LOG" && "$PG_BIN/pg_restore" --list "$file.partial" >/dev/null; then
+  "$(with_keepalives "$DATABASE_URL")" 2>>"$LIFTER_LOG" \
+  && "$PG_BIN/pg_restore" --list "$file.partial" >/dev/null; then
   mv "$file.partial" "$file"
   log "backup: done $(basename "$file") ($(du -h "$file" | cut -f1))"
 else
+  code=$?
   rm -f "$file.partial"
+  if ((code == 124)); then
+    log "backup: stopped after ${LIFTER_BACKUP_TIMEOUT:-1200} s"
+  fi
   log "backup: failed"
   notify_failure "Database backup failed, see $LIFTER_LOG"
   exit 1

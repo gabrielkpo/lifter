@@ -519,6 +519,51 @@ def _plan_lines(plan) -> list[str]:
     return out
 
 
+def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
+    """A log kept elsewhere, written through the coach's write path: traced, reversible."""
+    import psycopg
+    from pydantic import ValidationError
+
+    from lifter.agents.tools import register_rule_check
+    from lifter.api.hosted import coach_urls
+    from lifter.importer import read_import, run_import
+    from lifter.operations import OperationError
+    from lifter.quote import QuoteError
+
+    try:
+        file = read_import(args.file)
+    except (OSError, ValidationError, ValueError) as exc:
+        print(printable(f"cannot read {args.file}: {exc}"))
+        return 2
+    chat_url, coach_url = coach_urls(settings, hosted=False)
+    if not (chat_url and coach_url):
+        print("DATABASE_URL is not set (see .env.example)")
+        return 2
+
+    def show(o):
+        state = "already applied" if o.skipped else "applied"
+        broken = f", rules in breach: {len(o.violations)}" if o.violations else ""
+        print(printable(f"{o.key}: {o.op} {state} (entity {o.entity_id}){broken}"))
+
+    try:
+        with connect(chat_url) as chat, connect(coach_url) as coach:
+            migrate_needed = coach.execute("select to_regclass('public.change_log')").fetchone()
+            if migrate_needed == (None,):
+                print("schema missing: run lifter migrate first")
+                return 2
+            register_rule_check()  # the athlete's rules, reported on each change
+            outcomes = run_import(file, chat, coach, on_item=show)
+    except (OperationError, QuoteError, ValidationError) as exc:
+        print(printable(f"stopped: {exc}"))
+        return 1
+    except psycopg.Error as exc:
+        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        return 3
+    applied = sum(not o.skipped for o in outcomes)
+    print(f"{applied} applied, {len(outcomes) - applied} already there, undo each by its change")
+    return 0
+
+
 def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
     """One message to the coach: stored as the conversation endpoint would, then answered."""
     import httpx
@@ -1045,6 +1090,13 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--conversation", default="cli", help="conversation id (default: cli)")
     chat.add_argument("--today", type=date.fromisoformat, help="as if today were this day")
     chat.set_defaults(func=cmd_chat)
+
+    imp = sub.add_parser(
+        "import",
+        help="write a log kept elsewhere (YAML) through the coach's write path, traced",
+    )
+    imp.add_argument("file", type=Path)
+    imp.set_defaults(func=cmd_import)
 
     runs = sub.add_parser("runs", help="print the last agent runs (audit log)")
     runs.add_argument("--limit", type=int, default=20)

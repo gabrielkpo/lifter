@@ -181,3 +181,9 @@ alter role lifter_coach set statement_timeout = '30s';
 alter role lifter_chat set statement_timeout = '10s';
 alter role lifter_coach connection limit 5;
 alter role lifter_chat connection limit 5;
+
+-- The role that migrates (the database's owner) may act as the conversation's and the coach's
+-- roles, never inherit their rights: run locally with its URL, `lifter chat`, `lifter-api` and
+-- `lifter import` then write as lifter_chat and lifter_coach (`set role`), under the same trace
+-- check and row policies as the hosted coach. It owns the tables already: this opens nothing.
+grant lifter_chat, lifter_coach to current_user with inherit false, set true;

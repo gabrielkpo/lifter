@@ -401,3 +401,13 @@ def test_a_session_counts_days_in_the_athletes_time_zone(database_url, monkeypat
     monkeypatch.setenv("LIFTER_TIMEZONE", "Pacific/Kiritimati")
     with connect(database_url) as conn:
         assert conn.execute("show timezone").fetchone() == ("Pacific/Kiritimati",)
+
+
+def test_the_owner_may_act_as_the_coach_without_inheriting_its_rights(conn):
+    rows = conn.execute(
+        "select r.rolname, m.inherit_option, m.set_option from pg_auth_members m"
+        " join pg_roles r on r.oid = m.roleid join pg_roles u on u.oid = m.member"
+        " where u.rolname = current_user and r.rolname in ('lifter_chat', 'lifter_coach')"
+        " order by r.rolname"
+    ).fetchall()
+    assert rows == [("lifter_chat", False, True), ("lifter_coach", False, True)]

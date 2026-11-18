@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.0](https://github.com/gabrielkpo/lifter/compare/v0.9.0...v0.10.0) (2026-11-18)
+
+
+### Features
+
+* lifter import writes a log kept elsewhere through the coach's write path ([#147](https://github.com/gabrielkpo/lifter/issues/147)) ([a6920f4](https://github.com/gabrielkpo/lifter/commit/a6920f4aa0e99e41d9d29fc505764d7842149f71))
+
+
+### Bug Fixes
+
+* a dead connection fails within a minute and a stuck job stops at its limit ([#150](https://github.com/gabrielkpo/lifter/issues/150)) ([73b2635](https://github.com/gabrielkpo/lifter/commit/73b263500b2fe096136423aa987e0f5f851083ca))
+* the role that migrates may act as the conversation's and the coach's roles ([#151](https://github.com/gabrielkpo/lifter/issues/151)) ([e3803cb](https://github.com/gabrielkpo/lifter/commit/e3803cb9182346ba92c638fa1b3be4c6c8c7f433))
+
 ## [0.9.0](https://github.com/gabrielkpo/lifter/compare/v0.8.1...v0.9.0) (2026-11-13)
 
 

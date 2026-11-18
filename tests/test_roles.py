@@ -403,6 +403,16 @@ def test_a_session_counts_days_in_the_athletes_time_zone(database_url, monkeypat
         assert conn.execute("show timezone").fetchone() == ("Pacific/Kiritimati",)
 
 
+def test_a_connection_notices_a_dead_peer(database_url):
+    with connect(database_url) as conn:
+        params = conn.info.get_parameters()
+    assert params["keepalives"] == "1" and params["keepalives_idle"] == "30"
+    assert params["connect_timeout"] == "10"
+    # a URL's own value wins
+    with connect(psycopg.conninfo.make_conninfo(database_url, keepalives_idle="5")) as c:
+        assert c.info.get_parameters()["keepalives_idle"] == "5"
+
+
 def test_the_owner_may_act_as_the_coach_without_inheriting_its_rights(conn):
     rows = conn.execute(
         "select r.rolname, m.inherit_option, m.set_option from pg_auth_members m"

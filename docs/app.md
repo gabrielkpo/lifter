@@ -71,8 +71,9 @@ top of it:
   conversation and write the athlete's words, nothing else; the coach answers as `lifter_coach`
   (`LIFTER_COACH_DATABASE_URL`), whose writes go through `lifter.operations` and are refused at
   commit without a trace. Locally, without those two URLs, `lifter-api` and `lifter chat` use
-  `DATABASE_URL` acting as the same roles (`set role` at connection), so its user must be a
-  member of them. The model is Mistral (`MISTRAL_API_KEY`, `LIFTER_COACH_MODEL`), in
+  `DATABASE_URL` acting as the same roles (`set role` at connection): `lifter migrate` lets
+  the role that migrates act as them (`set` without `inherit`), so the owner's URL is enough.
+  The model is Mistral (`MISTRAL_API_KEY`, `LIFTER_COACH_MODEL`), in
   `LIFTER_COACH_LANGUAGE`, within `LIFTER_COACH_TOKEN_BUDGET` a turn and
   `LIFTER_COACH_DAILY_TOKEN_BUDGET` a day (429 past it, or past 10 messages a minute, before
   anything is stored); without these, the conversation

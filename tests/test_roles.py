@@ -411,3 +411,13 @@ def test_a_connection_notices_a_dead_peer(database_url):
     # a URL's own value wins
     with connect(psycopg.conninfo.make_conninfo(database_url, keepalives_idle="5")) as c:
         assert c.info.get_parameters()["keepalives_idle"] == "5"
+
+
+def test_the_owner_may_act_as_the_coach_without_inheriting_its_rights(conn):
+    rows = conn.execute(
+        "select r.rolname, m.inherit_option, m.set_option from pg_auth_members m"
+        " join pg_roles r on r.oid = m.roleid join pg_roles u on u.oid = m.member"
+        " where u.rolname = current_user and r.rolname in ('lifter_chat', 'lifter_coach')"
+        " order by r.rolname"
+    ).fetchall()
+    assert rows == [("lifter_chat", False, True), ("lifter_coach", False, True)]

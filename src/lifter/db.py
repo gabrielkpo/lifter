@@ -33,6 +33,20 @@ LOCAL_HOSTS = frozenset({"", "localhost", "127.0.0.1", "::1"})
 CLEAR_SSLMODES = frozenset({"disable", "allow", "prefer"})
 
 
+# A connection whose network path died (a Mac back from sleep, a dropped route) stays ESTABLISHED
+# on this side and a query waits for an answer that never comes: on 16/11 the scheduled sync
+# hung 13 hours and every backup failed from 13/11. TCP keepalives notice a dead peer within
+# about a minute (30 s idle, then 3 probes 10 s apart) and the query fails instead; a URL's own
+# values win.
+KEEPALIVE = {
+    "connect_timeout": "10",
+    "keepalives": "1",
+    "keepalives_idle": "30",
+    "keepalives_interval": "10",
+    "keepalives_count": "3",
+}
+
+
 def _tls(params: Mapping[str, Any]) -> str | None:
     """The sslmode to add: `require` for a remote server whose URL names none; a URL that asks
     for clear text to a remote server is refused."""
@@ -55,15 +69,16 @@ def connect(url: str) -> psycopg.Connection:
 
     The search_path and the athlete's time zone (`current_date`, a timestamp's day) are appended
     to any `options` already set in the URL, not substituted. A remote server is reached with TLS
-    (see `_tls`).
+    (see `_tls`), and every connection with TCP keepalives (see `KEEPALIVE`).
     """
     params = conninfo_to_dict(url)
     options = (
         f"{params.get('options', '')} -c search_path={SEARCH_PATH} -c TimeZone={timezone_name()}"
     ).strip()
+    extra = {k: v for k, v in KEEPALIVE.items() if k not in params}
     if sslmode := _tls(params):
-        url = make_conninfo(url, sslmode=sslmode)
-    return psycopg.connect(url, autocommit=True, options=options)
+        extra["sslmode"] = sslmode
+    return psycopg.connect(make_conninfo(url, **extra), autocommit=True, options=options)
 
 
 def as_role(url: str, role: str) -> str:

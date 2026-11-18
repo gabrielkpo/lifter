@@ -32,16 +32,21 @@ trap '/bin/rm -f "$LOCK"' EXIT
 
 load_env sync.env
 log "sync: start"
-if "$LIFTER_BIN" sync --days "${LIFTER_SYNC_DAYS:-3}" --no-migrate >>"$LIFTER_LOG" 2>&1; then
+# A sync of 3 days takes a few minutes: past LIFTER_SYNC_TIMEOUT (30 min) it is stuck.
+if run_with_timeout "${LIFTER_SYNC_TIMEOUT:-1800}" \
+  "$LIFTER_BIN" sync --days "${LIFTER_SYNC_DAYS:-3}" --no-migrate >>"$LIFTER_LOG" 2>&1; then
   log "sync: done"
   # The agents' audit keeps its full context 90 days (ADR 0002): purge what is older.
-  if ! "$LIFTER_BIN" audit-purge >>"$LIFTER_LOG" 2>&1; then
+  if ! run_with_timeout "${LIFTER_PURGE_TIMEOUT:-300}" "$LIFTER_BIN" audit-purge >>"$LIFTER_LOG" 2>&1; then
     log "audit-purge: failed"
     notify_failure "Audit purge failed, see $LIFTER_LOG"
     exit 1
   fi
 else
   code=$?
+  if ((code == 124)); then
+    log "sync: stopped after ${LIFTER_SYNC_TIMEOUT:-1800} s"
+  fi
   log "sync: failed (exit $code)"
   # Unattended (the Mac asleep again in a dark wake), nobody would see it: the hourly catch-up
   # syncs at the next use, and the app's banner warns past 36 hours.

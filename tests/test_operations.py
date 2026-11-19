@@ -549,6 +549,40 @@ def test_deleting_a_programme_level_says_its_sessions_stay_and_they_do(
     assert after == sessions and after_without_week > without_week
 
 
+@pytest.mark.parametrize("answer", ["non", "pas ok", "et demain on fait quoi ?"])
+def test_a_confirmation_that_is_not_a_yes_applies_nothing(conn, program, answer):
+    sid = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    payload = {"id": sid, "expected_version": version(conn, "planned_session", sid)}
+    said = "supprime cette séance"
+    asked = operations.request(
+        conn,
+        "delete_session",
+        payload,
+        conversation_id="c1",
+        quote=said,
+        message_id=say(conn, said),
+        reasons=["it deletes the session with its parts and lines"],
+    )
+    coach_says(conn, f"Tu confirmes ? Réponds {asked}.", [asked])
+    with pytest.raises(QuoteError):
+        run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote=answer,
+            message_id=say(conn, answer),
+            idempotency_key=f"k{next(_keys)}",
+            author="coach",
+            proposal_id=asked,
+        )
+    assert conn.execute(
+        "select count(*) from planned_session where id = %s", (sid,)
+    ).fetchone() == (1,)
+    status = conn.execute("select status from proposal where id = %s", (asked,)).fetchone()
+    assert status == ("pending",)
+
+
 def test_a_week_intent_is_text_only(conn, program):
     week = conn.execute(
         "select id, cycle_id, start_date, version from training_week order by number limit 1"

@@ -10,7 +10,7 @@ from lifter.agents.context import PlanningError
 from lifter.agents.week_check import introduced, violations_for_week
 from lifter.conversation import start
 from lifter.program import load_program, read_program
-from lifter.quote import QuoteError, check_quote, normalize, verify_quote
+from lifter.quote import QuoteError, check_agreement, check_quote, normalize, verify_quote
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "program.yaml"
 
@@ -232,3 +232,29 @@ def test_a_second_identical_violation_is_introduced(conn, program):
     after = violations_for_week(conn, week)
 
     assert [v.check for v in introduced(before, after)] == ["forbid_flag"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["non", "no", "pas ok", "non merci", "ne fais rien", "do not delete it", "attends"],
+)
+def test_a_refusal_never_accepts_a_pending_change(message):
+    with pytest.raises(QuoteError, match="does not accept"):
+        check_agreement(message, named=False)
+    with pytest.raises(QuoteError):
+        check_agreement(f"{message} pour la 12", named=True)  # the number does not overrule
+
+
+@pytest.mark.parametrize("message", ["what about my bench tomorrow?", "et demain on fait quoi ?"])
+def test_a_message_about_something_else_accepts_nothing(message):
+    with pytest.raises(QuoteError, match="does not say yes"):
+        check_agreement(message, named=False)
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["ok", "Oui, je confirme.", "oui, supprime-la", "vas-y", "d'accord", "pas de souci, vas-y"],
+)
+def test_an_agreement_accepts(message):
+    check_agreement(message, named=False)
+    check_agreement("12", named=True)  # the suggestion's number alone

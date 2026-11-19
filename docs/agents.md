@@ -120,7 +120,7 @@ catalogue (`agents/tools.py`, `lifter/operations.py`). It has no SQL.
 | `present_suggestions` | Puts older suggestions (the coach's or the planner's) back in front of the athlete, in this reply |
 | `apply_change` | Any catalogue operation the athlete asked for, with a quote of their message; `undo` is one of them |
 | `suggest_change` | The coach's own idea, stored as a pending suggestion, applied only when chosen |
-| `accept_suggestion` | Applies a suggestion the athlete chose or a change they confirmed, with their quote: only one the coach's last message presented (recorded or presented in that turn), and the one their message numbers; the others expire |
+| `accept_suggestion` | Applies a suggestion the athlete chose or a change they confirmed, with their quote: only one the coach's last message presented (recorded or presented in that turn), the one their message numbers, and only if their message says yes ("ok", "oui", "je confirme" or its number) with no refusal ("non", "pas ok", "attends"); the others expire |
 
 Every write goes through `operations.run`: the quote is checked against the athlete's message
 stored by the conversation endpoint, then the payload, the row version and, for the programme,

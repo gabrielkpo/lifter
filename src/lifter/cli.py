@@ -519,6 +519,43 @@ def _plan_lines(plan) -> list[str]:
     return out
 
 
+def _coach_database_error(settings: Settings, exc: Exception) -> str:
+    """What `lifter chat` and `lifter import` print for a database error. When DATABASE_URL may
+    not act as lifter_chat and lifter_coach, the error names the URLs to set; asked of the
+    database itself, since the server's message is in its own language and a refusal at
+    connection carries no error code."""
+    if _cannot_act_as_the_coach(settings):
+        return (
+            "database: permission denied to set role. The coach runs as lifter_chat and"
+            " lifter_coach: connect DATABASE_URL as a member of them, or set"
+            " LIFTER_CHAT_DATABASE_URL and LIFTER_COACH_DATABASE_URL"
+        )
+    return printable(f"database: {type(exc).__name__}: {exc}".strip())
+
+
+def _cannot_act_as_the_coach(settings: Settings) -> bool:
+    import psycopg
+
+    roles = [
+        role
+        for role, own_url in (
+            ("lifter_chat", settings.chat_database_url),
+            ("lifter_coach", settings.coach_database_url),
+        )
+        if not own_url
+    ]
+    if not (settings.database_url and roles):
+        return False
+    try:
+        with connect(settings.database_url) as conn:
+            return not all(
+                conn.execute("select pg_has_role(current_user, %s, 'SET')", (role,)).fetchone()[0]
+                for role in roles
+            )
+    except psycopg.Error:
+        return False
+
+
 def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
     """A log kept elsewhere, written through the coach's write path: traced, reversible."""
     import psycopg
@@ -557,7 +594,7 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
         print(printable(f"stopped: {exc}"))
         return 1
     except psycopg.Error as exc:
-        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        print(_coach_database_error(settings, exc))
         return 3
     applied = sum(not o.skipped for o in outcomes)
     print(f"{applied} applied, {len(outcomes) - applied} already there, undo each by its change")
@@ -609,14 +646,7 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
         print(printable(f"Mistral API error: {exc}"))
         return 1
     except psycopg.Error as exc:
-        if "permission denied to set role" in str(exc):  # refused at connection (FATAL)
-            print(
-                "database: permission denied to set role. The coach runs as lifter_chat and"
-                " lifter_coach: connect DATABASE_URL as a member of them, or set"
-                " LIFTER_CHAT_DATABASE_URL and LIFTER_COACH_DATABASE_URL"
-            )
-            return 3
-        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        print(_coach_database_error(settings, exc))
         return 3
     out = [reply.text, ""]
     for change in reply.changes:

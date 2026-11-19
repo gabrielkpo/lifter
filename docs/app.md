@@ -55,13 +55,19 @@ top of it:
   `SameSite=Strict`, and `__Host-` prefixed and `Secure` on https. Two server variables on the
   Vercel project `lifter`: `LIFTER_APP_PASSPHRASE` (12 characters at least) and
   `LIFTER_SESSION_KEY` (32 at least, e.g. `openssl rand -base64 32`). Without both, or with
-  shorter ones, the app opens for nobody; changing either signs every device out. The app sends
-  `Referrer-Policy: same-origin`.
+  shorter ones, the app opens for nobody; changing either signs every device out. Every answer
+  carries a Content-Security-Policy with a fresh nonce (`web/lib/csp.ts`: only the app's own
+  scripts, nothing loaded from elsewhere, no framing), `Permissions-Policy`,
+  `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and
+  `Referrer-Policy: same-origin` (`web/next.config.ts`).
 - **App** (Vercel project `lifter`, root `web/`): the browser only talks to the app's own server,
   which reads the API (`web/app/api/[...path]/route.ts`, GET on the API's endpoints). The one
-  write it forwards is a message to the coach (`POST /conversations`, `/conversations/{id}`), and only from the app's
-  own pages: a request whose `Origin` is not the app's is refused (403). The API's address,
-  token and protection bypass secret are server-side variables, never sent to the page.
+  write it forwards is a message to the coach (`POST /conversations`, `/conversations/{id}`),
+  and only from the app's own pages: a request whose `Origin` is not the app's is refused
+  (403), and a message over 8,000 bytes is refused before it is read. The app's server waits
+  15 s for a read and 55 s for a coach's turn, then answers 504 (`web/lib/proxy.ts`). The API's
+  address, token and protection bypass secret are server-side variables, never sent to the
+  page.
 - **API** (Vercel project `lifter-api`, entry point `api/index.py`): refuses to start without
   `LIFTER_API_TOKEN` when hosted, requires `Authorization: Bearer` on every request, answers
   only its own host names and allows no browser origin.

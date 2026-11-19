@@ -220,6 +220,27 @@ def test_the_command_imports_a_file_and_reports_each_item(
     broken = tmp_path / "broken.yaml"
     broken.write_text("title: x\nitems: []\n", encoding="utf-8")
     assert main(["import", str(broken)]) == 2
+    broken.write_text("title: [x\n", encoding="utf-8")  # not YAML: said, no traceback
+    assert main(["import", str(broken)]) == 2
+    assert "not valid YAML" in capsys.readouterr().out
+
+    unknown = tmp_path / "unknown.yaml"
+    item = {
+        "key": "s",
+        "said": "Vendredi 13/03 : séance de lancers",
+        "op": "create_session",
+        "payload": {
+            "day": "2026-03-13",
+            "title": "Lancers",
+            "parts": [{"kind": "strength", "done": [{"exercise": "Javelin", "sets": 1}]}],
+        },
+    }
+    unknown.write_text(yaml.safe_dump({"title": "Inconnu", "items": [item]}), encoding="utf-8")
+    for _ in range(2):  # stopped, not a traceback; the second run writes no second message
+        assert main(["import", str(unknown)]) == 1
+        assert "stopped:" in capsys.readouterr().out
+    said = "select count(*) from conversation_message where text = %s"
+    assert conn.execute(said, (item["said"],)).fetchone() == (1,)
 
 
 def test_a_key_applied_with_other_words_is_not_skipped(conn, roles):
@@ -256,3 +277,68 @@ def test_a_ref_a_payload_could_not_name_is_refused():
     log = dict(LOG, items=[dict(LOG["items"][0], ref="12-push")])
     with pytest.raises(ValidationError, match="ref '12-push'"):
         ImportFile.model_validate(log)
+
+
+@pytest.mark.parametrize("target", ["planned_session", ["planned_session"], [1, {}]])
+def test_an_id_lookup_of_the_wrong_shape_is_refused(conn, roles, target):
+    chat, coach = roles
+    log = {
+        "title": "Forme",
+        "items": [
+            {
+                "key": "f",
+                "said": "Retour du 12/03 : fatigue 2, aucune douleur",
+                "op": "add_feedback",
+                "payload": {"day": "2026-03-12", "planned_session_id": {"$id": target}},
+            }
+        ],
+    }
+    with pytest.raises(operations.OperationError, match=r"\$id"):
+        run_import(ImportFile.model_validate(log), chat, coach)
+
+
+def test_an_id_lookup_takes_one_value_per_column(conn, roles):
+    chat, coach = roles
+    lookup = {"$id": ["planned_session", {"day": {"nested": 1}}]}
+    log = {
+        "title": "Forme",
+        "items": [
+            {
+                "key": "f",
+                "said": "Retour du 12/03 : fatigue 2, aucune douleur",
+                "op": "add_feedback",
+                "payload": {"day": "2026-03-12", "planned_session_id": lookup},
+            }
+        ],
+    }
+    with pytest.raises(operations.OperationError, match="one value"):
+        run_import(ImportFile.model_validate(log), chat, coach)
+
+
+def test_an_item_undone_since_is_reported_and_names_nothing(conn, roles):
+    chat, coach = roles
+    first = {**LOG, "items": LOG["items"][:1]}  # the session alone
+    run_import(ImportFile.model_validate(first), chat, coach)
+    change_id = conn.execute("select max(id) from change_log").fetchone()[0]
+    text = "annule la séance du 12/03"
+    start(conn, id="app", title=text, source="app")
+    message_id = conn.execute(
+        "insert into conversation_message (conversation_id, role, text)"
+        " values ('app', 'athlete', %s) returning id",
+        (text,),
+    ).fetchone()[0]
+    operations.run(
+        conn,
+        "undo",
+        {"change_id": change_id},
+        conversation_id="app",
+        quote=text,
+        message_id=message_id,
+        idempotency_key="undo-push",
+        author="athlete",
+    )
+    again = run_import(ImportFile.model_validate(first), chat, coach)
+    assert [(o.skipped, o.undone) for o in again] == [(True, True)]
+    with pytest.raises(operations.OperationError, match="undone since"):
+        run_import(ImportFile.model_validate(LOG), chat, coach)  # the feedback names it
+    assert conn.execute("select count(*) from feedback").fetchone() == (0,)

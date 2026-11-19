@@ -91,12 +91,15 @@ def connect(url: str) -> psycopg.Connection:
 def as_of(conn: psycopg.Connection, day: date) -> Iterator[None]:
     """Inside the block, today is `day`, for Python (`lifter.config.today`) and for what `conn`
     reads (`TODAY_SQL`, the sessions' statuses): a session after `day` is upcoming, not missed."""
-    conn.execute("select set_config('lifter.today', %s, false)", (day.isoformat(),))
+    row = conn.execute(
+        "select current_setting('lifter.today', true), set_config('lifter.today', %s, false)",
+        (day.isoformat(),),
+    ).fetchone()
     try:
         with config.as_of(day):
             yield
-    finally:
-        conn.execute("select set_config('lifter.today', '', false)")
+    finally:  # back to what it was: an enclosing as_of keeps its day
+        conn.execute("select set_config('lifter.today', %s, false)", (row[0] or "",))
 
 
 def as_role(url: str, role: str) -> str:

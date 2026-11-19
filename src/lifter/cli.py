@@ -950,6 +950,10 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
             )
         )
 
+    print(
+        f"{len(scenarios)} scenario(s) x {args.runs} run(s), stopped once"
+        f" {settings.bench_token_budget} tokens are used (LIFTER_BENCH_TOKEN_BUDGET)"
+    )
     with conn:
         migrate(conn)
         results, stopped = run_bench(
@@ -968,14 +972,15 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
         from lifter.agents.planner import SYSTEM_PROMPT
         from lifter.bench.runner import provenance
 
-        names = [s.name for s in scenarios]
+        ran = {r.scenario for r in results}  # a pass stopped early covers only these
+        names = [s.name for s in scenarios if s.name in ran]
         measured = provenance(
             prompt=SYSTEM_PROMPT if args.planner == "mistral" else None,
             scenario_files=[args.scenarios / f"{n}.yaml" for n in names],
             names=names,
             runs=args.runs,
         )
-        write_results(args.out, args.planner, model, results, measured)
+        write_results(args.out, args.planner, model, results, measured | {"stopped_early": stopped})
         print(f"results written to {args.out}")
     return 0
 

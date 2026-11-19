@@ -1,6 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { fromThisApp } from "@/lib/origin";
-import { messagePath, readPath, replacement } from "@/lib/proxy";
+import {
+  bodyRefused,
+  MESSAGE_TIMEOUT_MS,
+  messagePath,
+  READ_TIMEOUT_MS,
+  readCapped,
+  readPath,
+  replacement,
+} from "@/lib/proxy";
 
 // The app's server reads the Lifter API on behalf of the browser: the API's address, its
 // token and the Vercel protection bypass stay on the server, never in the page.
@@ -15,8 +23,6 @@ export const dynamic = "force-dynamic";
 // A coach's turn makes 1 to 8 model calls: the longest a function may run on Vercel's plan.
 export const maxDuration = 60;
 
-const MAX_BODY = 8_000;
-
 function upstreamHeaders(): Record<string, string> {
   const headers: Record<string, string> = { accept: "application/json" };
   if (API_TOKEN) headers.authorization = `Bearer ${API_TOKEN}`;
@@ -24,7 +30,11 @@ function upstreamHeaders(): Record<string, string> {
   return headers;
 }
 
-async function forward(url: string, init: RequestInit): Promise<NextResponse> {
+async function forward(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<NextResponse> {
   let upstream: Response;
   try {
     upstream = await fetch(url, {
@@ -32,10 +42,13 @@ async function forward(url: string, init: RequestInit): Promise<NextResponse> {
       cache: "no-store",
       // A wrong protection bypass answers with a redirect to Vercel's login: never follow it.
       redirect: "manual",
+      // A hung API ends here, with the 504 the app knows, not at the platform's limit.
+      signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
+  } catch (error) {
+    const late = error instanceof DOMException && error.name === "TimeoutError";
     return NextResponse.json(
-      { detail: "Lifter API unreachable" },
+      { detail: late ? "Lifter API did not answer in time" : "Lifter API unreachable" },
       { status: 504 },
     );
   }
@@ -71,15 +84,24 @@ export async function POST(
   if (!request.headers.get("content-type")?.startsWith("application/json")) {
     return NextResponse.json({ detail: "expected JSON" }, { status: 415 });
   }
-  const body = await request.text();
-  if (body.length > MAX_BODY) {
+  // Refused before it is read when it says it is too long; otherwise read up to the limit,
+  // in bytes, and refused as soon as it passes it.
+  if (bodyRefused(request.headers.get("content-length"))) {
     return NextResponse.json({ detail: "message too long" }, { status: 413 });
   }
-  return forward(`${API_URL}/${target}`, {
-    method: "POST",
-    headers: { ...upstreamHeaders(), "content-type": "application/json" },
-    body,
-  });
+  const body = await readCapped(request.body);
+  if (body === null) {
+    return NextResponse.json({ detail: "message too long" }, { status: 413 });
+  }
+  return forward(
+    `${API_URL}/${target}`,
+    {
+      method: "POST",
+      headers: { ...upstreamHeaders(), "content-type": "application/json" },
+      body,
+    },
+    MESSAGE_TIMEOUT_MS,
+  );
 }
 
 export async function GET(
@@ -91,7 +113,9 @@ export async function GET(
   if (target === null) {
     return NextResponse.json({ detail: "not found" }, { status: 404 });
   }
-  return forward(`${API_URL}/${target}${request.nextUrl.search}`, {
-    headers: upstreamHeaders(),
-  });
+  return forward(
+    `${API_URL}/${target}${request.nextUrl.search}`,
+    { headers: upstreamHeaders() },
+    READ_TIMEOUT_MS,
+  );
 }

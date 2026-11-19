@@ -370,8 +370,8 @@ def test_the_local_coach_acts_as_its_roles_and_needs_a_trace(conn, database_url)
             coach.execute("insert into coaching_note (title, text) values ('Note', 'Sans trace')")
 
 
-def test_lifter_chat_says_which_urls_to_set_when_the_user_cannot_act_as_the_coach(
-    conn, database_url, monkeypatch, capsys
+def test_chat_and_import_say_which_urls_to_set_when_the_user_cannot_act_as_the_coach(
+    conn, database_url, monkeypatch, capsys, tmp_path
 ):
     from psycopg.conninfo import make_conninfo
 
@@ -388,6 +388,14 @@ def test_lifter_chat_says_which_urls_to_set_when_the_user_cannot_act_as_the_coac
         )
         monkeypatch.setenv("MISTRAL_API_KEY", "unused")
         assert main(["chat", "Salut"]) == 3
+        assert "LIFTER_COACH_DATABASE_URL" in capsys.readouterr().out
+        log = tmp_path / "log.yaml"
+        log.write_text(
+            "title: Journal\nitems:\n  - {key: a, said: note du jour, op: add_coaching_note,"
+            " payload: {title: Note, text: Texte, category: preference}}\n",
+            encoding="utf-8",
+        )
+        assert main(["import", str(log)]) == 3
         assert "LIFTER_COACH_DATABASE_URL" in capsys.readouterr().out
     finally:
         conn.execute(f'revoke connect on database "{name}" from lifter_probe')

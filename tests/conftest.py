@@ -11,16 +11,17 @@ from lifter.db import connect, migrate
 # A server where the tests may create and drop a throwaway database: a local Postgres of the
 # hosted database's major version (18), from the environment (CI) or else from .env. Only this
 # one key is read from .env: the rest of it (real database URLs, tokens) never reaches tests.
-ADMIN_URL = (
-    os.environ.get("TEST_DATABASE_URL")
-    or dotenv_values().get("TEST_DATABASE_URL")
-    or "postgresql:///postgres"
-)
+# Never a guessed default: migrating creates the lifter_* roles on the whole server.
+ADMIN_URL = os.environ.get("TEST_DATABASE_URL") or dotenv_values().get("TEST_DATABASE_URL")
 
 
 @pytest.fixture(scope="session")
 def database_url():
     name = f"lifter_test_{uuid.uuid4().hex[:8]}"
+    if not ADMIN_URL:
+        if os.environ.get("CI"):
+            raise RuntimeError("TEST_DATABASE_URL is not set")
+        pytest.skip("TEST_DATABASE_URL is not set: the database tests need a local Postgres 18")
     try:
         admin = psycopg.connect(ADMIN_URL, autocommit=True)
     except psycopg.OperationalError as exc:

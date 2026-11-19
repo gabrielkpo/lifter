@@ -313,6 +313,34 @@ def setup(conn: psycopg.Connection, conversation: Conversation) -> None:
         conn.execute("update planned_session set notes = %s where id = %s", (note.text, found[0]))
 
 
+def run_conversations(
+    conn: psycopg.Connection,
+    conversations: list[Conversation],
+    make_model: Callable[[], Any],
+    runs: int,
+    *,
+    token_budget: int | None = None,
+    on_result: Callable[[ConversationResult], None] | None = None,
+    **kwargs: Any,
+) -> tuple[list[ConversationResult], str | None]:
+    """Every conversation in turn, like `run_bench`: stops before a conversation once the pass
+    has used `token_budget` tokens. Returns the results and why it stopped early, if it did."""
+    results: list[ConversationResult] = []
+    for done, conversation in enumerate(conversations):
+        used = sum(r.input_tokens + r.output_tokens for r in results)
+        if token_budget is not None and used >= token_budget:
+            left = len(conversations) - done
+            return (
+                results,
+                f"token budget reached: {used} of {token_budget}, {left} scenario(s) left",
+            )
+        for result in run_conversation(conn, conversation, make_model, runs, **kwargs):
+            results.append(result)
+            if on_result:
+                on_result(result)
+    return results, None
+
+
 def run_conversation(
     conn: psycopg.Connection,
     conversation: Conversation,

@@ -222,7 +222,7 @@ tokens. Otherwise the README reports the negative result and the single coach st
    "undo" can reach (it is refused anyway when the row changed since).
 3. Streaming of the coach's reply to the app.
 
-## Who builds what (after validation)
+## Who builds what
 
 | App side | Agents side |
 |---|---|

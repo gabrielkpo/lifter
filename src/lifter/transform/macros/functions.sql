@@ -19,3 +19,9 @@ as $$
     )
 $$;
 {% endmacro %}
+
+-- The athlete's date: the session's lifter.today when a turn runs as of another day (a bench
+-- scenario, `lifter chat --today`), else current_date. Same expression as lifter.db.TODAY_SQL.
+{% macro athlete_today() -%}
+coalesce(nullif(current_setting('lifter.today', true), '')::date, current_date)
+{%- endmacro %}

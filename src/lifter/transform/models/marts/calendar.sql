@@ -7,7 +7,7 @@ from {{ ref('planned_session_status') }} s
 union all
 select
     g.day, 'session', 'garmin', g.name, g.sport,
-    case when g.completed then 'done' when g.day < current_date then 'missed' else 'planned' end,
+    case when g.completed then 'done' when g.day < {{ athlete_today() }} then 'missed' else 'planned' end,
     null, null
 from {{ ref('stg_scheduled_workout') }} g
 union all

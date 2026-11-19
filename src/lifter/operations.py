@@ -44,6 +44,7 @@ from pydantic.fields import FieldInfo
 
 from lifter import domain
 from lifter.config import today as athlete_today
+from lifter.db import TODAY_SQL
 from lifter.domain import (
     DomainError,
     ExerciseIn,
@@ -549,7 +550,7 @@ def _ids(conn, sql: str, params: tuple = ()) -> set[int]:
 
 def _live_weeks(conn) -> set[int]:
     """The weeks not over yet: what a change of the rules or of the bank can still affect."""
-    return _ids(conn, "select id from training_week where start_date + 6 >= current_date")
+    return _ids(conn, f"select id from training_week where start_date + 6 >= {TODAY_SQL}")
 
 
 def _weeks_of(conn, column: str, row_id: int) -> set[int]:

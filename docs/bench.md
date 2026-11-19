@@ -94,7 +94,9 @@ athletes are synthetic, and every pass is measured on the same input.
 ## Conversation scenarios (the coach)
 
 The coach in conversation (ADR 0002) has its own scenarios, in `bench/conversations/*.yaml`:
-one or a few athlete messages, then checks on the database. They were written before any run
+one or a few athlete messages, then checks on the database. Each turn runs as of the scenario's
+`today` (`lifter.db.as_of`): a session after it is upcoming, not missed, and the rule checks
+read that day, whatever the date of the run. They were written before any run
 against a model; `no_forbidden_suggestion` was added to `ideas_only` and `forbidden_exercise`,
 and `unchanged` to `forbidden_exercise`, after the fourth round, when the coach was given the
 forbidden exercises (it had once applied the leg press it should have suggested).

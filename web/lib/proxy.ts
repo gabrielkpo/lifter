@@ -2,7 +2,7 @@
 // passes the API's answers back: plain functions, tested in proxy.test.ts.
 
 /** The API's endpoints the app reads. */
-export const ENDPOINTS = new Set([
+const ENDPOINTS = new Set([
   "program",
   "weeks",
   "blocks",

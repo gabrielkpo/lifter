@@ -563,8 +563,8 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
 
     from lifter.agents.tools import register_rule_check
     from lifter.api.hosted import coach_urls
+    from lifter.domain import DomainError
     from lifter.importer import read_import, run_import
-    from lifter.operations import OperationError
     from lifter.quote import QuoteError
 
     try:
@@ -578,6 +578,9 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
         return 2
 
     def show(o):
+        if o.undone:
+            print(printable(f"{o.key}: {o.op} undone since; a new key applies it again"))
+            return
         state = "already applied" if o.skipped else "applied"
         broken = f", rules in breach: {len(o.violations)}" if o.violations else ""
         print(printable(f"{o.key}: {o.op} {state} (entity {o.entity_id}){broken}"))
@@ -590,14 +593,18 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
                 return 2
             register_rule_check()  # the athlete's rules, reported on each change
             outcomes = run_import(file, chat, coach, on_item=show)
-    except (OperationError, QuoteError, ValidationError) as exc:
+    except (DomainError, QuoteError, ValidationError) as exc:  # an OperationError is a DomainError
         print(printable(f"stopped: {exc}"))
         return 1
     except psycopg.Error as exc:
         print(_coach_database_error(settings, exc))
         return 3
     applied = sum(not o.skipped for o in outcomes)
-    print(f"{applied} applied, {len(outcomes) - applied} already there, undo each by its change")
+    undone = sum(o.undone for o in outcomes)
+    print(
+        f"{applied} applied, {len(outcomes) - applied - undone} already there,"
+        f" {undone} undone since; undo each by its change"
+    )
     return 0
 
 

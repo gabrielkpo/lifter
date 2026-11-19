@@ -81,7 +81,9 @@ decided) and reversible with `undo`, like one asked in the app; the messages are
 name earlier ones (`ref`, then `"$name"`), existing rows (`{"$id": [table, {column: value}]}`)
 and their current version (`expected_version: "$current"`). Each item has a `key`: re-running
 the file skips what was applied, so a run stopped by an error goes on from there once the item
-is fixed. A real file stays in `data/`, which Git ignores; test it on a local restore of the
+is fixed (the athlete message it left is used again, not written twice). An item undone since
+is reported and not applied again, and a later item naming it stops the run; a new key applies
+it again. A real file stays in `data/`, which Git ignores; test it on a local restore of the
 latest backup before running it on the hosted database. `undo` is not an import item: undoing
 stays the athlete's, in the app or with the coach.
 

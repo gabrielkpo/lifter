@@ -93,8 +93,14 @@ class ImportFile(BaseModel):
 
 
 def read_import(path: Path) -> ImportFile:
+    """The file, checked: ValueError (pydantic's ValidationError is one) when it is not YAML or
+    not an import file."""
     with path.open(encoding="utf-8") as f:
-        return ImportFile.model_validate(yaml.safe_load(f))
+        try:
+            data = yaml.safe_load(f)
+        except yaml.YAMLError as exc:
+            raise ValueError(f"not valid YAML: {exc}") from None
+    return ImportFile.model_validate(data)
 
 
 def conversation_id(file: ImportFile) -> str:
@@ -109,19 +115,29 @@ class Outcome:
     entity_id: int | None
     skipped: bool
     violations: list[dict[str, Any]]
+    # Applied by an earlier run, then undone: skipped too, and its ref names nothing.
+    undone: bool = False
 
 
 class Resolver:
     """Turns a payload's references into ids and versions, on the coach's connection."""
 
-    def __init__(self, conn: psycopg.Connection, refs: dict[str, int | None]):
+    def __init__(
+        self,
+        conn: psycopg.Connection,
+        refs: dict[str, int | None],
+        undone: frozenset[str] = frozenset(),
+    ):
         self.conn = conn
         self.refs = refs
+        self.undone = undone
         self.tables = operations._writable()
 
     def resolve(self, value: Any, table: str | None = None) -> Any:
         if isinstance(value, str) and REF.match(value) and value != "$current":
             name = value[1:]
+            if name in self.undone:
+                raise operations.OperationError(f"{value}: its item was undone since")
             if name not in self.refs:
                 raise operations.OperationError(f"{value}: no earlier item has this ref")
             return self.refs[name]
@@ -130,7 +146,15 @@ class Resolver:
         if not isinstance(value, dict):
             return value
         if set(value) == {"$id"}:
-            return self._id(*value["$id"])
+            target = value["$id"]
+            if not (
+                isinstance(target, list)
+                and len(target) == 2
+                and isinstance(target[0], str)
+                and isinstance(target[1], dict)
+            ):
+                raise operations.OperationError("$id: [table, {column: value, ...}]")
+            return self._id(*target)
         out = {k: self.resolve(v) for k, v in value.items() if k != "expected_version"}
         if "expected_version" in value:
             out["expected_version"] = self._version(value["expected_version"], out, table)
@@ -144,6 +168,8 @@ class Resolver:
         if unknown or not where:
             raise operations.OperationError(f"$id on {table}: unknown columns {sorted(unknown)}")
         resolved = {k: self.resolve(v) for k, v in where.items()}
+        if any(isinstance(v, (dict, list)) for v in resolved.values()):
+            raise operations.OperationError(f"$id on {table}: each column takes one value")
         sql = " and ".join(f'"{k}" = %s' for k in resolved)
         rows = self.conn.execute(
             f"select id from {table} where {sql}", tuple(resolved.values())
@@ -185,11 +211,12 @@ def run_import(
     with chat.transaction():
         start(chat, id=cid, title=file.title, source="cli")
     refs: dict[str, int | None] = {}
+    undone: set[str] = set()
     outcomes = []
     for item in file.items:
         key = f"import:{cid}:{item.key}"
         done = coach.execute(
-            "select p.status, p.result, p.kind, m.text from proposal p"
+            "select p.status, p.result, p.kind, m.text, p.undone_by is not null from proposal p"
             " left join conversation_message m on m.id = p.message_id"
             " where p.idempotency_key = %s",
             (key,),
@@ -205,18 +232,11 @@ def run_import(
                     f"{item.key}: this key was applied with other words; give this item a new key"
                 )
             change = operations.Change.model_validate(done[1])
-            skipped = True
+            skipped, was_undone = True, done[4]
         else:
             table = operations.CATALOGUE[item.op].writes[0]
-            payload = Resolver(coach, refs).resolve(item.payload, table)
-            with chat.transaction():
-                row = chat.execute(
-                    "insert into conversation_message (conversation_id, role, text)"
-                    " values (%s, 'athlete', %s) returning id",
-                    (cid, item.said),
-                ).fetchone()
-                assert row is not None  # an insert ... returning gives its row
-                message_id = row[0]
+            payload = Resolver(coach, refs, frozenset(undone)).resolve(item.payload, table)
+            message_id = _message(chat, coach, cid, item.said)
             change = operations.run(
                 coach,
                 item.op,
@@ -228,11 +248,37 @@ def run_import(
                 author="athlete",
                 rationale=f"{file.title}: {item.key}",
             )
-            skipped = False
+            skipped = was_undone = False
         if item.ref:
-            refs[item.ref] = change.entity_id
-        outcome = Outcome(item.key, item.op, change.entity_id, skipped, change.violations)
+            if was_undone:
+                undone.add(item.ref)
+            else:
+                refs[item.ref] = change.entity_id
+        outcome = Outcome(
+            item.key, item.op, change.entity_id, skipped, change.violations, undone=was_undone
+        )
         outcomes.append(outcome)
         if on_item:
             on_item(outcome)
     return outcomes
+
+
+def _message(chat: psycopg.Connection, coach: psycopg.Connection, cid: str, said: str) -> int:
+    """The athlete message that authorises an item. A run stopped by this item's error left it
+    as the conversation's latest message with no change: it is used again, not written twice
+    (the conversation's role may add messages, never delete one)."""
+    last = coach.execute(
+        "select m.id, m.role, m.text, exists (select 1 from proposal p where p.message_id = m.id)"
+        " from conversation_message m where m.conversation_id = %s order by m.id desc limit 1",
+        (cid,),
+    ).fetchone()
+    if last is not None and last[1:] == ("athlete", said, False):
+        return last[0]
+    with chat.transaction():
+        row = chat.execute(
+            "insert into conversation_message (conversation_id, role, text)"
+            " values (%s, 'athlete', %s) returning id",
+            (cid, said),
+        ).fetchone()
+    assert row is not None  # an insert ... returning gives its row
+    return row[0]

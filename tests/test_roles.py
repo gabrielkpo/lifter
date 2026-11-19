@@ -395,7 +395,7 @@ def test_chat_and_import_say_which_urls_to_set_when_the_user_cannot_act_as_the_c
             " payload: {title: Note, text: Texte, category: preference}}\n",
             encoding="utf-8",
         )
-        assert main(["import", str(log)]) == 3
+        assert main(["import", str(log), "--apply"]) == 3
         assert "LIFTER_COACH_DATABASE_URL" in capsys.readouterr().out
     finally:
         conn.execute(f'revoke connect on database "{name}" from lifter_probe')

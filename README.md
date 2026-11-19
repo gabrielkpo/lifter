@@ -59,8 +59,8 @@ sequenceDiagram
 Choices and their trade-offs:
 - **The athlete's words are the authority, checked by code, not the model's reading.** Every
   write is a typed operation that quotes the athlete's latest message, word for word. A quote
-  only proves the words exist, so destructive operations and changes that break the athlete's
-  rules take a second, numbered confirmation; the rest applies at once and can be undone
+  only proves the words exist, so deletions, sensitive edits and changes that break the athlete's
+  rules take a second confirmation; the rest applies at once and can be undone
   ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)). The price: one more message
   for risky changes.
 - **Agents read numbers, they never compute them.** Metrics are defined once
@@ -146,12 +146,12 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 ## Limitations / next
 - The coach's figures are in-sample (see Results); a held-out scenario set comes before the next
   prompt change.
-- A coach turn sends about 10,000 tokens per model call, within 100,000 tokens a turn and
-  600,000 a day (both settings); prompt caching and a lighter snapshot are next.
-- Thresholds are version 1 heuristics for one athlete; baselines need 14 measured nights.
+- A coach turn sends about 10,000 tokens per model call, within 100,000 a turn and 600,000 a
+  day; prompt caching and a lighter snapshot are next.
+- Thresholds are first heuristics for one athlete; baselines need 14 measured nights.
 - One athlete per instance: sign-in by email and per-athlete data isolation are a later step.
-- The sync, the backup and the restore test run on the athlete's Mac
-  ([docs/operations.md](docs/operations.md)): no sync while the Mac is off.
+- The sync, backup and restore test run on the athlete's Mac
+  ([docs/operations.md](docs/operations.md)): no sync while it is off.
 
 ## Status / Roadmap
 | # | Step | Status |
@@ -168,7 +168,7 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 
 ## Development
 ```bash
-uv sync --group dev
+uv sync --locked --group dev
 uv run pre-commit install         # ruff (locked version) and gitleaks before each commit
 uv run pytest                     # TEST_DATABASE_URL: Postgres 18, creates lifter_* roles
 uv run mypy src/lifter            # type check (CI also gates branch coverage at 91 %)

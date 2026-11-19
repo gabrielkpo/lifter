@@ -1,8 +1,8 @@
 # ADR 0003: health constraints belong to each athlete, gathered by the coach
 
-- Status: proposed (2026-10-17), to be validated by the project owner before any code.
+- Status: proposed (2026-10-17).
 - Scope: the agents (coach, planner, guardrail, bench) and the app (schema, operations,
-  profile), written by the agents session.
+  profile).
 
 ## Context
 
@@ -125,15 +125,15 @@ suggestion never breaks one.
 
 ## Who does what
 
-- **App session**: migration (`demand`, `exercise_demand`, the athlete's overrides,
+- **App side**: migration (`demand`, `exercise_demand`, the athlete's overrides,
   `constraint` linked to `health_issue`), the operations that write them, the profile page
   showing issues, constraints and demands.
-- **Agents session**: the generic constraint check and the stop rule from the athlete's data in
+- **Agents side**: the generic constraint check and the stop rule from the athlete's data in
   the guardrail, the planner context and prompt, the coach prompt and snapshot, bench scenarios
   (a physio's instruction, a pain, a correction, an issue resolved, two athletes with different
   limits on the same bank).
-- **Owner**: tells the coach about his own body, as any athlete would. As the bank's maintainer
-  today, he also decides when an athlete's description of an exercise becomes the shared one
+- **Maintainer**: tells the coach about their own body, as any athlete would. As the bank's
+  maintainer, also decides when an athlete's description of an exercise becomes the shared one
   (the coach can propose it, the profile page shows the differences); nothing else is filled in
   by hand.
 

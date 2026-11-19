@@ -2,7 +2,9 @@
 
 import math
 import os
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Literal
@@ -31,9 +33,24 @@ def timezone_name() -> str:
     return name
 
 
+# A coach turn answered as of another day (`lifter chat --today`, a bench scenario's date).
+_TODAY: ContextVar[date | None] = ContextVar("lifter_today", default=None)
+
+
 def today() -> date:
-    """The athlete's date now, in LIFTER_TIMEZONE (not the server's)."""
-    return datetime.now(ZoneInfo(timezone_name())).date()
+    """The athlete's date now, in LIFTER_TIMEZONE (not the server's), unless a turn runs as of
+    another day (`as_of`)."""
+    return _TODAY.get() or datetime.now(ZoneInfo(timezone_name())).date()
+
+
+@contextmanager
+def as_of(day: date) -> Iterator[None]:
+    """Python's `today()` is `day` inside the block (the database's: lifter.db.as_of)."""
+    token = _TODAY.set(day)
+    try:
+        yield
+    finally:
+        _TODAY.reset(token)
 
 
 def _int(env: Mapping[str, str], key: str, default: int) -> int:

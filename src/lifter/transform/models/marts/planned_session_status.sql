@@ -25,7 +25,7 @@ select
         when p.status = 'cancelled' then 'cancelled'
         when p.kind = 'rest' then 'rest'
         when g.activities is not null or p.id in (select id from logged) then 'done'
-        when p.day < current_date then 'missed'
+        when p.day < {{ athlete_today() }} then 'missed'
         else 'planned'
     end as status
 from {{ source('lifter', 'planned_session') }} p

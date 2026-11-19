@@ -44,6 +44,7 @@ from pydantic.fields import FieldInfo
 
 from lifter import domain
 from lifter.config import today as athlete_today
+from lifter.db import TODAY_SQL
 from lifter.domain import (
     DomainError,
     ExerciseIn,
@@ -59,7 +60,7 @@ from lifter.domain import (
     WeekIntent,
     rule_params,
 )
-from lifter.quote import verify_quote
+from lifter.quote import check_agreement, verify_quote
 
 # The change
 
@@ -549,7 +550,7 @@ def _ids(conn, sql: str, params: tuple = ()) -> set[int]:
 
 def _live_weeks(conn) -> set[int]:
     """The weeks not over yet: what a change of the rules or of the bank can still affect."""
-    return _ids(conn, "select id from training_week where start_date + 6 >= current_date")
+    return _ids(conn, f"select id from training_week where start_date + 6 >= {TODAY_SQL}")
 
 
 def _weeks_of(conn, column: str, row_id: int) -> set[int]:
@@ -2009,7 +2010,8 @@ def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> No
     """The suggestion picked is the one the athlete's words point to: the number of a
     suggestion this conversation showed that their message gives, or the only one shown when it
     gives none (another number, a load or a day, names no suggestion). "ok pour 12" never
-    accepts suggestion 13."""
+    accepts suggestion 13. And the message must accept it (`check_agreement`): "non", "pas
+    ok" or a question about something else accepts nothing."""
     (text,) = conn.execute(
         "select text from conversation_message where id = %s", (message_id,)
     ).fetchone()
@@ -2036,13 +2038,12 @@ def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> No
                 f"the athlete's message names {', '.join(map(str, sorted(named)))}, not"
                 f" suggestion {proposal_id}"
             )
-        return
-    count = len(pending)
-    if count > 1:
+    elif len(pending) > 1:
         raise OperationError(
-            f"{count} suggestions were shown and the athlete's message names none: ask which"
-            " number they accept"
+            f"{len(pending)} suggestions were shown and the athlete's message names none: ask"
+            " which number they accept"
         )
+    check_agreement(text, named=bool(named))
 
 
 Check = Literal["report", "confirm", "refuse"]
@@ -2182,7 +2183,8 @@ def run(
             "quote": quote,
             "message_id": message_id,
             "idempotency_key": idempotency_key,
-            "rationale": rationale or quote,
+            # Never the athlete's words: the API's read role sees rationales, not quotes
+            "rationale": rationale or f"{op.name}, as the athlete asked",
             "author": author,
         }
         _record(conn, change, model, trace=trace, proposal_id=proposal_id)
@@ -2245,7 +2247,8 @@ def request(
             raise OperationError(f"unknown operation: {name}")
         verify_quote(conn, message_id, quote, short_ok=op.short_quote)
         model = op.payload.model_validate(payload or {})
-        rationale = f"Asked: {quote}. To confirm: {'; '.join(reasons)}."
+        # The athlete's words stay out of it (the API's read role sees rationales, not quotes)
+        rationale = f"To confirm: {'; '.join(reasons)}."
         return conn.execute(
             "insert into proposal (kind, payload, rationale, author) values (%s, %s, %s,"
             " 'athlete') returning id",

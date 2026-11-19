@@ -581,6 +581,52 @@ def test_changing_an_exercises_flags_waits_but_its_name_does_not(conn, program):
     assert renamed.operation == "update_exercise"
 
 
+@pytest.mark.parametrize("answer", ["non", "pas ok", "et demain on fait quoi ?"])
+def test_a_confirmation_that_is_not_a_yes_applies_nothing(conn, program, answer):
+    sid = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    payload = {"id": sid, "expected_version": version(conn, "planned_session", sid)}
+    said = "supprime cette séance"
+    asked = operations.request(
+        conn,
+        "delete_session",
+        payload,
+        conversation_id="c1",
+        quote=said,
+        message_id=say(conn, said),
+        reasons=["it deletes the session with its parts and lines"],
+    )
+    coach_says(conn, f"Tu confirmes ? Réponds {asked}.", [asked])
+    with pytest.raises(QuoteError):
+        run(
+            conn,
+            "",
+            None,
+            conversation_id="c1",
+            quote=answer,
+            message_id=say(conn, answer),
+            idempotency_key=f"k{next(_keys)}",
+            author="coach",
+            proposal_id=asked,
+        )
+    assert conn.execute(
+        "select count(*) from planned_session where id = %s", (sid,)
+    ).fetchone() == (1,)
+    status = conn.execute("select status from proposal where id = %s", (asked,)).fetchone()
+    assert status == ("pending",)
+
+
+def test_no_rationale_holds_the_athletes_words(conn, program):
+    # The API's read role sees proposals' rationales, never their quotes (roles.sql)
+    said = "supprime la séance de lundi prochain"
+    sid = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    payload = {"id": sid, "expected_version": version(conn, "planned_session", sid)}
+    do(conn, "delete_session", payload, said)  # asked, recorded, then confirmed
+    note = {"title": "Genou", "text": "Pas de saut"}
+    do(conn, "add_coaching_note", note, "note que je ne saute plus")  # applied at once
+    rationales = [r[0] for r in conn.execute("select rationale from proposal")]
+    assert rationales and not any(said in r or "note que je ne saute plus" in r for r in rationales)
+
+
 def test_a_week_intent_is_text_only(conn, program):
     week = conn.execute(
         "select id, cycle_id, start_date, version from training_week order by number limit 1"

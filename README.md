@@ -170,7 +170,7 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 ```bash
 uv sync --locked --group dev
 uv run pre-commit install         # ruff (locked version) and gitleaks before each commit
-uv run pytest                     # needs a local Postgres 18 (TEST_DATABASE_URL)
+uv run pytest                     # TEST_DATABASE_URL: Postgres 18, creates lifter_* roles
 uv run mypy src/lifter            # type check (CI also gates branch coverage at 91 %)
 ```
 The code is written with an AI coding agent under the owner's direction. Each pull request has a

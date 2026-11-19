@@ -531,6 +531,24 @@ def test_a_destructive_operation_is_never_applied_on_the_first_message(conn, pro
     assert set(operations.CONFIRM) <= set(operations.CATALOGUE)  # no typo in the tier
 
 
+@pytest.mark.parametrize(
+    ("operation", "table"),
+    [("delete_week", "training_week"), ("delete_block", "block"), ("delete_cycle", "cycle")],
+)
+def test_deleting_a_programme_level_says_its_sessions_stay_and_they_do(
+    conn, program, operation, table
+):
+    row = conn.execute(f"select id from {table} order by id limit 1").fetchone()[0]
+    count = "select count(*), count(*) filter (where week_id is null) from planned_session"
+    sessions, without_week = conn.execute(count).fetchone()
+    payload = {"id": row, "expected_version": version(conn, table, row)}
+    with pytest.raises(operations.NeedsConfirmation, match="sessions stay in the calendar"):
+        do(conn, operation, payload, "supprime cette semaine", confirm=False)
+    do(conn, operation, payload, "supprime cette semaine")
+    after, after_without_week = conn.execute(count).fetchone()
+    assert after == sessions and after_without_week > without_week
+
+
 def test_a_week_intent_is_text_only(conn, program):
     week = conn.execute(
         "select id, cycle_id, start_date, version from training_week order by number limit 1"

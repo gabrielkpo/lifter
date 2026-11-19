@@ -149,9 +149,14 @@ CATALOGUE: dict[str, Operation] = {}
 # their next message (two words quoted from a message never suffice for these). A deletion that
 # takes other rows with it, the athlete's profile and rules, their health and method notes.
 CONFIRM: dict[str, str] = {
-    "delete_cycle": "it deletes the cycle with its blocks, weeks and sessions",
-    "delete_block": "it deletes the block with its weeks and sessions",
-    "delete_week": "it deletes the week with its sessions",
+    "delete_cycle": (
+        "it deletes the cycle with its blocks and weeks; its sessions stay in the calendar,"
+        " without a week"
+    ),
+    "delete_block": (
+        "it deletes the block with its weeks; their sessions stay in the calendar, without a week"
+    ),
+    "delete_week": "it deletes the week; its sessions stay in the calendar, without a week",
     "delete_session": "it deletes the session with its parts and lines",
     "delete_part": "it deletes the part with its lines",
     "delete_goal": "it deletes the goal with its milestones",
@@ -605,7 +610,9 @@ class CreateCycle(CycleFields):
 
 
 UpdateCycle = _partial("UpdateCycle", CycleFields, "Change a cycle: name, dates, notes, status.")
-DeleteCycle = _delete_model("DeleteCycle", "Delete a cycle with its blocks and weeks.")
+DeleteCycle = _delete_model(
+    "DeleteCycle", "Delete a cycle with its blocks and weeks; its sessions stay, without a week."
+)
 
 
 @_register("create_cycle", CreateCycle, ("cycle",))
@@ -653,7 +660,9 @@ class CreateBlock(BlockFields):
 
 
 UpdateBlock = _partial("UpdateBlock", BlockFields, "Change a block: dates, intent, target.")
-DeleteBlock = _delete_model("DeleteBlock", "Delete a block with its weeks.")
+DeleteBlock = _delete_model(
+    "DeleteBlock", "Delete a block with its weeks; their sessions stay, without a week."
+)
 
 
 @_register("create_block", CreateBlock, ("block",))

@@ -11,7 +11,7 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 | `com.lifter.sync` | 07:30 and 21:00 | `lifter sync --days 3 --no-migrate`: last three days from Garmin into the raw layer; the schema is only checked. Then `lifter audit-purge`: the agents' runs older than 90 days lose their context, plans and messages, and keep their metrics (ADR 0002) | `lifter_sync` (writes the raw layer only; may run the purge function, not read the audit) |
 | `com.lifter.sync-catchup` | every hour | `lifter-sync.sh --catch-up`: the same sync, only when the Mac is in use (keyboard or trackpad in the last 10 minutes) and the last successful sync is more than 12 hours old | `lifter_sync` |
 | `com.lifter.backup` | 13:00 | `pg_dump` of the whole database (custom format), kept 30 days, verified with `pg_restore --list` | `lifter_backup` (read-only) |
-| `com.lifter.restore-check` | Sunday 13:30 | fails when the latest backup is over 48 h old, else restores it into a throwaway local database and checks the core tables | none on the hosted side |
+| `com.lifter.restore-check` | Sunday 13:30 | fails when the latest backup is older than `LIFTER_BACKUP_MAX_AGE_HOURS` (48 h), else restores it into a throwaway local database and checks the core tables | none on the hosted side |
 
 The sync needs the Garmin MCP server up on `127.0.0.1:8080` (a Docker container: Docker
 Desktop must start at login), and the restore test needs the local Postgres server. A job

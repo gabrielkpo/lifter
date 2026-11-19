@@ -1,8 +1,9 @@
 #!/bin/bash
 # Weekly restore test, run by launchd: a backup only counts if it restores. Fails when the latest
 # dump is older than LIFTER_BACKUP_MAX_AGE_HOURS; otherwise restores it into a throwaway local
-# database, checks that the core tables are there and not empty, then drops it. Needs the local Postgres server running. Grants and row-level policies are left
-# out (they name the hosted roles); `lifter migrate` recreates them on a real restore.
+# database, checks that the core tables are there and not empty, then drops it. Needs the local
+# Postgres server running. Grants and row-level policies are left out (they name the hosted
+# roles); `lifter migrate` recreates them on a real restore.
 set -uo pipefail
 source "$(dirname "$0")/common.sh"
 stay_awake "$@"

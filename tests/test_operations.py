@@ -539,12 +539,14 @@ def test_deleting_a_programme_level_says_its_sessions_stay_and_they_do(
     conn, program, operation, table
 ):
     row = conn.execute(f"select id from {table} order by id limit 1").fetchone()[0]
-    sessions = conn.execute("select count(*) from planned_session").fetchone()[0]
+    count = "select count(*), count(*) filter (where week_id is null) from planned_session"
+    sessions, without_week = conn.execute(count).fetchone()
     payload = {"id": row, "expected_version": version(conn, table, row)}
     with pytest.raises(operations.NeedsConfirmation, match="sessions stay in the calendar"):
         do(conn, operation, payload, "supprime cette semaine", confirm=False)
     do(conn, operation, payload, "supprime cette semaine")
-    assert conn.execute("select count(*) from planned_session").fetchone()[0] == sessions
+    after, after_without_week = conn.execute(count).fetchone()
+    assert after == sessions and after_without_week > without_week
 
 
 def test_a_week_intent_is_text_only(conn, program):

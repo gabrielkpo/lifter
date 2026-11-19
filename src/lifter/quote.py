@@ -13,7 +13,9 @@ message: "ok" inside "pas ok" or "book" never counts.
 
 Known limit: a quote proves the athlete wrote those words, not what he meant ("ne décale pas
 jeudi" contains "décale"; quotes of two words or more must still be a contiguous run of his
-words). The coach's prompt and the bench's conversation scenarios cover intent.
+words). The coach's prompt and the bench's conversation scenarios cover intent. Accepting a
+pending change goes further (`check_agreement`): the athlete's message must say yes and hold no
+refusal, whatever words the coach quotes from it.
 
 This module lives outside `lifter.agents`: the operations catalogue imports it, and the domain
 does not depend on the agents.
@@ -114,6 +116,49 @@ def check_quote(quote: str, message: str, *, short_ok: bool = False) -> None:
     spans = list(_WORD.finditer(text))
     if all(_negated_at(spans, text, i) for i in found):
         raise QuoteError("the athlete's words are negated just before the quote")
+
+
+# Accepting a pending change takes an agreement, not just words of the athlete's message: one of
+# these, or the suggestion's number, and no refusal anywhere in the message. Compared lower-case.
+AGREEMENT = frozenset(
+    """
+    ok okay oui ouais ouaip yes yep yeah yup sure fine confirme confirmé confirmée confirm
+    confirmed accord daccord dac vas vasy go valide validé validée parfait top carrément allez
+    banco marche bon
+    """.split()
+)
+# Anywhere in the message, these turn it into a refusal or a doubt ("non merci", "pas ok",
+# "don't", "attends"), except in the set phrases below ("pas de souci").
+REFUSAL = frozenset("non no nope pas ne n not never jamais t stop attends wait".split())
+_NOT_A_REFUSAL = re.compile(
+    r"\b(pas de (souci|soucis|problème|problèmes|probleme|problemes|pb)|no (problem|worries))\b",
+    re.IGNORECASE,
+)
+
+
+def check_agreement(message: str, *, named: bool) -> None:
+    """Raise QuoteError unless the athlete's message accepts: an agreement word ("ok", "oui",
+    "je confirme", "vas-y") or the suggestion's number (`named`), and no refusal word ("non",
+    "pas", "attends") outside a set phrase such as "pas de souci". A question ("ok, et demain
+    ?") accepts only with the number; "non merci" never accepts, whatever words are quoted."""
+    text = _NOT_A_REFUSAL.sub(" ", normalize(message))
+    said = [w.lower() for w in _WORD.findall(text)]
+    refused = sorted({w for w in said if w in REFUSAL})
+    if refused:
+        raise QuoteError(
+            f"the athlete's message does not accept the change ({', '.join(refused)}):"
+            " ask again, or leave it pending"
+        )
+    if not named and "?" in text:
+        raise QuoteError(
+            "the athlete's message asks a question: it accepts nothing unless it gives the"
+            " change's number; answer it, and ask again"
+        )
+    if not named and not any(w in AGREEMENT for w in said):
+        raise QuoteError(
+            "the athlete's message does not say yes to the change (ok, oui, confirme, or its"
+            " number): ask again, or leave it pending"
+        )
 
 
 def verify_quote(

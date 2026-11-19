@@ -211,11 +211,17 @@ def test_the_command_imports_a_file_and_reports_each_item(
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.delenv("LIFTER_CHAT_DATABASE_URL", raising=False)
     monkeypatch.delenv("LIFTER_COACH_DATABASE_URL", raising=False)
-    assert main(["import", str(path)]) == 0
+    assert main(["import", str(path)]) == 0  # a preview first: nothing written
+    out = capsys.readouterr().out
+    assert "s-03-12: create_session to apply" in out and "3 to apply, nothing written" in out
+    assert conn.execute("select count(*) from change_log").fetchone() == (0,)
+    assert main(["import", str(path), "--apply"]) == 0
     out = capsys.readouterr().out
     assert "s-03-12: create_session applied" in out and "3 applied, 0 already there" in out
-    assert main(["import", str(path)]) == 0
+    assert main(["import", str(path), "--apply"]) == 0
     assert "0 applied, 3 already there" in capsys.readouterr().out
+    assert main(["import", str(path)]) == 0
+    assert "f-03-12: add_feedback already applied" in capsys.readouterr().out
 
     broken = tmp_path / "broken.yaml"
     broken.write_text("title: x\nitems: []\n", encoding="utf-8")
@@ -237,7 +243,7 @@ def test_the_command_imports_a_file_and_reports_each_item(
     }
     unknown.write_text(yaml.safe_dump({"title": "Inconnu", "items": [item]}), encoding="utf-8")
     for _ in range(2):  # stopped, not a traceback; the second run writes no second message
-        assert main(["import", str(unknown)]) == 1
+        assert main(["import", str(unknown), "--apply"]) == 1
         assert "stopped:" in capsys.readouterr().out
     said = "select count(*) from conversation_message where text = %s"
     assert conn.execute(said, (item["said"],)).fetchone() == (1,)
@@ -342,3 +348,28 @@ def test_an_item_undone_since_is_reported_and_names_nothing(conn, roles):
     with pytest.raises(operations.OperationError, match="undone since"):
         run_import(ImportFile.model_validate(LOG), chat, coach)  # the feedback names it
     assert conn.execute("select count(*) from feedback").fetchone() == (0,)
+
+
+def test_a_destructive_item_needs_to_be_allowed_by_name(
+    conn, database_url, tmp_path, monkeypatch, capsys
+):
+    from lifter.cli import main
+
+    load_program(conn, read_program(EXAMPLE))
+    item = {
+        "key": "d",
+        "said": "Supprime la note de méthode Échauffement",
+        "op": "delete_coaching_note",
+        "payload": {"id": 1, "expected_version": 1},
+    }
+    path = tmp_path / "log.yaml"
+    path.write_text(yaml.safe_dump({"title": "Ménage", "items": [item]}), encoding="utf-8")
+    monkeypatch.setattr("lifter.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    monkeypatch.delenv("LIFTER_CHAT_DATABASE_URL", raising=False)
+    monkeypatch.delenv("LIFTER_COACH_DATABASE_URL", raising=False)
+    assert main(["import", str(path)]) == 0  # the preview shows it
+    assert "d: delete_coaching_note to apply (needs --allow-destructive)" in capsys.readouterr().out
+    assert main(["import", str(path), "--apply"]) == 2
+    assert "d (delete_coaching_note)" in capsys.readouterr().out
+    assert conn.execute("select count(*) from conversation_message").fetchone() == (0,)

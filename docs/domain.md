@@ -71,7 +71,9 @@ done before the cycle, outside any week.
 
 ## Importing a log kept elsewhere
 
-A training log kept outside Lifter (a journal written by hand) gets in with `lifter import FILE`,
+A training log kept outside Lifter (a journal written by hand) gets in with `lifter import FILE`
+(a preview naming the database and each item's state; `--apply` writes, and an item the coach
+would have the athlete confirm, a deletion say, also needs `--allow-destructive`),
 through the coach's write path rather than around it: each item of the YAML file is one
 operation of `lifter.operations` with the athlete's own words for it (`said`), which is stored
 as their message in the import's conversation and quoted whole. Every change is then traced,

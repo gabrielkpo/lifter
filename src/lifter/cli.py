@@ -570,12 +570,13 @@ def _cannot_act_as_the_coach(settings: Settings) -> bool:
 def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
     """A log kept elsewhere, written through the coach's write path: traced, reversible."""
     import psycopg
+    from psycopg.conninfo import conninfo_to_dict
     from pydantic import ValidationError
 
     from lifter.agents.tools import register_rule_check
     from lifter.api.hosted import coach_urls
     from lifter.domain import DomainError
-    from lifter.importer import read_import, run_import
+    from lifter.importer import destructive, preview, read_import, run_import
     from lifter.quote import QuoteError
 
     try:
@@ -586,6 +587,23 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
     chat_url, coach_url = coach_urls(settings, hosted=False)
     if not (chat_url and coach_url):
         print("DATABASE_URL is not set (see .env.example)")
+        return 2
+    target = conninfo_to_dict(coach_url)
+    print(
+        printable(
+            f"database: {target.get('host') or 'local socket'}/{target.get('dbname', '')},"
+            f" {len(file.items)} item(s) in {args.file.name}"
+        )
+    )
+    risky = destructive(file)
+    if risky and args.apply and not args.allow_destructive:
+        print(
+            printable(
+                "these items delete or change what the athlete confirms through the coach:"
+                f" {', '.join(f'{i.key} ({i.op})' for i in risky)}; nothing written."
+                " Run again with --allow-destructive to import them"
+            )
+        )
         return 2
 
     def show(o):
@@ -602,6 +620,14 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
             if migrate_needed == (None,):
                 print("schema missing: run lifter migrate first")
                 return 2
+            if not args.apply:
+                states = preview(file, coach)
+                for item, state in states:
+                    flag = " (needs --allow-destructive)" if item in risky else ""
+                    print(printable(f"{item.key}: {item.op} {state}{flag}"))
+                todo = sum(state == "to apply" for _, state in states)
+                print(f"{todo} to apply, nothing written: run again with --apply to write them")
+                return 0
             register_rule_check()  # the athlete's rules, reported on each change
             outcomes = run_import(file, chat, coach, on_item=show)
     except (DomainError, QuoteError, ValidationError) as exc:  # an OperationError is a DomainError
@@ -1159,9 +1185,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     imp = sub.add_parser(
         "import",
-        help="write a log kept elsewhere (YAML) through the coach's write path, traced",
+        help="show, then with --apply write, a log kept elsewhere (YAML) through the coach's"
+        " write path, traced",
     )
     imp.add_argument("file", type=Path)
+    imp.add_argument(
+        "--apply", action="store_true", help="write the items (default: show what would be done)"
+    )
+    imp.add_argument(
+        "--allow-destructive",
+        action="store_true",
+        help="allow deletions and the changes the coach would ask the athlete to confirm",
+    )
     imp.set_defaults(func=cmd_import)
 
     runs = sub.add_parser("runs", help="print the last agent runs (audit log)")

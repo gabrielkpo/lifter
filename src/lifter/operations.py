@@ -13,13 +13,14 @@ previous state exactly (ids included).
 4. the operation is applied; a row whose version changed since the coach read it is refused;
 5. for an operation on the programme, the guardrail's violations on the weeks it touches are
    computed before and after. Everything stays modifiable when the athlete asks for it, in two
-   steps when it is risky: a destructive operation (`CONFIRM`), or a change that introduces a
-   violation, asked through the coach is not applied but refused with `NeedsConfirmation`; the
-   coach records it with `request` and the athlete confirms it in their next message, which
-   applies it and reports the violations (`Change.violations`). What the models propose of
-   their own stays checked: a coach's suggestion, even accepted, is refused if it introduces
-   one (and the planner's plans are checked by the agents). An accepted suggestion must be the
-   one the athlete's message numbers, when it numbers one or several were shown;
+   steps when it is risky: a deletion or another risky operation (`CONFIRM`, `CONFIRM_FIELDS`),
+   or a change that introduces a violation, asked through the coach is not applied but refused
+   with `NeedsConfirmation`; the coach records it with `request` and the athlete confirms it in
+   their next message, which applies it and reports the violations (`Change.violations`). What
+   the models propose of their own stays checked: a coach's suggestion, even accepted, is
+   refused if it introduces one (and the planner's plans are checked by the agents). An
+   accepted suggestion must be the one the athlete's message numbers, when it numbers one or
+   several were shown;
 6. the trace: one `proposal` row (applied, with the quote and the message) and one `change_log`
    row. The database refuses the coach's commit without them (009_write_path.sql), and an
    applied proposal's trace cannot be rewritten afterwards (011_trace_integrity.sql).
@@ -43,6 +44,7 @@ from pydantic.fields import FieldInfo
 
 from lifter import domain
 from lifter.config import today as athlete_today
+from lifter.db import TODAY_SQL
 from lifter.domain import (
     DomainError,
     ExerciseIn,
@@ -139,15 +141,24 @@ class Operation:
 
     @property
     def confirm(self) -> str | None:
-        """Why the athlete must confirm this operation asked through the coach, if they must."""
+        """Why the athlete must confirm this operation asked through the coach, if they must
+        whatever its payload. Every deletion must (a test holds the tier to it)."""
         return CONFIRM.get(self.name)
+
+    def confirm_for(self, payload: BaseModel) -> str | None:
+        """Why the athlete must confirm this operation with this payload, if they must."""
+        if self.confirm:
+            return self.confirm
+        field, reason = CONFIRM_FIELDS.get(self.name, (None, None))
+        return reason if field in payload.model_fields_set else None
 
 
 CATALOGUE: dict[str, Operation] = {}
 
-# Destructive operations: asked through the coach, applied only once the athlete confirms them in
-# their next message (two words quoted from a message never suffice for these). A deletion that
-# takes other rows with it, the athlete's profile and rules, their health and method notes.
+# Risky operations: asked through the coach, applied only once the athlete confirms them in their
+# next message (two words quoted from a message never suffice for these). Every deletion; what
+# changes a whole level of the programme; the athlete's profile and rules, their health and
+# method notes.
 CONFIRM: dict[str, str] = {
     "delete_cycle": (
         "it deletes the cycle with its blocks and weeks; its sessions stay in the calendar,"
@@ -163,11 +174,28 @@ CONFIRM: dict[str, str] = {
     "delete_exercise": "it deletes an exercise of the bank",
     "delete_health_issue": "it deletes a health issue",
     "delete_coaching_note": "it deletes a note of the athlete's method",
+    "delete_line": "it deletes a line of a session",
+    "delete_feedback": "it deletes the athlete's feedback on a session",
+    "delete_milestone": "it deletes a milestone of a goal",
+    "delete_record_definition": "it deletes a record with all its entries",
+    "delete_record_entry": "it deletes a logged result of a record",
+    "delete_annotation": "it deletes a note on an activity",
     "update_cycle": "it changes the whole cycle",
     "update_block": "it changes a whole block",
     "update_athlete": "it changes the athlete's profile",
     "update_rule": "it changes one of the athlete's rules",
     "deactivate_rule": "it switches off one of the athlete's rules",
+    "add_rule": "it adds a rule the coach must follow",
+    "update_health_issue": "it changes a health issue",
+    "resolve_health_issue": "it marks a health issue as resolved",
+    "update_coaching_note": "it changes a note of the athlete's method",
+}
+# Operations that need the athlete's confirmation only when they change this field.
+CONFIRM_FIELDS: dict[str, tuple[str, str]] = {
+    "update_exercise": (
+        "flags",
+        "it changes the exercise's flags, which the athlete's rules read to forbid exercises",
+    ),
 }
 
 _programme_check: tuple[Callable, Callable] | None = None
@@ -522,7 +550,7 @@ def _ids(conn, sql: str, params: tuple = ()) -> set[int]:
 
 def _live_weeks(conn) -> set[int]:
     """The weeks not over yet: what a change of the rules or of the bank can still affect."""
-    return _ids(conn, "select id from training_week where start_date + 6 >= current_date")
+    return _ids(conn, f"select id from training_week where start_date + 6 >= {TODAY_SQL}")
 
 
 def _weeks_of(conn, column: str, row_id: int) -> set[int]:
@@ -2146,8 +2174,9 @@ def run(
         elif author == "athlete":
             check = "report"
         else:
-            if op.confirm:
-                raise NeedsConfirmation([op.confirm])
+            reason = op.confirm_for(model)
+            if reason:
+                raise NeedsConfirmation([reason])
             check = "confirm"
         change = _apply_checked(conn, op, model, Context(source=source, quote=quote), check=check)
         trace = {

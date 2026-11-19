@@ -94,13 +94,14 @@ Two checks the operations catalogue runs before applying a change made by the co
   (`introduced(before, after)`), so a week that already broke a rule is not held against an
   unrelated change. Everything stays modifiable when the athlete asks for it, in two steps when
   it is risky. A change asked through the coach that introduces a violation, or a destructive
-  one (`operations.CONFIRM`: a deletion that takes other rows with it, the profile, the rules, a
-  health issue, a method note), is not applied: `operations.run` raises `NeedsConfirmation`,
-  `apply_change` records it with `operations.request` (a pending proposal authored by the
-  athlete, checked like `run`) and answers `needs_confirmation` with its id. The coach says why
-  it waits and the athlete confirms in their next message: then it is applied and the
-  violations come back with it (`Change.violations`). A suggestion of the coach, even accepted,
-  is refused for them. The athlete's own action (the app's Undo button) is applied at once.
+  one (`operations.CONFIRM`: every deletion, a whole cycle or block, the profile, the rules, a
+  health issue, a method note, an exercise's flags), is not applied: `operations.run` raises
+  `NeedsConfirmation`, `apply_change` records it with `operations.request` (a pending proposal
+  authored by the athlete, checked like `run`) and answers `needs_confirmation` with its id. The
+  coach says why it waits and the athlete confirms in their next message: then it is applied
+  and the violations come back with it (`Change.violations`). A suggestion of the coach, even
+  accepted, is refused for them. The athlete's own action (the app's Undo button) is applied at
+  once.
 - **The suggestion picked** is the one the athlete's message numbers, among the suggestions
   this conversation showed ("ok pour 12" never accepts 13); a number that is no such suggestion
   (a load, a day) names none. With no number it must be the only one the coach's last message

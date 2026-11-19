@@ -4,12 +4,12 @@ words for it, traced in the change log and reversible with `undo`, like a change
 
 The file (YAML) holds a conversation title and a list of items:
 
-    title: Journal from 20/10 to 10/11
+    title: Journal de mars
     items:
-      - key: s-2026-10-20           # unique in the file: re-running skips what was applied
-        said: "Mardi 20/10, cardio : 3000 m rameur, 3000 m ski erg, 20 min de mobilité"
-        op: log_session
-        ref: cardio-20              # optional: later payloads name its entity as "$cardio-20"
+      - key: s-03-12                # unique in the file: re-running skips what was applied
+        said: "Jeudi 12/03, push : bench 4x6 à 55 kg RIR 2, dips 3x6"
+        op: create_session
+        ref: push-12                # optional: later payloads name its entity as "$push-12"
         payload: {...}
 
 `said` is stored as the athlete's message in the import's conversation and quoted whole by the

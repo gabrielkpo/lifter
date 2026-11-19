@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { fromThisApp } from "@/lib/origin";
+import { messagePath, readPath, replacement } from "@/lib/proxy";
 
 // The app's server reads the Lifter API on behalf of the browser: the API's address, its
 // token and the Vercel protection bypass stay on the server, never in the page.
@@ -9,46 +10,6 @@ import { fromThisApp } from "@/lib/origin";
 const API_URL = process.env.LIFTER_API_URL ?? "http://127.0.0.1:8000";
 const API_TOKEN = process.env.LIFTER_API_TOKEN;
 const BYPASS = process.env.LIFTER_API_BYPASS;
-
-const ENDPOINTS = new Set([
-  "program",
-  "weeks",
-  "blocks",
-  "calendar",
-  "sessions",
-  "health",
-  "goals",
-  "profile",
-  "status",
-  "bests",
-  "history",
-  "conversations",
-]);
-const SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
-
-/** Where a message may go: a new conversation, one by its id, or the Undo of a change in one. */
-function messagePath(path: string[]): string | null {
-  if (path.length === 1 && path[0] === "conversations") {
-    return path[0];
-  }
-  if (
-    path.length === 2 &&
-    path[0] === "conversations" &&
-    SEGMENT.test(path[1])
-  ) {
-    return path.join("/");
-  }
-  // The Undo of a change, applied without the model.
-  if (
-    path.length === 3 &&
-    path[0] === "conversations" &&
-    SEGMENT.test(path[1]) &&
-    path[2] === "undo"
-  ) {
-    return path.join("/");
-  }
-  return null;
-}
 
 export const dynamic = "force-dynamic";
 // A coach's turn makes 1 to 8 model calls: the longest a function may run on Vercel's plan.
@@ -78,21 +39,10 @@ async function forward(url: string, init: RequestInit): Promise<NextResponse> {
       { status: 504 },
     );
   }
-  // Errors other than "not found", "invalid input" and the coach's own (a newer message, its
-  // budget or pace reached, its model or the database unavailable) are not passed through in
-  // detail, but a refusal (wrong token or protection bypass) stays distinct from a failure.
-  if (
-    upstream.status === 401 ||
-    upstream.status === 403 ||
-    (upstream.status >= 300 && upstream.status < 400)
-  ) {
-    return NextResponse.json(
-      { detail: "Lifter API refused the request" },
-      { status: 503 },
-    );
-  }
-  if (!upstream.ok && ![404, 409, 422, 429, 502, 503].includes(upstream.status)) {
-    return NextResponse.json({ detail: "Lifter API error" }, { status: 502 });
+  // Only the answers the app knows are passed through (lib/proxy).
+  const instead = replacement(upstream.status);
+  if (instead) {
+    return NextResponse.json({ detail: instead.detail }, { status: instead.status });
   }
   return new NextResponse(await upstream.text(), {
     status: upstream.status,
@@ -137,14 +87,11 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (
-    !ENDPOINTS.has(path[0]) ||
-    path.length > 2 ||
-    !path.every((s) => SEGMENT.test(s))
-  ) {
+  const target = readPath(path);
+  if (target === null) {
     return NextResponse.json({ detail: "not found" }, { status: 404 });
   }
-  return forward(`${API_URL}/${path.join("/")}${request.nextUrl.search}`, {
+  return forward(`${API_URL}/${target}${request.nextUrl.search}`, {
     headers: upstreamHeaders(),
   });
 }

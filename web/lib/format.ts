@@ -69,7 +69,7 @@ export function prescription(line: Line): string {
   return parts.join(" ");
 }
 
-/** The metcon header: "AMRAP 15 min · target 5 rounds". */
+/** The metcon header: "AMRAP · 15 min", "For time · 5 rounds". */
 export function partFormat(part: Part): string {
   const bits = [
     part.format && (part.format === "amrap" || part.format === "emom" ? part.format.toUpperCase() : label(part.format)),

@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   type FormEvent,
-  type ReactNode,
   Suspense,
   useCallback,
   useEffect,
@@ -17,6 +16,7 @@ import { HistoryIcon, NewChatIcon } from "@/components/icons";
 import TopBar from "@/components/TopBar";
 import { ApiError, getJson, postJson } from "@/lib/api";
 import { label } from "@/lib/format";
+import { blocks, type Span } from "@/lib/markdown";
 import type {
   ConversationChange,
   ConversationMessage,
@@ -73,92 +73,63 @@ function failure(error: unknown): string {
   }
 }
 
-/** **bold**, *italic* and `code` inside a line, as text: the model writes Markdown, nothing
- * of it is HTML. */
-function inline(text: string): ReactNode[] {
-  return text
-    .split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`)/g)
-    .map((piece, i) => {
-      if (piece.length > 4 && piece.startsWith("**") && piece.endsWith("**")) {
-        return <strong key={i}>{piece.slice(2, -2)}</strong>;
-      }
-      if (piece.length > 2 && piece.startsWith("*") && piece.endsWith("*")) {
-        return <em key={i}>{piece.slice(1, -1)}</em>;
-      }
-      if (piece.length > 2 && piece.startsWith("`") && piece.endsWith("`")) {
-        return <code key={i}>{piece.slice(1, -1)}</code>;
-      }
-      return piece;
-    });
+/** A run of text as React nodes: the Markdown is parsed (lib/markdown), nothing of it is HTML. */
+function SpanText({ parts }: { parts: Span[] }) {
+  return (
+    <>
+      {parts.map((span, i) => {
+        if (span.kind === "strong") return <strong key={i}>{span.text}</strong>;
+        if (span.kind === "em") return <em key={i}>{span.text}</em>;
+        if (span.kind === "code") return <code key={i}>{span.text}</code>;
+        return span.text;
+      })}
+    </>
+  );
 }
 
-type Item = { text: string; children: string[] };
-
-/** A reply's text: paragraphs, "#" titles, "- " and "1. " lists (one level of items under an
- * item, indented), **bold**, *italic* and `code`; anything else as written. */
+/** A reply's text: paragraphs, titles, lists and inline emphasis (lib/markdown). */
 function MessageText({ text }: { text: string }) {
-  const blocks: ReactNode[] = [];
-  let paragraph: string[] = [];
-  let items: Item[] = [];
-  let ordered = false;
-  const flush = () => {
-    if (paragraph.length) {
-      blocks.push(<p key={blocks.length}>{inline(paragraph.join("\n"))}</p>);
-      paragraph = [];
-    }
-    if (items.length) {
-      const List = ordered ? "ol" : "ul";
-      blocks.push(
-        <List key={blocks.length}>
-          {items.map((item, i) => (
-            <li key={i}>
-              {inline(item.text)}
-              {item.children.length > 0 && (
-                <ul>
-                  {item.children.map((child, j) => (
-                    <li key={j}>{inline(child)}</li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </List>,
-      );
-      items = [];
-    }
-  };
-  for (const line of text.split("\n")) {
-    const title = /^\s*#{1,6}\s+(.*)$/.exec(line);
-    const item = /^(\s*)(?:([-*•])|(\d+)[.)])\s+(.*)$/.exec(line);
-    if (title) {
-      flush();
-      blocks.push(
-        <p key={blocks.length} className="chat-heading">
-          <strong>{inline(title[1])}</strong>
-        </p>,
-      );
-    } else if (item) {
-      const [, indent, , number, words] = item;
-      if (indent.length >= 2 && items.length) {
-        items[items.length - 1].children.push(words);
-        continue;
-      }
-      if (
-        paragraph.length ||
-        (items.length && ordered !== (number !== undefined))
-      )
-        flush();
-      ordered = number !== undefined;
-      items.push({ text: words, children: [] });
-    } else if (!line.trim()) {
-      flush();
-    } else {
-      if (items.length) flush();
-      paragraph.push(line);
-    }
-  }
-  flush();
-  return <>{blocks}</>;
+  return (
+    <>
+      {blocks(text).map((block, i) => {
+        if (block.kind === "heading") {
+          return (
+            <p key={i} className="chat-heading">
+              <strong>
+                <SpanText parts={block.spans} />
+              </strong>
+            </p>
+          );
+        }
+        if (block.kind === "paragraph") {
+          return (
+            <p key={i}>
+              <SpanText parts={block.spans} />
+            </p>
+          );
+        }
+        const List = block.ordered ? "ol" : "ul";
+        return (
+          <List key={i}>
+            {block.items.map((item, j) => (
+              <li key={j}>
+                <SpanText parts={item.spans} />
+                {item.children.length > 0 && (
+                  <ul>
+                    {item.children.map((child, k) => (
+                      <li key={k}>
+                        <SpanText parts={child} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </List>
+        );
+      })}
+    </>
+  );
 }
 
 /**

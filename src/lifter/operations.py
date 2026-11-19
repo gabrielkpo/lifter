@@ -2183,7 +2183,8 @@ def run(
             "quote": quote,
             "message_id": message_id,
             "idempotency_key": idempotency_key,
-            "rationale": rationale or quote,
+            # Never the athlete's words: the API's read role sees rationales, not quotes
+            "rationale": rationale or f"{op.name}, as the athlete asked",
             "author": author,
         }
         _record(conn, change, model, trace=trace, proposal_id=proposal_id)
@@ -2246,7 +2247,8 @@ def request(
             raise OperationError(f"unknown operation: {name}")
         verify_quote(conn, message_id, quote, short_ok=op.short_quote)
         model = op.payload.model_validate(payload or {})
-        rationale = f"Asked: {quote}. To confirm: {'; '.join(reasons)}."
+        # The athlete's words stay out of it (the API's read role sees rationales, not quotes)
+        rationale = f"To confirm: {'; '.join(reasons)}."
         return conn.execute(
             "insert into proposal (kind, payload, rationale, author) values (%s, %s, %s,"
             " 'athlete') returning id",

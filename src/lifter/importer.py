@@ -282,3 +282,40 @@ def _message(chat: psycopg.Connection, coach: psycopg.Connection, cid: str, said
         ).fetchone()
     assert row is not None  # an insert ... returning gives its row
     return row[0]
+
+
+def destructive(file: ImportFile) -> list[Item]:
+    """The items that would wait for the athlete's confirmation if asked through the coach (a
+    deletion, a rule, a health issue...): an import applies them at once, so the command asks
+    for them by name (`--allow-destructive`)."""
+    risky = []
+    for item in file.items:
+        op = operations.CATALOGUE[item.op]
+        field = operations.CONFIRM_FIELDS.get(item.op, (None, ""))[0]
+        if op.confirm or (field is not None and field in item.payload):
+            risky.append(item)
+    return risky
+
+
+def preview(file: ImportFile, coach: psycopg.Connection) -> list[tuple[Item, str]]:
+    """What a run would do with each item, read-only: "to apply", "already applied", "undone
+    since", or why it would stop. References are resolved only when the import runs."""
+    cid = conversation_id(file)
+    states = []
+    for item in file.items:
+        done = coach.execute(
+            "select p.status, p.kind, m.text, p.undone_by is not null from proposal p"
+            " left join conversation_message m on m.id = p.message_id"
+            " where p.idempotency_key = %s",
+            (f"import:{cid}:{item.key}",),
+        ).fetchone()
+        if done is None:
+            state = "to apply"
+        elif done[0] != "applied" or done[1] != item.op:
+            state = f"stops: already recorded as {done[1]} {done[0]}"
+        elif done[2] != item.said:
+            state = "stops: this key was applied with other words"
+        else:
+            state = "undone since" if done[3] else "already applied"
+        states.append((item, state))
+    return states

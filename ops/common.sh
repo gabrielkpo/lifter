@@ -33,6 +33,8 @@ if [[ -z "${PG_BIN:-}" ]]; then
 fi
 LIFTER_BACKUP_DIR="${LIFTER_BACKUP_DIR:-$HOME/Library/Application Support/Lifter/backups}"
 LIFTER_BACKUP_KEEP_DAYS="${LIFTER_BACKUP_KEEP_DAYS:-30}"
+# The restore test fails when the latest dump is older than this: failed backups get noticed.
+LIFTER_BACKUP_MAX_AGE_HOURS="${LIFTER_BACKUP_MAX_AGE_HOURS:-48}"
 
 mkdir -p "$LIFTER_LOG_DIR"
 chmod 700 "$LIFTER_LOG_DIR"

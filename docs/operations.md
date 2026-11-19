@@ -89,11 +89,11 @@ audit context purged at 90 days (see the sync job) lives on in the dumps for up 
 
 ## Retention
 
-What the athlete said and what changed are kept without limit (owner's decision of 17/10,
-audit N11): the conversations (`conversation`, `conversation_message`), the quotes and rationales of the
-proposals, the change log with its rows before and after (`change_log`), and the health issues
-with the words that reported them. They are the history the coach and the athlete read back, and
-`undo` needs the change log. Only the agents' audit is purged: the context, plans and messages
+What the athlete said and what changed are kept without limit: the conversations
+(`conversation`, `conversation_message`), the quotes and rationales of the proposals, the change
+log with its rows before and after (`change_log`), and the health issues with the words that
+reported them. They are the history the coach and the athlete read back, and `undo` needs the
+change log. Only the agents' audit is purged: the context, plans and messages
 of a run go after 90 days, its metrics stay (see the sync job). The API's role cannot read the
 conversations, the change log, nor a proposal's result or the words that authorised it (`quote`,
 `message_id`): it reads only a proposal's other columns (`roles.sql`).

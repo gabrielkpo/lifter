@@ -1,4 +1,4 @@
--- The trace of an applied change cannot be rewritten (audit of 16/10, N6). The coach's role
+-- The trace of an applied change cannot be rewritten. The coach's role
 -- updates a proposal once, when it applies a pending suggestion (quote, message, key, result);
 -- after that, the quote that authorised the change and what it did are fixed. Only `undone_by`
 -- may still be set, by the undo that reverts it.

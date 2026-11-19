@@ -220,7 +220,7 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   one run of 3 stopped there before writing the record.
 
 - **The coaching notes (2026-10-20, `mistral-medium-latest`).** The snapshot carries the
-  coaching notes valid this week and the next (the method imported from Notion lives there), and
+  coaching notes valid this week and the next (the athlete's imported method lives there), and
   the prompt says to plan and advise from them and to write down what the athlete asks to keep.
   The bench athlete gets eight synthetic notes before every scenario, about 1,000 more input
   tokens per call. First pass on all nineteen scenarios: 50 runs of 57 fully met

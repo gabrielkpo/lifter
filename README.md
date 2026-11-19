@@ -146,12 +146,12 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 ## Limitations / next
 - The coach's figures are in-sample (see Results); a held-out scenario set comes before the next
   prompt change.
-- A coach turn sends about 10,000 tokens per model call, within 100,000 tokens a turn and
-  600,000 a day (both settings); prompt caching and a lighter snapshot are next.
-- Thresholds are version 1 heuristics for one athlete; baselines need 14 measured nights.
+- A coach turn sends about 10,000 tokens per model call, within 100,000 a turn and 600,000 a
+  day; prompt caching and a lighter snapshot are next.
+- Thresholds are first heuristics for one athlete; baselines need 14 measured nights.
 - One athlete per instance: sign-in by email and per-athlete data isolation are a later step.
-- The sync, the backup and the restore test run on the athlete's Mac
-  ([docs/operations.md](docs/operations.md)): no sync while the Mac is off.
+- The sync, backup and restore test run on the athlete's Mac
+  ([docs/operations.md](docs/operations.md)): no sync while it is off.
 
 ## Status / Roadmap
 | # | Step | Status |
@@ -168,7 +168,7 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 
 ## Development
 ```bash
-uv sync --group dev
+uv sync --locked --group dev
 uv run pre-commit install         # ruff (locked version) and gitleaks before each commit
 uv run pytest                     # needs a local Postgres 18 (TEST_DATABASE_URL)
 uv run mypy src/lifter            # type check (CI also gates branch coverage at 91 %)

@@ -1,9 +1,7 @@
 # ADR 0002: the coach — conversation as approval, the write path, and the agent team
 
-- Status: accepted (2026-10-16), validated by the project owner. The validation mode itself
-  (Decision 1) was decided by the owner the same day.
-- Scope: one document for the agents' behaviour and for the write path they use, written by the
-  agents session and the app session together.
+- Status: accepted (2026-10-16).
+- Scope: one document for the agents' behaviour and for the write path they use.
 
 ## Context
 
@@ -58,8 +56,8 @@ Every write tool runs the same path in code, in one transaction:
 
 1. **Quote check.** `quote` must appear, word for word, in a message **from the athlete** in the
    current conversation: the message being answered, i.e. the athlete's latest in it
-   (amended 17/10 after the audit, N1: "or the one before it" let an older message authorise a
-   change; "ok for 2" is itself the message being answered).
+   (amended 2026-10-17: "or the one before it" let an older message authorise a change;
+   "ok for 2" is itself the message being answered).
    The check reads that message **from the database**, by its `message_id`, server side: the
    conversation endpoint stores every athlete message in `conversation_message` (id, role, text,
    time) **before** the model runs. It never reads a copy supplied by the model or held in the
@@ -226,7 +224,7 @@ tokens. Otherwise the README reports the negative result and the single coach st
 
 ## Who builds what (after validation)
 
-| App session | Agents session |
+| App side | Agents side |
 |---|---|
 | The catalogue (`operations.py`, `domain.py`), one migration after 008 for `change_log`, `conversation_message`, the trace columns and the records table; the audit's retention (full context 90 days); `lifter_coach` and its grants with the matrix test; the deferred trigger and the immutable log; the coverage test; the hosted conversation endpoint and the Coach tab; the change history in the app | The tools generated from the catalogue; the quote check; the rule check at apply time; `undo` from the coach's side; the coach graph and its prompt; the specialists; the bench scenarios per entity type and per conversation case |
 

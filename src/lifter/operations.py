@@ -1733,7 +1733,7 @@ class NoteFields(StrictModel):
 
 class AddCoachingNote(NoteFields):
     """Write down part of the athlete's method, how he likes to train, a constraint or some
-    context (the weekly frame, the warm-up, "only 3 sessions until 15/11"...): one note per
+    context (the weekly frame, the warm-up, "only 3 sessions this month"...): one note per
     idea, permanent, or valid from and/or until a date. The coach and the planners read the
     notes valid on the day they plan."""
 

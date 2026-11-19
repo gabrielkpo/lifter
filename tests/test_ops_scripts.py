@@ -1,5 +1,6 @@
-"""The scheduled jobs' shell helpers (ops/common.sh): a time limit and keepalives."""
+"""The scheduled jobs' shell helpers (ops/common.sh) and the restore test's age check."""
 
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -58,3 +59,43 @@ def test_a_job_stopped_from_outside_stops_its_command(tmp_path):
     assert out.stdout.strip() == "143"
     time.sleep(3)
     assert not marker.exists()  # the command died with the job
+
+
+RESTORE_CHECK = COMMON.parent / "lifter-restore-check.sh"
+
+
+def restore_check(tmp_path: Path, dump_age_hours: float) -> tuple[int, str]:
+    """Run the restore test on one dump of the given age; the Postgres tools are stubs that fail,
+    so a dump that passes the age check stops at the restore."""
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    for tool in ("osascript", "dropdb", "createdb", "pg_restore", "psql"):
+        (stubs / tool).write_text("#!/bin/sh\nexit 1\n")
+        (stubs / tool).chmod(0o755)
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    dump = backups / "lifter-20260101-130000.dump"
+    dump.write_bytes(b"")
+    when = time.time() - dump_age_hours * 3600
+    os.utime(dump, (when, when))
+    env = {
+        "PATH": f"{stubs}:/usr/bin:/bin",
+        "HOME": str(tmp_path),
+        "LIFTER_AWAKE": "1",
+        "LIFTER_CONFIG_DIR": str(tmp_path / "config"),
+        "LIFTER_LOG_DIR": str(tmp_path / "logs"),
+        "LIFTER_BACKUP_DIR": str(backups),
+        "PG_BIN": str(stubs),
+    }
+    out = subprocess.run(["bash", str(RESTORE_CHECK)], env=env, timeout=60, check=False)
+    return out.returncode, (tmp_path / "logs" / "restore-check.log").read_text()
+
+
+def test_the_restore_test_fails_when_the_latest_backup_is_old(tmp_path):
+    code, log = restore_check(tmp_path, dump_age_hours=72)
+    assert code == 1 and "is older than 48 h" in log
+
+
+def test_a_recent_backup_goes_on_to_the_restore(tmp_path):
+    code, log = restore_check(tmp_path, dump_age_hours=1)
+    assert "older than" not in log and "restore-check: FAILED" in log  # the stubbed restore

@@ -601,9 +601,10 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
         return 3
     applied = sum(not o.skipped for o in outcomes)
     undone = sum(o.undone for o in outcomes)
+    since = f", {undone} undone since" if undone else ""
     print(
-        f"{applied} applied, {len(outcomes) - applied - undone} already there,"
-        f" {undone} undone since; undo each by its change"
+        f"{applied} applied, {len(outcomes) - applied - undone} already there{since};"
+        " undo each by its change"
     )
     return 0
 

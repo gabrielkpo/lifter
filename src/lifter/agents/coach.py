@@ -42,6 +42,7 @@ from lifter.agents.guardrail import forbidden_flags
 from lifter.agents.planner import Usage
 from lifter.agents.tools import ToolContext, coach_tools, register_rule_check
 from lifter.config import today as athlete_today
+from lifter.db import as_of
 
 AGENT = "coach"
 MAX_STEPS = 8
@@ -255,7 +256,7 @@ def snapshot(conn: psycopg.Connection, today: date, conversation_id: str | None 
             if line["part_id"] == part["id"]
         ]
     for session in sessions:
-        # status is the dbt mart's: "missed" is judged on the real date, not on `today`
+        # status is the dbt mart's, judged as of `today` (respond runs the turn as of that day)
         session["upcoming"] = session["day"] >= today and session["status"] not in UNMOVABLE
         session["parts"] = [
             {k: v for k, v in part.items() if k != "session_id" and v is not None}
@@ -415,7 +416,40 @@ def respond(
 
     Refused (StaleMessage) unless that message is the latest athlete message of
     `conversation_id`: every quote is checked against it, so an older message, or one from
-    another conversation, must never justify a change."""
+    another conversation, must never justify a change. With `today` (a bench scenario's date,
+    `lifter chat --today`), the whole turn runs as of that day: the sessions' statuses, the
+    rule checks and every "today" the operations read."""
+    kwargs = dict(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        model_name=model_name,
+        language=language,
+        trigger=trigger,
+        token_budget=token_budget,
+        max_steps=max_steps,
+        deadline_seconds=deadline_seconds,
+    )
+    if today is None:
+        return _respond(conn, model, today=athlete_today(), **kwargs)
+    with as_of(conn, today):
+        return _respond(conn, model, today=today, **kwargs)
+
+
+def _respond(
+    conn: psycopg.Connection,
+    model: ChatModel,
+    *,
+    conversation_id: str,
+    message_id: int,
+    model_name: str | None,
+    language: str,
+    today: date,
+    trigger: str | None,
+    token_budget: int | None,
+    max_steps: int,
+    deadline_seconds: float | None,
+) -> CoachReply:
+    """`respond`, on the day `today`."""
     latest = conn.execute(
         "select max(id) from public.conversation_message"
         " where conversation_id = %s and role = 'athlete'",
@@ -426,7 +460,6 @@ def respond(
             f"message {message_id} is not the athlete's latest in conversation"
             f" {conversation_id!r} (latest: {latest})"
         )
-    today = today or athlete_today()
     register_rule_check()
     started_at = datetime.now(UTC)
     started = _now()

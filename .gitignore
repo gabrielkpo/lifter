@@ -4,7 +4,7 @@
 # Garmin exports and any real health data stay out of Git
 data/
 *.dump
-# VibeWise learning profile (local only)
+# local tool state
 .vibe-wise/
 # python
 __pycache__/

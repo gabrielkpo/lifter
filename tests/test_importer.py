@@ -368,6 +368,8 @@ def test_a_destructive_item_needs_to_be_allowed_by_name(
     monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.delenv("LIFTER_CHAT_DATABASE_URL", raising=False)
     monkeypatch.delenv("LIFTER_COACH_DATABASE_URL", raising=False)
+    assert main(["import", str(path)]) == 0  # the preview shows it
+    assert "d: delete_coaching_note to apply (needs --allow-destructive)" in capsys.readouterr().out
     assert main(["import", str(path), "--apply"]) == 2
     assert "d (delete_coaching_note)" in capsys.readouterr().out
     assert conn.execute("select count(*) from conversation_message").fetchone() == (0,)

@@ -596,7 +596,7 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
         )
     )
     risky = destructive(file)
-    if risky and not args.allow_destructive:
+    if risky and args.apply and not args.allow_destructive:
         print(
             printable(
                 "these items delete or change what the athlete confirms through the coach:"
@@ -623,7 +623,8 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
             if not args.apply:
                 states = preview(file, coach)
                 for item, state in states:
-                    print(printable(f"{item.key}: {item.op} {state}"))
+                    flag = " (needs --allow-destructive)" if item in risky else ""
+                    print(printable(f"{item.key}: {item.op} {state}{flag}"))
                 todo = sum(state == "to apply" for _, state in states)
                 print(f"{todo} to apply, nothing written: run again with --apply to write them")
                 return 0

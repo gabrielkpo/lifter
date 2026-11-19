@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { PERMISSIONS_POLICY } from "./lib/csp";
 
 const nextConfig: NextConfig = {
   // No "X-Powered-By: Next.js" header.
@@ -15,6 +16,10 @@ const nextConfig: NextConfig = {
           // posts "Origin: null", and the server refuses a POST that is not from its own pages.
           { key: "Referrer-Policy", value: "same-origin" },
           { key: "X-Frame-Options", value: "DENY" },
+          { key: "Permissions-Policy", value: PERMISSIONS_POLICY },
+          // HTTPS only, for two years, on any domain the app is given (a browser ignores it
+          // over plain http, so local runs are unaffected).
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
         ],
       },
       {

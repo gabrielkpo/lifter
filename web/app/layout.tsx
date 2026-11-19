@@ -7,6 +7,10 @@ import Splash from "@/components/Splash";
 import TabBar from "@/components/TabBar";
 import "./globals.css";
 
+// Rendered for each request, so the scripts carry that request's CSP nonce (proxy.ts, lib/csp):
+// a page prerendered at build time would have none, and the policy would block it.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Lifter",
   description: "CrossFit coaching: the week, the sessions, PRs and recovery.",

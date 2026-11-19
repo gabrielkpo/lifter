@@ -214,3 +214,23 @@ def test_the_parts_count_of_the_mobility_check(conn, conversations):
     params = {"week": 3, "title": "Legs + Metcon", "kind": "mobility"}
     assert planned_line_in_part(conn, params)[0]
     assert not planned_line_in_part(conn, params | {"parts": 1})[0]
+
+
+def test_a_scenario_runs_as_of_its_own_day(conn, conversations):
+    from lifter import config
+    from lifter.bench.conversation import setup
+    from lifter.db import as_of
+
+    move = conversations["move_session"]
+    setup(conn, move)
+    status = (
+        "select status from planned_session_status where day > %s and kind <> 'rest'"
+        " order by day limit 1"
+    )
+    assert conn.execute(status, (move.today,)).fetchone() == ("missed",)  # the real date
+    assert operations._live_weeks(conn) == set()
+    with as_of(conn, move.today):
+        assert config.today() == move.today
+        assert conn.execute(status, (move.today,)).fetchone() == ("planned",)
+        assert operations._live_weeks(conn)
+    assert conn.execute(status, (move.today,)).fetchone() == ("missed",)

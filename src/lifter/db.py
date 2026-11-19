@@ -9,13 +9,16 @@ their grants).
 """
 
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from datetime import date
 from importlib import resources
 from typing import Any
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
+from lifter import config
 from lifter.config import ConfigError, timezone_name
 
 # Key of the analytics layer (the dbt project's hash) in public.schema_views.
@@ -25,6 +28,10 @@ LEGACY_VIEWS_KEY = "views.sql"
 # Roles and grants (RBAC). Applied after the views: recreating a view drops its grants.
 ROLES_FILE = "roles.sql"
 SEARCH_PATH = "analytics,public"
+# The athlete's date in SQL: the session's `lifter.today` when a turn runs as of another day
+# (`as_of`), else current_date, itself in the athlete's time zone (see `connect`). The dbt models
+# use the same expression (macro `athlete_today`).
+TODAY_SQL = "coalesce(nullif(current_setting('lifter.today', true), '')::date, current_date)"
 
 
 LOCAL_HOSTS = frozenset({"", "localhost", "127.0.0.1", "::1"})
@@ -78,6 +85,18 @@ def connect(url: str) -> psycopg.Connection:
     if sslmode := _tls(params):
         extra["sslmode"] = sslmode
     return psycopg.connect(make_conninfo(url, **extra), autocommit=True, options=options)
+
+
+@contextmanager
+def as_of(conn: psycopg.Connection, day: date) -> Iterator[None]:
+    """Inside the block, today is `day`, for Python (`lifter.config.today`) and for what `conn`
+    reads (`TODAY_SQL`, the sessions' statuses): a session after `day` is upcoming, not missed."""
+    conn.execute("select set_config('lifter.today', %s, false)", (day.isoformat(),))
+    try:
+        with config.as_of(day):
+            yield
+    finally:
+        conn.execute("select set_config('lifter.today', '', false)")
 
 
 def as_role(url: str, role: str) -> str:

@@ -60,7 +60,7 @@ from lifter.domain import (
     WeekIntent,
     rule_params,
 )
-from lifter.quote import verify_quote
+from lifter.quote import check_agreement, verify_quote
 
 # The change
 
@@ -2010,7 +2010,8 @@ def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> No
     """The suggestion picked is the one the athlete's words point to: the number of a
     suggestion this conversation showed that their message gives, or the only one shown when it
     gives none (another number, a load or a day, names no suggestion). "ok pour 12" never
-    accepts suggestion 13."""
+    accepts suggestion 13. And the message must accept it (`check_agreement`): "non", "pas
+    ok" or a question about something else accepts nothing."""
     (text,) = conn.execute(
         "select text from conversation_message where id = %s", (message_id,)
     ).fetchone()
@@ -2037,13 +2038,12 @@ def _named_by_athlete(conn, proposal_id: int, shown: int, message_id: int) -> No
                 f"the athlete's message names {', '.join(map(str, sorted(named)))}, not"
                 f" suggestion {proposal_id}"
             )
-        return
-    count = len(pending)
-    if count > 1:
+    elif len(pending) > 1:
         raise OperationError(
-            f"{count} suggestions were shown and the athlete's message names none: ask which"
-            " number they accept"
+            f"{len(pending)} suggestions were shown and the athlete's message names none: ask"
+            " which number they accept"
         )
+    check_agreement(text, named=bool(named))
 
 
 Check = Literal["report", "confirm", "refuse"]

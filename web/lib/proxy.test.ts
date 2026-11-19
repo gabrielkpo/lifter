@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fromThisApp } from "./origin.ts";
-import { messagePath, readPath, replacement } from "./proxy.ts";
+import { bodyRefused, MAX_BODY, messagePath, readCapped, readPath, replacement } from "./proxy.ts";
 
 test("a GET reads one of the API's endpoints, with at most one id", () => {
   assert.equal(readPath(["profile"]), "profile");
@@ -73,4 +73,29 @@ test("a POST counts as the app's own only with the app's origin", () => {
   for (const origin of [null, "null", "https://evil.example", "http://lifter.example", "https://lifter.example:8443"]) {
     assert.equal(fromThisApp(request(origin)), false, String(origin));
   }
+});
+
+test("a message is refused before it is read when its length is too long or odd", () => {
+  assert.equal(bodyRefused(null), false); // no header: read up to the limit instead
+  assert.equal(bodyRefused("120"), false);
+  assert.equal(bodyRefused(String(MAX_BODY)), false);
+  for (const length of ["", "abc", "-1", "1.5", "1e3", " 12", String(MAX_BODY + 1), "9999999999"]) {
+    assert.equal(bodyRefused(length), true, length);
+  }
+});
+
+const stream = (...parts: string[]) =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const part of parts) controller.enqueue(new TextEncoder().encode(part));
+      controller.close();
+    },
+  });
+
+test("a body is read up to the limit in bytes, and given up past it", async () => {
+  assert.equal(await readCapped(stream('{"text":', '"é 💪"}')), '{"text":"é 💪"}');
+  assert.equal(await readCapped(null), "");
+  assert.equal(await readCapped(stream("abc"), 3), "abc");
+  assert.equal(await readCapped(stream("ab", "cd"), 3), null);
+  assert.equal(await readCapped(stream("éé"), 3), null); // 4 bytes, 2 characters
 });

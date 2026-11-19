@@ -30,10 +30,37 @@ function track(delta: 1 | -1) {
   listeners.forEach((listener) => listener());
 }
 
+/** How long the page waits for the app's server, a little past the server's own limits
+ * (lib/proxy): a read, a message to the coach. */
+const READ_WAIT_MS = 20_000;
+const MESSAGE_WAIT_MS = 65_000;
+
+/** A fetch that gives up after `ms` (as a 504, like the server's own time limit), or when the
+ * caller's `signal` aborts (left as an abort). */
+async function fetchWithin(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const late = AbortSignal.timeout(ms);
+  // AbortSignal.any is recent (Safari 17.4): without it, the caller's signal alone.
+  const signal = !init.signal
+    ? late
+    : typeof AbortSignal.any === "function"
+      ? AbortSignal.any([init.signal, late])
+      : init.signal;
+  try {
+    return await fetch(url, { ...init, signal });
+  } catch (error) {
+    if (late.aborted && !init.signal?.aborted) throw new ApiError(504, "504 timed out");
+    throw error;
+  }
+}
+
 export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   track(1);
   try {
-    const response = await fetch(`${API_URL}${path}`, { signal, cache: "no-store" });
+    const response = await fetchWithin(
+      `${API_URL}${path}`,
+      { signal, cache: "no-store" },
+      READ_WAIT_MS,
+    );
     if (response.status === 401) signInAgain();
     if (!response.ok) {
       throw new ApiError(response.status, `${response.status} ${response.statusText}`);
@@ -48,12 +75,16 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   track(1);
   try {
-    const response = await fetch(`${API_URL}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
+    const response = await fetchWithin(
+      `${API_URL}${path}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      },
+      MESSAGE_WAIT_MS,
+    );
     if (response.status === 401) signInAgain();
     if (!response.ok) {
       throw new ApiError(

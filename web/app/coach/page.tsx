@@ -66,8 +66,13 @@ function failure(error: unknown): string {
       return "The coach's model did not answer. Your message is kept; try again.";
     case 503:
       return "The coach is unavailable right now (database or settings).";
-    case 504:
-      return "Cannot reach the Lifter API right now.";
+    case 504: {
+      // Past the time limit the API had the message and may still store the answer.
+      const late = error instanceof ApiError && /in time|timed out/.test(error.detail ?? error.message);
+      return late
+        ? "The coach took too long to answer. Your message may be kept: reload the conversation in a moment before sending it again."
+        : "Cannot reach the Lifter API right now.";
+    }
     default:
       return "The coach failed to answer. Try again in a moment.";
   }

@@ -61,3 +61,49 @@ export function replacement(status: number): { status: number; detail: string } 
   if ((status >= 200 && status < 300) || PASSED.has(status)) return null;
   return { status: 502, detail: "Lifter API error" };
 }
+
+/** The longest message the app forwards, in bytes: a coach message is at most 2,000
+ * characters, wrapped in JSON. */
+export const MAX_BODY = 8_000;
+
+/** How long the app's server waits for the API: a read is quick; a coach's turn makes 1 to 8
+ * model calls, and the function itself stops at 60 s (route.ts, maxDuration). */
+export const READ_TIMEOUT_MS = 15_000;
+export const MESSAGE_TIMEOUT_MS = 55_000;
+
+/** True when a message must be refused before its body is read: its Content-Length says more
+ * than `max` bytes, or is not a whole number. Without the header, the body is read up to the
+ * limit (readCapped). */
+export function bodyRefused(contentLength: string | null, max = MAX_BODY): boolean {
+  if (contentLength === null) return false;
+  if (!/^\d{1,9}$/.test(contentLength)) return true;
+  return Number(contentLength) > max;
+}
+
+/** The body as text, or null as soon as it passes `max` bytes: the rest is never read. */
+export async function readCapped(
+  body: ReadableStream<Uint8Array> | null,
+  max = MAX_BODY,
+): Promise<string | null> {
+  if (body === null) return "";
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}

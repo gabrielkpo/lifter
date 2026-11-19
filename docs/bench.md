@@ -83,9 +83,10 @@ uv run lifter bench --only knee_pain deload_week
 ```
 
 The bench database must be named `lifter_bench` or `lifter_bench_<suffix>` and differ from
-`DATABASE_URL`: the runner refuses anything else, since it empties every table. A pass stops
-before the next scenario once
-it has used `LIFTER_BENCH_TOKEN_BUDGET` tokens (1,000,000 by default; raise it for `--runs 3`),
+`DATABASE_URL`: the runner refuses anything else, since it empties every table. A pass of
+`bench` or `bench-chat` says how many scenarios and runs it plans, takes 1 to 10 `--runs`, and
+stops before the next scenario once it has used `LIFTER_BENCH_TOKEN_BUDGET` tokens (1,000,000 by
+default; raise it for `--runs 3`; a file written with `--out` says why it stopped early),
 and every run inside it is capped by `LIFTER_RUN_TOKEN_BUDGET` (docs/agents.md). The bench
 always sends the default `indicators` context and does not read `LIFTER_LLM_CONTEXT`: its
 athletes are synthetic, and every pass is measured on the same input.
@@ -220,7 +221,7 @@ a call from about 6,000 to about 8,000 tokens. The coach got there in nine round
   one run of 3 stopped there before writing the record.
 
 - **The coaching notes (2026-10-20, `mistral-medium-latest`).** The snapshot carries the
-  coaching notes valid this week and the next (the method imported from Notion lives there), and
+  coaching notes valid this week and the next (the athlete's imported method lives there), and
   the prompt says to plan and advise from them and to write down what the athlete asks to keep.
   The bench athlete gets eight synthetic notes before every scenario, about 1,000 more input
   tokens per call. First pass on all nineteen scenarios: 50 runs of 57 fully met

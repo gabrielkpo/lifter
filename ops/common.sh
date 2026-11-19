@@ -33,13 +33,15 @@ if [[ -z "${PG_BIN:-}" ]]; then
 fi
 LIFTER_BACKUP_DIR="${LIFTER_BACKUP_DIR:-$HOME/Library/Application Support/Lifter/backups}"
 LIFTER_BACKUP_KEEP_DAYS="${LIFTER_BACKUP_KEEP_DAYS:-30}"
+# The restore test fails when the latest dump is older than this: failed backups get noticed.
+LIFTER_BACKUP_MAX_AGE_HOURS="${LIFTER_BACKUP_MAX_AGE_HOURS:-48}"
 
 mkdir -p "$LIFTER_LOG_DIR"
 chmod 700 "$LIFTER_LOG_DIR"
 
 # A scheduled job often starts in a dark wake: on battery, macOS puts the Mac back to sleep within
 # seconds, the connection to the hosted database dies there, and the job fails a quarter of an
-# hour later (17 and 18/10). Each job runs itself again under caffeinate, which holds the Mac
+# hour later. Each job runs itself again under caffeinate, which holds the Mac
 # awake (idle sleep, and system sleep on power) until the job ends.
 stay_awake() {
   if [[ -z "${LIFTER_AWAKE:-}" ]]; then
@@ -49,7 +51,7 @@ stay_awake() {
 }
 
 # Someone used the keyboard or the trackpad in the last 10 minutes: the Mac is fully awake, not in
-# a dark wake that macOS ends within seconds on battery, whatever caffeinate asks (19/10).
+# a dark wake that macOS ends within seconds on battery, whatever caffeinate asks.
 user_active() {
   local idle
   idle=$(ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print int($NF / 1000000000); exit}')
@@ -64,9 +66,8 @@ notify_failure() {
 }
 
 # A job that hangs keeps its lock and caffeinate (the Mac never sleeps again) until someone
-# notices: on 16/11 the sync waited 13 hours on a dead connection. Each job command runs under a
-# time limit: TERM when it is reached, KILL 30 s later. Returns the command's exit code, 124 when
-# the limit stopped it. (macOS has no timeout command.)
+# notices. Each job command runs under a time limit: TERM when it is reached, KILL 30 s later.
+# Returns the command's exit code, 124 when the limit stopped it. (macOS has no timeout command.)
 run_with_timeout() {
   local limit=$1
   shift

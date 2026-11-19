@@ -135,6 +135,17 @@ def cmd_audit_purge(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+# A bench pass calls a paid model once per turn and run: a typo in --runs must not multiply it.
+MAX_RUNS = 10
+
+
+def _runs(value: str) -> int:
+    runs = int(value)
+    if not 1 <= runs <= MAX_RUNS:
+        raise argparse.ArgumentTypeError(f"runs must be between 1 and {MAX_RUNS}")
+    return runs
+
+
 def printable(value: object) -> str:
     """Text safe to print: control characters (terminal escapes, newlines) are shown escaped.
 
@@ -519,6 +530,43 @@ def _plan_lines(plan) -> list[str]:
     return out
 
 
+def _coach_database_error(settings: Settings, exc: Exception) -> str:
+    """What `lifter chat` and `lifter import` print for a database error. When DATABASE_URL may
+    not act as lifter_chat and lifter_coach, the error names the URLs to set; asked of the
+    database itself, since the server's message is in its own language and a refusal at
+    connection carries no error code."""
+    if _cannot_act_as_the_coach(settings):
+        return (
+            "database: permission denied to set role. The coach runs as lifter_chat and"
+            " lifter_coach: connect DATABASE_URL as a member of them, or set"
+            " LIFTER_CHAT_DATABASE_URL and LIFTER_COACH_DATABASE_URL"
+        )
+    return printable(f"database: {type(exc).__name__}: {exc}".strip())
+
+
+def _cannot_act_as_the_coach(settings: Settings) -> bool:
+    import psycopg
+
+    roles = [
+        role
+        for role, own_url in (
+            ("lifter_chat", settings.chat_database_url),
+            ("lifter_coach", settings.coach_database_url),
+        )
+        if not own_url
+    ]
+    if not (settings.database_url and roles):
+        return False
+    try:
+        with connect(settings.database_url) as conn:
+            return not all(
+                conn.execute("select pg_has_role(current_user, %s, 'SET')", (role,)).fetchone()[0]
+                for role in roles
+            )
+    except psycopg.Error:
+        return False
+
+
 def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
     """A log kept elsewhere, written through the coach's write path: traced, reversible."""
     import psycopg
@@ -557,7 +605,7 @@ def cmd_import(settings: Settings, args: argparse.Namespace) -> int:
         print(printable(f"stopped: {exc}"))
         return 1
     except psycopg.Error as exc:
-        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        print(_coach_database_error(settings, exc))
         return 3
     applied = sum(not o.skipped for o in outcomes)
     print(f"{applied} applied, {len(outcomes) - applied} already there, undo each by its change")
@@ -609,14 +657,7 @@ def cmd_chat(settings: Settings, args: argparse.Namespace) -> int:
         print(printable(f"Mistral API error: {exc}"))
         return 1
     except psycopg.Error as exc:
-        if "permission denied to set role" in str(exc):  # refused at connection (FATAL)
-            print(
-                "database: permission denied to set role. The coach runs as lifter_chat and"
-                " lifter_coach: connect DATABASE_URL as a member of them, or set"
-                " LIFTER_CHAT_DATABASE_URL and LIFTER_COACH_DATABASE_URL"
-            )
-            return 3
-        print(printable(f"database: {type(exc).__name__}: {exc}".strip()))
+        print(_coach_database_error(settings, exc))
         return 3
     out = [reply.text, ""]
     for change in reply.changes:
@@ -780,7 +821,7 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
         SilentCoach,
         as_dict,
         read_conversations,
-        run_conversation,
+        run_conversations,
         summary,
     )
 
@@ -818,37 +859,48 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
             printable(f"cannot reach the bench database ({exc}); create it: createdb lifter_bench")
         )
         return 2
-    results = []
+
+    def show(r):
+        failed = [o.check for o in r.outcomes if not o.passed]
+        print(
+            printable(
+                f"{r.scenario} #{r.run}: expectations {r.expectations_met}"
+                f"/{r.expectations}, {r.model_calls} call(s),"
+                f" {r.input_tokens + r.output_tokens} tokens"
+                + (f", refused quotes {r.refused_quotes}" if r.refused_quotes else "")
+                + (f", failed: {', '.join(failed)}" if failed else "")
+            )
+        )
+
+    turns = args.runs * sum(len(c.messages) for c in conversations)
+    print(
+        f"{len(conversations)} scenario(s) x {args.runs} run(s): {turns} coach turn(s),"
+        f" stopped once {settings.bench_token_budget} tokens are used"
+        " (LIFTER_BENCH_TOKEN_BUDGET)"
+    )
     with conn:
         migrate(conn)  # as `bench` does: a scenario's setup writes the latest tables
-        for conversation in conversations:
-            for r in run_conversation(
-                conn,
-                conversation,
-                make_model,
-                args.runs,
-                model_name=model_name,
-                language=settings.coach_language,
-                run_token_budget=settings.coach_token_budget,
-            ):
-                results.append(r)
-                failed = [o.check for o in r.outcomes if not o.passed]
-                print(
-                    printable(
-                        f"{r.scenario} #{r.run}: expectations {r.expectations_met}"
-                        f"/{r.expectations}, {r.model_calls} call(s),"
-                        f" {r.input_tokens + r.output_tokens} tokens"
-                        + (f", refused quotes {r.refused_quotes}" if r.refused_quotes else "")
-                        + (f", failed: {', '.join(failed)}" if failed else "")
-                    )
-                )
+        results, stopped = run_conversations(
+            conn,
+            conversations,
+            make_model,
+            args.runs,
+            token_budget=settings.bench_token_budget,
+            on_result=show,
+            model_name=model_name,
+            language=settings.coach_language,
+            run_token_budget=settings.coach_token_budget,
+        )
+    if stopped:
+        print(f"bench stopped early: {stopped}")
     totals = summary(results)
     print(printable(", ".join(f"{k}={v}" for k, v in totals.items())))
     if args.out:
         from lifter.agents.coach import SYSTEM_PROMPT
         from lifter.bench.runner import provenance, write_payload
 
-        names = [c.name for c in conversations]
+        ran = {r.scenario for r in results}  # a pass stopped early covers only these
+        names = [c.name for c in conversations if c.name in ran]
         measured = provenance(
             prompt=SYSTEM_PROMPT if args.coach == "mistral" else None,
             scenario_files=[args.scenarios / f"{n}.yaml" for n in names],
@@ -861,6 +913,7 @@ def cmd_bench_chat(settings: Settings, args: argparse.Namespace) -> int:
                 "coach": args.coach,
                 "model": model_name,
                 **measured,
+                "stopped_early": stopped,
                 "summary": totals,
                 "runs": [as_dict(r) for r in results],
             },
@@ -927,6 +980,10 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
             )
         )
 
+    print(
+        f"{len(scenarios)} scenario(s) x {args.runs} run(s), stopped once"
+        f" {settings.bench_token_budget} tokens are used (LIFTER_BENCH_TOKEN_BUDGET)"
+    )
     with conn:
         migrate(conn)
         results, stopped = run_bench(
@@ -945,14 +1002,15 @@ def cmd_bench(settings: Settings, args: argparse.Namespace) -> int:
         from lifter.agents.planner import SYSTEM_PROMPT
         from lifter.bench.runner import provenance
 
-        names = [s.name for s in scenarios]
+        ran = {r.scenario for r in results}  # a pass stopped early covers only these
+        names = [s.name for s in scenarios if s.name in ran]
         measured = provenance(
             prompt=SYSTEM_PROMPT if args.planner == "mistral" else None,
             scenario_files=[args.scenarios / f"{n}.yaml" for n in names],
             names=names,
             runs=args.runs,
         )
-        write_results(args.out, args.planner, model, results, measured)
+        write_results(args.out, args.planner, model, results, measured | {"stopped_early": stopped})
         print(f"results written to {args.out}")
     return 0
 
@@ -1107,7 +1165,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     bench = sub.add_parser("bench", help="run a planner on the evaluation bench's scenarios")
     bench.add_argument("--planner", choices=["copy", "mistral"], default="copy")
-    bench.add_argument("--runs", type=int, default=1, help="runs per scenario (default 1)")
+    bench.add_argument(
+        "--runs", type=_runs, default=1, help=f"runs per scenario, 1 to {MAX_RUNS} (default 1)"
+    )
     bench.add_argument("--only", nargs="*", help="scenario names (default: all)")
     bench.add_argument("--scenarios", type=Path, default=BENCH_DIR / "scenarios")
     bench.add_argument("--out", type=Path, help="write the results as JSON")
@@ -1117,7 +1177,9 @@ def build_parser() -> argparse.ArgumentParser:
         "bench-chat", help="run the coach on the bench's conversation scenarios"
     )
     chat_bench.add_argument("--coach", choices=["silent", "mistral"], default="silent")
-    chat_bench.add_argument("--runs", type=int, default=1, help="runs per scenario (default 1)")
+    chat_bench.add_argument(
+        "--runs", type=_runs, default=1, help=f"runs per scenario, 1 to {MAX_RUNS} (default 1)"
+    )
     chat_bench.add_argument("--only", nargs="*", help="scenario names (default: all)")
     chat_bench.add_argument("--scenarios", type=Path, default=BENCH_DIR / "conversations")
     chat_bench.add_argument("--out", type=Path, help="write the results as JSON")

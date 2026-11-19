@@ -1,8 +1,7 @@
--- The athlete's method as data (framing of the agents team, validated by the owner on 20/10,
--- brain projets/cadrage-lifter-equipe-agents): what lived in Notion's appendix (weekly frame,
--- block count, rules not coded, load progression, warm-up, what would invalidate the plan) and
--- what the athlete says about how he trains, for good or for a while. The coach and the
--- planners read the notes valid on the day they plan; the coach writes them through
+-- The athlete's method as data (ADR 0002): what a hand-kept plan holds besides its sessions
+-- (weekly frame, block count, rules not coded, load progression, warm-up, what would invalidate
+-- the plan) and what the athlete says about how they train, for good or for a while. The coach
+-- and the planners read the notes valid on the day they plan; the coach writes them through
 -- lifter.operations (quoted, traced, undone like any change).
 create table coaching_note (
     id bigserial primary key,

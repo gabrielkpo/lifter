@@ -581,6 +581,18 @@ def test_changing_an_exercises_flags_waits_but_its_name_does_not(conn, program):
     assert renamed.operation == "update_exercise"
 
 
+def test_no_rationale_holds_the_athletes_words(conn, program):
+    # The API's read role sees proposals' rationales, never their quotes (roles.sql)
+    said = "supprime la séance de lundi prochain"
+    sid = conn.execute("select id from planned_session order by id limit 1").fetchone()[0]
+    payload = {"id": sid, "expected_version": version(conn, "planned_session", sid)}
+    do(conn, "delete_session", payload, said)  # asked, recorded, then confirmed
+    note = {"title": "Genou", "text": "Pas de saut"}
+    do(conn, "add_coaching_note", note, "note que je ne saute plus")  # applied at once
+    rationales = [r[0] for r in conn.execute("select rationale from proposal")]
+    assert rationales and not any(said in r or "note que je ne saute plus" in r for r in rationales)
+
+
 def test_a_week_intent_is_text_only(conn, program):
     week = conn.execute(
         "select id, cycle_id, start_date, version from training_week order by number limit 1"

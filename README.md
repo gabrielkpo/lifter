@@ -59,8 +59,8 @@ sequenceDiagram
 Choices and their trade-offs:
 - **The athlete's words are the authority, checked by code, not the model's reading.** Every
   write is a typed operation that quotes the athlete's latest message, word for word. A quote
-  only proves the words exist, so destructive operations and changes that break the athlete's
-  rules take a second, numbered confirmation; the rest applies at once and can be undone
+  only proves the words exist, so deletions, sensitive edits and changes that break the athlete's
+  rules take a second confirmation; the rest applies at once and can be undone
   ([ADR 0002](docs/adr/0002-coach-write-path-and-agent-team.md)). The price: one more message
   for risky changes.
 - **Agents read numbers, they never compute them.** Metrics are defined once

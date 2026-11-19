@@ -270,11 +270,18 @@ def test_a_retry_racing_the_first_call_applies_nothing_twice(conn, database_url,
     outcome: list = []
     with connect(database_url) as first, connect(database_url) as second:
         with first.transaction():
-            run(first, "add_rule", {"text": "Pas de saut"}, **args)
+            run(first, "add_coaching_note", {"title": "Pas de saut", "text": "Pas de saut"}, **args)
 
             def retry():
                 try:
-                    outcome.append(run(second, "add_rule", {"text": "Pas de saut"}, **args))
+                    outcome.append(
+                        run(
+                            second,
+                            "add_coaching_note",
+                            {"title": "Pas de saut", "text": "Pas de saut"},
+                            **args,
+                        )
+                    )
                 except OperationError as exc:
                     outcome.append(exc)
 
@@ -285,9 +292,14 @@ def test_a_retry_racing_the_first_call_applies_nothing_twice(conn, database_url,
         thread.join(10)
     assert isinstance(outcome[0], OperationError) and "another call" in str(outcome[0])
     assert conn.execute(
-        "select count(*) from athlete_rule where text = 'Pas de saut'"
+        "select count(*) from coaching_note where text = 'Pas de saut'"
     ).fetchone() == (1,)
-    assert run(conn, "add_rule", {"text": "Pas de saut"}, **args).operation == "add_rule"
+    assert (
+        run(
+            conn, "add_coaching_note", {"title": "Pas de saut", "text": "Pas de saut"}, **args
+        ).operation
+        == "add_coaching_note"
+    )
 
 
 def test_the_profile_is_created_then_changed_at_its_version(conn, program):
@@ -302,15 +314,15 @@ def test_a_key_reused_for_another_operation_is_refused(conn, program):
     message = say(conn, "pas de saut, et note mon genou")
     run(
         conn,
-        "add_rule",
-        {"text": "Pas de saut"},
+        "add_coaching_note",
+        {"title": "Pas de saut", "text": "Pas de saut"},
         conversation_id="c1",
         quote="pas de saut",
         message_id=message,
         idempotency_key="same",
         author="coach",
     )
-    with pytest.raises(OperationError, match="was used for add_rule"):
+    with pytest.raises(OperationError, match="was used for add_coaching_note"):
         run(
             conn,
             "add_health_issue",
@@ -547,6 +559,26 @@ def test_deleting_a_programme_level_says_its_sessions_stay_and_they_do(
     do(conn, operation, payload, "supprime cette semaine")
     after, after_without_week = conn.execute(count).fetchone()
     assert after == sessions and after_without_week > without_week
+
+
+def test_every_deletion_waits_for_the_athletes_confirmation():
+    deletions = {name for name in operations.CATALOGUE if name.startswith("delete_")}
+    assert deletions - set(operations.CONFIRM) == set()
+
+
+def test_changing_an_exercises_flags_waits_but_its_name_does_not(conn, program):
+    ex = conn.execute("select id, version from exercise order by id limit 1").fetchone()
+    flags = {"id": ex[0], "expected_version": ex[1], "flags": ["impact"]}
+    with pytest.raises(operations.NeedsConfirmation, match="flags"):
+        do(conn, "update_exercise", flags, "ajoute le flag impact", confirm=False)
+    renamed = do(
+        conn,
+        "update_exercise",
+        {"id": ex[0], "expected_version": ex[1], "name": "Renamed lift"},
+        "renomme cet exercice",
+        confirm=False,
+    )
+    assert renamed.operation == "update_exercise"
 
 
 def test_a_week_intent_is_text_only(conn, program):
@@ -1191,7 +1223,12 @@ def test_the_coach_cannot_write_without_a_trace(conn, database_url, program):
 
 def test_an_applied_change_keeps_the_words_that_authorised_it(conn, database_url, program):
     # Audit N6: the coach's role may not rewrite the quote of a change already applied.
-    do(conn, "add_rule", {"text": "Pas de saut"}, "pas de saut cette semaine")
+    do(
+        conn,
+        "add_coaching_note",
+        {"title": "Pas de saut", "text": "Pas de saut"},
+        "pas de saut cette semaine",
+    )
     applied = conn.execute("select max(id) from proposal").fetchone()[0]
     with as_role(database_url, "lifter_coach") as coach:
         with pytest.raises(psycopg.errors.RaiseException, match="cannot change"):
@@ -1280,8 +1317,8 @@ def test_the_coach_writes_through_the_catalogue(conn, database_url, program):
     with as_role(database_url, "lifter_coach") as coach:
         run(
             coach,
-            "add_rule",
-            {"text": "Pas de saut"},
+            "add_coaching_note",
+            {"title": "Pas de saut", "text": "Pas de saut"},
             conversation_id="c1",
             quote="pas de saut cette semaine",
             message_id=message,
@@ -1293,7 +1330,7 @@ def test_the_coach_writes_through_the_catalogue(conn, database_url, program):
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             coach.execute("update raw_garmin_payload set payload = '{}'")
     assert conn.execute(
-        "select count(*) from athlete_rule where text = 'Pas de saut'"
+        "select count(*) from coaching_note where text = 'Pas de saut'"
     ).fetchone() == (1,)
 
 

@@ -13,6 +13,7 @@ from lifter.bench.conversation import (
     no_forbidden_suggestion,
     read_conversations,
     run_conversation,
+    run_conversations,
     summary,
 )
 
@@ -214,6 +215,24 @@ def test_the_parts_count_of_the_mobility_check(conn, conversations):
     params = {"week": 3, "title": "Legs + Metcon", "kind": "mobility"}
     assert planned_line_in_part(conn, params)[0]
     assert not planned_line_in_part(conn, params | {"parts": 1})[0]
+
+
+def test_a_conversation_pass_stops_before_a_scenario_once_its_budget_is_used(conn, conversations):
+    two = [conversations["forbidden_exercise"], conversations["add_mobility"]]
+    results, stopped = run_conversations(conn, two, SilentCoach, 1, token_budget=0)
+    assert results == [] and stopped == "token budget reached: 0 of 0, 2 scenario(s) left"
+    results, stopped = run_conversations(conn, two, SilentCoach, 1, token_budget=None)
+    assert [r.scenario for r in results] == ["forbidden_exercise", "add_mobility"]
+    assert stopped is None
+
+
+@pytest.mark.parametrize("command", ["bench", "bench-chat"])
+def test_a_bench_refuses_more_than_ten_runs_per_scenario(command, capsys):
+    from lifter.cli import main
+
+    with pytest.raises(SystemExit):
+        main([command, "--runs", "50"])
+    assert "runs must be between 1 and 10" in capsys.readouterr().err
 
 
 def test_a_scenario_runs_as_of_its_own_day(conn, conversations):

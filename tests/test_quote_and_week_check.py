@@ -245,10 +245,14 @@ def test_a_refusal_never_accepts_a_pending_change(message):
         check_agreement(f"{message} pour la 12", named=True)  # the number does not overrule
 
 
-@pytest.mark.parametrize("message", ["what about my bench tomorrow?", "et demain on fait quoi ?"])
+@pytest.mark.parametrize(
+    "message", ["what about my bench tomorrow?", "et demain on fait quoi ?", "ok, et demain ?"]
+)
 def test_a_message_about_something_else_accepts_nothing(message):
-    with pytest.raises(QuoteError, match="does not say yes"):
+    with pytest.raises(QuoteError, match="question"):
         check_agreement(message, named=False)
+    with pytest.raises(QuoteError, match="does not say yes"):
+        check_agreement("on verra demain", named=False)
 
 
 @pytest.mark.parametrize(

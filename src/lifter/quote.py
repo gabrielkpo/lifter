@@ -124,7 +124,7 @@ AGREEMENT = frozenset(
     """
     ok okay oui ouais ouaip yes yep yeah yup sure fine confirme confirmé confirmée confirm
     confirmed accord daccord dac vas vasy go valide validé validée parfait top carrément allez
-    banco marche bon d'accord
+    banco marche bon
     """.split()
 )
 # Anywhere in the message, these turn it into a refusal or a doubt ("non merci", "pas ok",
@@ -139,8 +139,8 @@ _NOT_A_REFUSAL = re.compile(
 def check_agreement(message: str, *, named: bool) -> None:
     """Raise QuoteError unless the athlete's message accepts: an agreement word ("ok", "oui",
     "je confirme", "vas-y") or the suggestion's number (`named`), and no refusal word ("non",
-    "pas", "attends") outside a set phrase such as "pas de souci". A question about something
-    else, or "non merci", never accepts a pending change, whatever words the coach quotes."""
+    "pas", "attends") outside a set phrase such as "pas de souci". A question ("ok, et demain
+    ?") accepts only with the number; "non merci" never accepts, whatever words are quoted."""
     text = _NOT_A_REFUSAL.sub(" ", normalize(message))
     said = [w.lower() for w in _WORD.findall(text)]
     refused = sorted({w for w in said if w in REFUSAL})
@@ -148,6 +148,11 @@ def check_agreement(message: str, *, named: bool) -> None:
         raise QuoteError(
             f"the athlete's message does not accept the change ({', '.join(refused)}):"
             " ask again, or leave it pending"
+        )
+    if not named and "?" in text:
+        raise QuoteError(
+            "the athlete's message asks a question: it accepts nothing unless it gives the"
+            " change's number; answer it, and ask again"
         )
     if not named and not any(w in AGREEMENT for w in said):
         raise QuoteError(

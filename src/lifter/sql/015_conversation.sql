@@ -1,5 +1,4 @@
--- Several conversations with the coach (framing validated by the owner on 19/10, brain
--- projets/cadrage-lifter-discussions): each has its own row, the app lists them and resumes any.
+-- Several conversations with the coach: each has its own row, the app lists them and resumes any.
 -- A message belongs to a conversation that exists: a mistyped id is refused instead of starting
 -- a conversation nobody listed. Nothing is ever deleted: the trace of every change points to the
 -- message that authorised it.

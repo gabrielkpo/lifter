@@ -1,6 +1,6 @@
--- The trace, hardened (closing audit of 16/10, low findings).
+-- The trace, hardened.
 -- 1. The change log is append-only for everyone, the owner included: rows before and after are
---    what `undo` rebuilds from, and the history is kept without limit (owner's decision, N11).
+--    what `undo` rebuilds from, and the history is kept without limit.
 -- 2. The trace check at commit applies to any role that acts with lifter_write's rights, however
 --    indirectly (a login role granted lifter_coach, say), not only direct members; the owner,
 --    who only administers that role, and a superuser are not the coach.

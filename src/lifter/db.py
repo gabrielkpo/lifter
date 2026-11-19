@@ -34,10 +34,9 @@ CLEAR_SSLMODES = frozenset({"disable", "allow", "prefer"})
 
 
 # A connection whose network path died (a Mac back from sleep, a dropped route) stays ESTABLISHED
-# on this side and a query waits for an answer that never comes: on 16/11 the scheduled sync
-# hung 13 hours and every backup failed from 13/11. TCP keepalives notice a dead peer within
-# about a minute (30 s idle, then 3 probes 10 s apart) and the query fails instead; a URL's own
-# values win.
+# on this side and a query waits for an answer that never comes, holding the job's lock. TCP
+# keepalives notice a dead peer within about a minute (30 s idle, then 3 probes 10 s apart) and
+# the query fails instead; a URL's own values win.
 KEEPALIVE = {
     "connect_timeout": "10",
     "keepalives": "1",

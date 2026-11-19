@@ -1,5 +1,5 @@
 -- Positions are unique within their parent, checked at commit rather than at each statement
--- (19/10: the coach could not undo the parts it had added). Inserting a part moves the ones
+-- (otherwise the coach could not undo the parts it had added). Inserting a part moves the ones
 -- after it down; undoing that moves them back while the inserted part is still there, so the
 -- order of the statements briefly holds two parts at one position. The final state is checked
 -- the same: at commit, positions are still unique.

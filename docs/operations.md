@@ -11,7 +11,7 @@ the Garmin MCP server stays on `127.0.0.1` and is never exposed; only the databa
 | `com.lifter.sync` | 07:30 and 21:00 | `lifter sync --days 3 --no-migrate`: last three days from Garmin into the raw layer; the schema is only checked. Then `lifter audit-purge`: the agents' runs older than 90 days lose their context, plans and messages, and keep their metrics (ADR 0002) | `lifter_sync` (writes the raw layer only; may run the purge function, not read the audit) |
 | `com.lifter.sync-catchup` | every hour | `lifter-sync.sh --catch-up`: the same sync, only when the Mac is in use (keyboard or trackpad in the last 10 minutes) and the last successful sync is more than 12 hours old | `lifter_sync` |
 | `com.lifter.backup` | 13:00 | `pg_dump` of the whole database (custom format), kept 30 days, verified with `pg_restore --list` | `lifter_backup` (read-only) |
-| `com.lifter.restore-check` | Sunday 13:30 | restores the latest backup into a throwaway local database and checks the core tables | none on the hosted side |
+| `com.lifter.restore-check` | Sunday 13:30 | fails when the latest backup is older than `LIFTER_BACKUP_MAX_AGE_HOURS` (48 h), else restores it into a throwaway local database and checks the core tables | none on the hosted side |
 
 The sync needs the Garmin MCP server up on `127.0.0.1:8080` (a Docker container: Docker
 Desktop must start at login), and the restore test needs the local Postgres server. A job
@@ -66,6 +66,7 @@ Environment variables of the jobs; any of them can go in the optional
 | `PG_BIN` | Homebrew's `postgresql@18/bin` (Apple silicon, else Intel prefix) | `pg_dump`, `pg_restore`, `createdb`, `psql` |
 | `LIFTER_BACKUP_DIR` | `~/Library/Application Support/Lifter/backups` | Dumps, read by the backup and the restore test |
 | `LIFTER_BACKUP_KEEP_DAYS` | `30` | Dumps older than this are deleted |
+| `LIFTER_BACKUP_MAX_AGE_HOURS` | `48` | The restore test fails when the latest dump is older |
 | `LIFTER_SYNC_DAYS` | `3` | Days fetched again by each sync |
 | `LIFTER_SYNC_TIMEOUT` | `1800` | Seconds after which a sync is stopped (logged, notified): a stuck one no longer keeps its lock and the Mac awake |
 | `LIFTER_BACKUP_TIMEOUT` | `1200` | Seconds after which a backup is stopped |
@@ -89,11 +90,11 @@ audit context purged at 90 days (see the sync job) lives on in the dumps for up 
 
 ## Retention
 
-What the athlete said and what changed are kept without limit (owner's decision of 17/10,
-audit N11): the conversations (`conversation`, `conversation_message`), the quotes and rationales of the
-proposals, the change log with its rows before and after (`change_log`), and the health issues
-with the words that reported them. They are the history the coach and the athlete read back, and
-`undo` needs the change log. Only the agents' audit is purged: the context, plans and messages
+What the athlete said and what changed are kept without limit: the conversations
+(`conversation`, `conversation_message`), the quotes and rationales of the proposals, the change
+log with its rows before and after (`change_log`), and the health issues with the words that
+reported them. They are the history the coach and the athlete read back, and `undo` needs the
+change log. Only the agents' audit is purged: the context, plans and messages
 of a run go after 90 days, its metrics stay (see the sync job). The API's role cannot read the
 conversations, the change log, nor a proposal's result or the words that authorised it (`quote`,
 `message_id`): it reads only a proposal's other columns (`roles.sql`).

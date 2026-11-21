@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.11.0](https://github.com/gabrielkpo/lifter/compare/v0.10.0...v0.11.0) (2026-11-21)
+
+
+### Features
+
+* lifter import shows what it would do and writes only with --apply ([#169](https://github.com/gabrielkpo/lifter/issues/169)) ([43a9fbf](https://github.com/gabrielkpo/lifter/commit/43a9fbfcfc2ec51b81a854ec2f360ab0aae7d9de))
+
+
+### Bug Fixes
+
+* a coach turn given a day runs as of that day, the bench's scenarios included ([#164](https://github.com/gabrielkpo/lifter/issues/164)) ([d33623d](https://github.com/gabrielkpo/lifter/commit/d33623d1495afe0acc331f53edfc16f414c94b50))
+* a pending change is accepted only by a message that says yes ([#165](https://github.com/gabrielkpo/lifter/issues/165)) ([12ea5a3](https://github.com/gabrielkpo/lifter/commit/12ea5a3a538857c61f44f41abb65890d230c9d3c))
+* deleting a week, block or cycle says its sessions stay in the calendar ([#155](https://github.com/gabrielkpo/lifter/issues/155)) ([6e5ccb3](https://github.com/gabrielkpo/lifter/commit/6e5ccb36b910de62c994e5501543f00084bb1efb))
+* every deletion and the sensitive edits wait for the athlete's confirmation ([#162](https://github.com/gabrielkpo/lifter/issues/162)) ([a45596a](https://github.com/gabrielkpo/lifter/commit/a45596a3a9e1112b8071e91335b4fb5f68121ca8))
+* lifter import says what is wrong in a file, writes no message twice, sees undone items ([#163](https://github.com/gabrielkpo/lifter/issues/163)) ([98f152d](https://github.com/gabrielkpo/lifter/commit/98f152dec8a85183ec9d934e6705a9929f734e5d))
+* rationales no longer copy the athlete's words ([#168](https://github.com/gabrielkpo/lifter/issues/168)) ([ec1833e](https://github.com/gabrielkpo/lifter/commit/ec1833e1d307ccfa9c1e9497404b785271351486))
+* the coach's role hint no longer depends on the server's language ([#158](https://github.com/gabrielkpo/lifter/issues/158)) ([32df585](https://github.com/gabrielkpo/lifter/commit/32df585ec38671cd121ed916717b90d45da5447a))
+* the conversation bench stops at a pass budget and caps its runs ([#161](https://github.com/gabrielkpo/lifter/issues/161)) ([cd434e5](https://github.com/gabrielkpo/lifter/commit/cd434e5bdf7f7dcc49b8afa4b863b52108ee16e0))
+* the restore test fails when the latest backup is over 48 hours old ([#157](https://github.com/gabrielkpo/lifter/issues/157)) ([1b875d0](https://github.com/gabrielkpo/lifter/commit/1b875d01f990f86e3d36ccbdd8af0178362fbac6))
+* **web:** a Content-Security-Policy with a nonce per request, Permissions-Policy and HSTS ([#170](https://github.com/gabrielkpo/lifter/issues/170)) ([0015bec](https://github.com/gabrielkpo/lifter/commit/0015bece3a3ecc17dda12078ca3a82b221bff97f))
+* **web:** a message's size is checked before it is read, and every call to the API has a time limit ([#167](https://github.com/gabrielkpo/lifter/issues/167)) ([6a86fbb](https://github.com/gabrielkpo/lifter/commit/6a86fbb4694f007fd6fb69440869ae7fd3dcc293))
+* **web:** Next.js 16.4.6, past the two cache disclosure advisories ([#154](https://github.com/gabrielkpo/lifter/issues/154)) ([92fabc6](https://github.com/gabrielkpo/lifter/commit/92fabc6193f7c8e5fe1e6dcde7be1cc6bbecf9a1))
+
+
+### Documentation
+
+* public comments and docs state the design reason, not its backstage ([#159](https://github.com/gabrielkpo/lifter/issues/159)) ([ea6973a](https://github.com/gabrielkpo/lifter/commit/ea6973ab73653af301811b60196076d52aa4ad3c))
+* the app's security headers, time limits and message size ([#171](https://github.com/gabrielkpo/lifter/issues/171)) ([bc9000e](https://github.com/gabrielkpo/lifter/commit/bc9000ed870907050e2e35b55d78644d6a4a7b94))
+* the import's example entry is synthetic ([#153](https://github.com/gabrielkpo/lifter/issues/153)) ([a7339fc](https://github.com/gabrielkpo/lifter/commit/a7339fce3728f493c733b61f73459f7c7aa81ca8))
+* the README opens with a two-minute demo on synthetic data ([#172](https://github.com/gabrielkpo/lifter/issues/172)) ([2e649b6](https://github.com/gabrielkpo/lifter/commit/2e649b67dc5b6ce06ed5b973587dc12d32610ac2))
+
 ## [0.10.0](https://github.com/gabrielkpo/lifter/compare/v0.9.0...v0.10.0) (2026-11-18)
 
 

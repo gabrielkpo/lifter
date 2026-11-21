@@ -9,7 +9,7 @@ A **CrossFit** coaching app for athletes who wear a Garmin watch, where the coac
 to: every change it makes quotes the athlete's own message, is checked by code, traced and
 reversible, and a destructive change waits for the athlete's confirmation.
 
-VIDEO_URL
+https://github.com/user-attachments/assets/2bd60da9-545c-4faa-8d52-8e482c014533
 
 *Two minutes on demo data: a synthetic athlete, not a real person.*
 

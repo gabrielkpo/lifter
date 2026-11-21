@@ -9,9 +9,13 @@ A **CrossFit** coaching app for athletes who wear a Garmin watch, where the coac
 to: every change it makes quotes the athlete's own message, is checked by code, traced and
 reversible, and a destructive change waits for the athlete's confirmation.
 
+https://github.com/user-attachments/assets/2bd60da9-545c-4faa-8d52-8e482c014533
+
+*Two minutes on demo data: a synthetic athlete, not a real person.*
+
 > **Status: in use, built in public.** Data layer, domain, app and the coach in conversation run
-> in production for one athlete; the week planner runs from the command line. The agent team and
-> the long term are next.
+> in production for one athlete; the week planner runs from the command line. The agent team is
+> next.
 > See [Status / Roadmap](#status--roadmap). Expect breaking changes before `v1.0.0`.
 
 ## Why
@@ -146,10 +150,10 @@ Every command: `uv run lifter --help`. The app (Node 22.18+): [docs/app.md](docs
 ## Limitations / next
 - The coach's figures are in-sample (see Results); a held-out scenario set comes before the next
   prompt change.
-- A coach turn sends about 10,000 tokens per model call, within 100,000 a turn and 600,000 a
-  day; prompt caching and a lighter snapshot are next.
+- A coach call sends about 10,000 tokens, within 100,000 a turn and 600,000 a day; caching
+  and a lighter snapshot are next.
 - Thresholds are first heuristics for one athlete; baselines need 14 measured nights.
-- One athlete per instance: sign-in by email and per-athlete data isolation are a later step.
+- One athlete per instance: email sign-in and per-athlete isolation come later.
 - The sync, backup and restore test run on the athlete's Mac
   ([docs/operations.md](docs/operations.md)): no sync while it is off.
 
